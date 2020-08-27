@@ -1,0 +1,20 @@
+{
+  "compilerOptions": {
+    "target": "es2020",
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "noImplicitAny": true,
+    "removeComments": false,
+    "sourceMap": false,
+    "declaration": true,
+    "experimentalDecorators": true,
+    "noEmitOnError": true,
+    "strict": true,
+    "strictNullChecks": false,
+    "rootDir": "src",
+    "outDir": "dist",
+    "lib": ["es2020", "dom"]
+  },
+  "exclude": ["src/**/*.stories.ts"],
+  "include": ["src/**/*.ts"]
+}

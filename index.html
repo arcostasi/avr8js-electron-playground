@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="ie=edge" />
+    <meta http-equiv="Content-Security-Policy" content="script-src 'self' 'unsafe-inline';"/>
+    <meta name="viewport" content="width=device-width,initial-scale=1"/>
+    <link rel="stylesheet" href="index.css">
+    <title>AVR8js Electron PlayGround</title>
+  </head>
+  <body>
+    <div class="app-container">
+      <div class="parent">
+        <div class="child">
+          <div class="leds draggable"  style="transform: translate(220px,0px)" data-x="220" data-y="0">
+            <wokwi-led color="red" pin="13" label="13"></wokwi-led>
+            <wokwi-led color="green" pin="12" label="12"></wokwi-led>
+            <wokwi-led color="blue" pin="11" label="11"></wokwi-led>
+            <wokwi-led color="yellow" pin="10" label="10"></wokwi-led>
+            <wokwi-led color="orange" pin="9" label="9"></wokwi-led>
+            <wokwi-led color="white" pin="8" label="8"></wokwi-led>
+          </div>
+          <div class="lcd draggable" style="transform: translate(50px,0px)" data-x="50" data-y="0">
+            <wokwi-lcd1602 pins="i2c" blink="true"></wokwi-lcd1602>
+          </div>
+          <div class="ssd1306 draggable" style="transform: translate(440px,-120px)" data-x="440" data-y="-120">
+            <wokwi-ssd1306></wokwi-ssd1306>
+          </div>
+          <div class="keypad draggable" style="transform: translate(60px,-90px)" data-x="60" data-y="-90">
+            <wokwi-membrane-keypad></wokwi-membrane-keypad>
+          </div>
+          <div class="neopixel draggable" style="transform: translate(400px,-340px)" data-x="400" data-y="-340">
+            <wokwi-neopixel-matrix cols="9" rows="9"></wokwi-neopixel-matrix>
+          </div>
+          <div class="servo draggable" style="transform: translate(50px,-250px)" data-x="50" data-y="-250">
+            <wokwi-servo angle="0"></wokwi-servo>
+          </div>
+          <div class="pushbutton draggable" style="transform: translate(280px,-335px)" data-x="280" data-y="-335">
+            <wokwi-pushbutton color="black" pin="2" label="2"></wokwi-pushbutton>
+          </div>
+          <div class="buzzer draggable" style="transform: translate(480px,-480px)" data-x="480" data-y="-480">
+            <wokwi-buzzer></wokwi-buzzer>
+          </div>
+          <div class="segment draggable" style="transform: translate(420px,-420px)" data-x="420" data-y="-420">
+            <wokwi-7segment digits="4"></wokwi-7segment>
+          </div>
+        </div>
+        <div class="child">
+          <div class="toolbar">
+            <button id="compile-button" class="btn btn-dark"><i class="icon ci-upload"></i> Compile</button>
+            <button id="run-button" class="btn btn-dark"><i class="icon ci-play-outline"></i> Run</button>
+            <button id="stop-button" class="btn btn-dark" disabled><i class="icon ci-pause-outline"></i> Stop</button>
+            <div class="spacer"></div>
+            <div class="status">
+              <span id="status-label">Simulation time: </span>
+              <i class="icon ci-stopwatch"></i> <span id="status-label-timer" class="color-white">00:00.000</span>
+              <i class="icon ci-timer"></i> <span id="status-label-speed" class="color-white">0%</span>
+            </div>
+          </div>
+          <div class="code-editor-container">
+            <div id="editor-container" class="code-editor"></div>
+          <div class="toolbar">
+            <button id="clear-button" class="btn btn-dark"><i class="icon ci-more"></i> Clear</button>
+            <div class="spacer"></div>
+          </div>
+            <div class="runner-output">
+              <pre id="runner-output-text"></pre>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <script>
+      require('./node_modules/@wokwi/elements/dist/wokwi-elements.bundle.min.js')
+      require('./dist/app/app.js')
+      require('./js/interact-dragging.js')
+    </script>
+    <!-- You can also require other files to run in this process -->
+    <script src="./node_modules/monaco-editor/min/vs/loader.js"></script>
+    <script src="./js/monaco-editor.js"></script>
+  </body>
+</html>

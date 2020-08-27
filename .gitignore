@@ -1,0 +1,7 @@
+.cache
+.history
+.idea
+.vscode
+node_modules
+dist
+*.log

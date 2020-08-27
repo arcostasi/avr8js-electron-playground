@@ -1,0 +1,25 @@
+{
+  "name": "avr8js-electron-ts",
+  "version": "0.11.0",
+  "author": "AR2 Labs",
+  "license": "CC0-1.0",
+  "description": "A Electron implementation with Typescript of the AVR 8-bit architecture",
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc -w",
+    "start": "electron ./dist/app/main.js",
+    "dev": "tsc && electron ./dist/app/main.js"
+  },
+  "dependencies": {
+    "@wokwi/elements": "^0.25.0",
+    "avr8js": "^0.11.0",
+    "custom-electron-titlebar": "^3.2.4",
+    "electron": "^9.2.1",
+    "interactjs": "^1.9.22",
+    "lit-html": "^1.3.0",
+    "monaco-editor": "^0.20.0"
+  },
+  "devDependencies": {
+    "typescript": "^4.0.2"
+  }
+}

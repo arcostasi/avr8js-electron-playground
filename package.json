@@ -11,7 +11,7 @@
     "dev": "tsc && electron ./dist/app/main.js"
   },
   "dependencies": {
-    "@wokwi/elements": "^0.27.1",
+    "@wokwi/elements": "^0.27.2",
     "avr8js": "^0.11.2",
     "custom-electron-titlebar": "^3.2.4",
     "electron": "^9.3.0",

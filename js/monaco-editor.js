@@ -38,8 +38,3 @@ readTextFile = function(file, ext = 'cpp')
 
   rawFile.send();
 }
-
-createTab = function(label, fn) {
-  document.getElementById("editor-tab").innerHTML +=
-    '<button class="btn-white" onclick="' + fn + '">' + label + "</button>\n";
-}

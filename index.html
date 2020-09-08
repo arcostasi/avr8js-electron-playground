@@ -29,19 +29,22 @@
           <div class="keypad draggable" style="transform: translate(60px,-90px)" data-x="60" data-y="-90">
             <wokwi-membrane-keypad></wokwi-membrane-keypad>
           </div>
-          <div class="neopixel draggable" style="transform: translate(400px,-340px)" data-x="400" data-y="-340">
-            <wokwi-neopixel-matrix cols="9" rows="9"></wokwi-neopixel-matrix>
+          <div class="neopixel draggable" style="transform: translate(400px,-420px)" data-x="400" data-y="-420">
+            <wokwi-neopixel-matrix cols="16" rows="16"></wokwi-neopixel-matrix>
           </div>
-          <div class="servo draggable" style="transform: translate(50px,-250px)" data-x="50" data-y="-250">
+          <div class="servo draggable" style="transform: translate(50px,-350px)" data-x="50" data-y="-350">
             <wokwi-servo angle="0"></wokwi-servo>
           </div>
-          <div class="pushbutton draggable" style="transform: translate(280px,-335px)" data-x="280" data-y="-335">
+          <div class="pushbutton draggable" style="transform: translate(280px,-435px)" data-x="280" data-y="-435">
             <wokwi-pushbutton color="black" pin="2" label="2"></wokwi-pushbutton>
           </div>
-          <div class="buzzer draggable" style="transform: translate(480px,-480px)" data-x="480" data-y="-480">
+          <div class="buzzer draggable" style="transform: translate(420px,-580px)" data-x="420" data-y="-580">
             <wokwi-buzzer></wokwi-buzzer>
           </div>
-          <div class="segment draggable" style="transform: translate(420px,-420px)" data-x="420" data-y="-420">
+          <div class="dht22 draggable" style="transform: translate(540px,-680px)" data-x="540" data-y="-680">
+            <wokwi-dht22 pin="2"></wokwi-dht22>
+          </div>
+          <div class="segment draggable" style="transform: translate(420px,-640px)" data-x="420" data-y="-640">
             <wokwi-7segment digits="4"></wokwi-7segment>
           </div>
         </div>
@@ -57,6 +60,7 @@
               <i class="icon ci-timer"></i> <span id="status-label-speed" class="color-white">0%</span>
             </div>
           </div>
+          <div id="editor-tab"></div>
           <div class="code-editor-container">
             <div id="editor-container" class="code-editor"></div>
           <div class="toolbar">
@@ -78,5 +82,6 @@
     <!-- You can also require other files to run in this process -->
     <script src="./node_modules/monaco-editor/min/vs/loader.js"></script>
     <script src="./js/monaco-editor.js"></script>
+    <script src="./js/examples.js"></script>
   </body>
 </html>

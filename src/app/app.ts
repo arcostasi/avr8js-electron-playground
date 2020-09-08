@@ -271,4 +271,3 @@ function clearOutput() {
 new Titlebar({
     backgroundColor: Color.fromHex('#444')
 });
-

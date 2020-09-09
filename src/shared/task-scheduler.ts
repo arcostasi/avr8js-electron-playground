@@ -1,5 +1,12 @@
-// Faster setTimeout(fn, 0) implementation using postMessage API
-// Based on https://dbaron.org/log/20100309-faster-timeouts
+/**
+ * MicroTaskScheduler
+ * Part of AVR8js
+ *
+ * Copyright (C) 2019, Uri Shaked
+ *
+ * Faster setTimeout(fn, 0) implementation using postMessage API
+ * Based on https://dbaron.org/log/20100309-faster-timeouts
+ */
 export type IMicroTaskCallback = () => void;
 
 export class MicroTaskScheduler {

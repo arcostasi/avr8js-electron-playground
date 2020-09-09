@@ -1,3 +1,9 @@
+/**
+ * AVRRunner
+ * Part of AVR8js
+ *
+ * Copyright (C) 2019, Uri Shaked
+ */
 import {
   avrInstruction,
   AVRTimer,

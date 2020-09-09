@@ -1,3 +1,9 @@
+/**
+ * Speaker
+ * Part of AVR8js
+ *
+ * Copyright (C) 2019, Uri Shaked
+ */
 import { ICPU } from 'avr8js';
 
 const SAMPLE_RATE = 44100;

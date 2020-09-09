@@ -1,3 +1,9 @@
+/**
+ * I2CBus
+ * Part of AVR8js
+ *
+ * Copyright (C) 2019, Uri Shaked
+ */
 import { AVRTWI, TWIEventHandler } from 'avr8js';
 
 export interface I2CDevice {

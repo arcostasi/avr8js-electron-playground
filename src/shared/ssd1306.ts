@@ -1,3 +1,9 @@
+/**
+ * SSD1306
+ * Part of AVR8js
+ *
+ * Copyright (C) 2019, Uri Shaked
+ */
 import { I2CDevice } from "./i2c-bus";
 
 // Datasheet: https://cdn-shop.adafruit.com/datasheets/SSD1306.pdf

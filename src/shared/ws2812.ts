@@ -1,3 +1,9 @@
+/**
+ * WS2812Controller
+ * Part of AVR8js
+ *
+ * Copyright (C) 2019, Uri Shaked
+ */
 import { PinState } from 'avr8js';
 
 const ZERO_HIGH = 400; // ±150ns

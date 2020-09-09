@@ -1,4 +1,7 @@
-// https://www.arduino.cc/en/Tutorial/toneMelody
+/**
+ * PITCHES
+ * Part of https://www.arduino.cc/en/Tutorial/toneMelody
+ */
 export const PITCHES_H = `
 /*************************************************
  * Public Constants

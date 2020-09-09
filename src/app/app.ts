@@ -70,7 +70,6 @@ const buzzer = document.querySelector<BuzzerElement>(
   "wokwi-buzzer"
 );
 
-
 // Set up toolbar
 let runner: AVRRunner;
 
@@ -99,7 +98,7 @@ function executeProgram(hex: string) {
 
   // Hook to PORTB register
   runner.portB.addListener(value => {
-    [].forEach.call(leds, function(led: LEDElement) {
+    leds.forEach(function(led) {
       const pin = parseInt(led.getAttribute("pin"), 10);
       led.value = value & (1 << (pin - 8)) ? true : false;
     });
@@ -115,17 +114,6 @@ function executeProgram(hex: string) {
     // Feed the speaker
     // runner.speaker.feed(runner.portD.pinState(7));
     // buzzer.hasSignal = runner.portD.pinState(7) == PinState.High;
-
-    // Feed the servo
-    const pin6State = runner.portD.pinState(6);
-
-    if (pin6State === PinState.High) {
-      if (servo.angle < 90)
-        servo.angle += 1;
-    } else {
-      if (servo.angle >= 0)
-        servo.angle -= 1;
-    }
 
     // Feed the  matrix
     matrixController.feedValue(runner.portD.pinState(3), cpuNanos());

@@ -1,3 +1,9 @@
+/**
+ * CPU Performance
+ * Part of AVR8js
+ *
+ * Copyright (C) 2019, Uri Shaked
+ */
 import { ICPU } from 'avr8js';
 
 export class CPUPerformance {

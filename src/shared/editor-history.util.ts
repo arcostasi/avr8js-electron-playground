@@ -1,3 +1,9 @@
+/**
+ * Editor History Util
+ * Part of AVR8js
+ *
+ * Copyright (C) 2019, Uri Shaked
+ */
 const AVRJS8_EDITOR_HISTORY = 'AVRJS8_EDITOR_HISTORY';
 
 export class EditorHistoryUtil {

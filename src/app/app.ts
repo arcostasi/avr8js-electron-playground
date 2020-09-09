@@ -70,8 +70,19 @@ const buzzer = document.querySelector<BuzzerElement>(
   "wokwi-buzzer"
 );
 
+// Set up the NeoPixel canvas
+const canvas = document.querySelector("canvas");
+const context = canvas.getContext("2d");
+
+const cols = 16;
+const rows = 16;
+
+const pixSize = canvas.height / rows;
+
 // Set up toolbar
 let runner: AVRRunner;
+
+let board = 'uno';
 
 function executeProgram(hex: string) {
 
@@ -147,19 +158,7 @@ function executeProgram(hex: string) {
 
     // Update NeoPixel matrix
     const pixels = matrixController.update(cpuNanos());
-
-    if (pixels) {
-      for (let row = 0; row < matrix.rows; row++) {
-        for (let col = 0; col < matrix.cols; col++) {
-          const value = pixels[row * matrix.cols + col];
-          matrix.setPixel(row, col, {
-            b: (value & 0xff) / 255,
-            r: ((value >> 8) & 0xff) / 255,
-            g: ((value >> 16) & 0xff) / 255
-          });
-        }
-      }
-    }
+    pixelsUpdate(pixels);
 
     pwmHighCycles = 0;
 
@@ -184,8 +183,8 @@ async function compileAndRun() {
     statusLabelSpeed.textContent = '0%';
 
     const result = await buildHex(getEditor().getValue(), [
-      { name: "pitches.h", content: PITCHES_H }
-    ]);
+      // { name: "pitches.h", content: PITCHES_H  }
+    ], board);
 
     runnerOutputText.textContent = result.stderr || result.stdout;
 
@@ -241,6 +240,31 @@ function stopCode() {
     runner = null;
 
     statusLabel.textContent = 'Stop simulation: ';
+  }
+}
+
+function pixelsUpdate(pixels: any) {
+  if (pixels) {
+    for (let row = 0; row < matrix.rows; row++) {
+      for (let col = 0; col < matrix.cols; col++) {
+        const value = pixels[row * matrix.cols + col];
+
+        const b = value & 0xff;
+        const r = (value >> 8) & 0xff;
+        const g = (value >> 16) & 0xff;
+
+        // Canvas update
+        context.fillStyle = `rgb(${r}, ${g}, ${b})`;
+        context.fillRect(col * pixSize, row * pixSize, pixSize, pixSize);
+
+        // NeoPixel update
+        matrix.setPixel(row, col, {
+          b: (value & 0xff) / 255,
+          r: ((value >> 8) & 0xff) / 255,
+          g: ((value >> 16) & 0xff) / 255
+        });
+      }
+    }
   }
 }
 

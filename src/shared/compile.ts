@@ -12,7 +12,12 @@ export interface IHexiResult {
   hex: string;
 }
 
-export async function buildHex(source: string, files: any[] = []) {
+/**
+ * @param source - main source
+ * @param files - array[]
+ * @param board - 'nano', 'uno', 'mega'
+ */
+export async function buildHex(source: string, files: any[] = [], board: string = 'uno') {
   const resp = await fetch(url + '/build', {
     method: 'POST',
     mode: 'cors',
@@ -20,7 +25,7 @@ export async function buildHex(source: string, files: any[] = []) {
     headers: {
       'Content-Type': 'application/json'
     },
-    body: JSON.stringify({ sketch: source, files })
+    body: JSON.stringify({ sketch: source, files, board: board })
   });
 
   return (await resp.json()) as IHexiResult;

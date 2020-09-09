@@ -18,10 +18,13 @@ document.addEventListener('DOMContentLoaded', (event) => {
     'blinks',
     'rgb',
     'fire',
+    'rain',
+    'cylon',
     'metaballs',
-    'display',
+    'pacifica',
+    'xymatrix',
     'ssd1306',
-    'dht22'
+    'ssdcounter',
   ];
 
   arrayExamples.forEach(function (item) {

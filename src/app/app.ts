@@ -74,10 +74,7 @@ const buzzer = document.querySelector<BuzzerElement>(
 const canvas = document.querySelector("canvas");
 const context = canvas.getContext("2d");
 
-const cols = 16;
-const rows = 16;
-
-const pixSize = canvas.height / rows;
+const pixSize = canvas.height / matrix.rows;
 
 // Set up toolbar
 let runner: AVRRunner;

@@ -12,7 +12,6 @@ import { buildHex } from "../shared/compile";
 import { CPUPerformance } from '../shared/cpu-performance';
 import { AVRRunner } from "../shared/execute";
 import { formatTime } from "../shared/format-time";
-import { Titlebar, Color } from 'custom-electron-titlebar'
 import { EditorHistoryUtil } from '../shared/editor-history.util';
 import { SSD1306Controller } from "../shared/ssd1306";
 import { WS2812Controller } from "../shared/ws2812";
@@ -23,6 +22,10 @@ import * as fs from "fs";
 
 // Get Monaco Editor
 declare function getEditor(): any;
+declare function getProjectPath(): any;
+declare function getProjectName(ext: any): any;
+declare function getProjectHex(): any;
+declare function setProjectHex(folder: any, fileHex: any): any;
 
 // Add events to the buttons
 const compileButton = document.querySelector("#compile-button");
@@ -36,6 +39,12 @@ stopButton.addEventListener("click", stopCode);
 
 const clearButton = document.querySelector("#clear-button");
 clearButton.addEventListener("click", clearOutput);
+
+const loadHexButton = document.querySelector("#loadhex-button");
+loadHexButton.addEventListener("click", loadHex);
+
+const fileInput = <HTMLInputElement>document.getElementById('file-input');
+fileInput.addEventListener('change', changeFileInput);
 
 const statusLabel = document.querySelector("#status-label");
 const statusLabelTimer = document.querySelector("#status-label-timer");
@@ -80,6 +89,7 @@ const pixSize = canvas.height / matrix.rows;
 let runner: AVRRunner;
 
 let board = 'uno';
+let firmware = 'firmware.hex';
 
 function executeProgram(hex: string) {
 
@@ -186,8 +196,11 @@ async function compileAndRun() {
     runnerOutputText.textContent = result.stderr || result.stdout;
 
     if (result.hex) {
+      // Set project hex filename
+      setProjectHex(getProjectPath(), getProjectName('.hex'));
+
       // Save hex
-      fs.writeFile('./firmware.hex', result.hex, function (err) {
+      fs.writeFile(getProjectHex(), result.hex, function (err) {
           if (err) return console.log(err)
       });
 
@@ -212,9 +225,9 @@ function storeUserSnippet() {
 }
 
 function onlyRun() {
-  fs.readFile('./firmware.hex', 'utf8', function(err, data) {
+  fs.readFile(getProjectHex(), 'utf8', function(err, data) {
     if (err) {
-      return console.log(err);
+      runnerOutputText.textContent += err + "\n";
     }
 
     if (data) {
@@ -276,7 +289,18 @@ function clearOutput() {
   runnerOutputText.textContent = '';
 }
 
-// Change titlebar color
-new Titlebar({
-    backgroundColor: Color.fromHex('#444')
-});
+function loadHex() {
+  fileInput.click();
+}
+
+function changeFileInput() {
+  let file = fileInput.files[0];
+
+  if (file.name.match(/\.(hex)$/)) {
+    // Set project hex filename
+    setProjectHex(file.path, '');
+    runnerOutputText.textContent += "Load HEX: " + file.path + "\n";
+  } else {
+    runnerOutputText.textContent += "File not supported, .hex files only!\n";
+  }
+}

@@ -1,0 +1,50 @@
+{
+    "projects": [
+        {
+            "name": "blinks",
+            "path": "./examples/blinks/"
+        },
+        {
+            "name": "rgb",
+            "path": "./examples/rgb/"
+        },
+        {
+            "name": "fire",
+            "path": "./examples/fire/"
+        },
+        {
+            "name": "rain",
+            "path": "./examples/rain/"
+        },
+        {
+            "name": "cylon",
+            "path": "./examples/cylon/"
+        },
+        {
+            "name": "metaballs",
+            "path": "./examples/metaballs/"
+        },
+        {
+            "name": "pacifica",
+            "path": "./examples/pacifica/"
+        },
+        {
+            "name": "xymatrix",
+            "path": "./examples/xymatrix/"
+        },
+        {
+            "name": "ssd1306",
+            "path": "./examples/ssd1306/"
+        },
+        {
+            "name": "ssdcounter",
+            "path": "./examples/ssdcounter/"
+        }
+    ],
+    "settings": {
+        "files.associations": {
+            "*.ino": "ino",
+            "*.hex": "hex"
+        }
+    }
+}

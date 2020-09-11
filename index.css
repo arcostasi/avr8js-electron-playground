@@ -165,7 +165,7 @@ body {
 }
 
 .lcd {
-  width: 250px;
+  width: 300px;
   max-width: 500px;
 }
 
@@ -181,7 +181,7 @@ body {
 
 .ssd1306 {
   width: 300px;
-  max-width: 500px;
+  max-width: 300px;
 }
 
 .buzzer {

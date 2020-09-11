@@ -64,7 +64,6 @@ const bool    kMatrixSerpentineLayout = true;
 // in one row, and then backwards in the next row, and so on
 // is call "boustrophedon", meaning "as the ox plows."
 
-
 // This function will return the right 'led index number' for
 // a given set of X and Y coordinates on your matrix.
 // IT DOES NOT CHECK THE COORDINATE BOUNDARIES.
@@ -82,16 +81,16 @@ const bool    kMatrixSerpentineLayout = true;
 //    }
 //
 //
-uint16_t XY( uint8_t x, uint8_t y)
+uint16_t XY(uint8_t x, uint8_t y)
 {
   uint16_t i;
 
-  if( kMatrixSerpentineLayout == false) {
+  if (kMatrixSerpentineLayout == false) {
     i = (y * kMatrixWidth) + x;
   }
 
-  if( kMatrixSerpentineLayout == true) {
-    if( y & 0x01) {
+  if (kMatrixSerpentineLayout == true) {
+    if (y & 0x01) {
       // Odd rows run backwards
       uint8_t reverseX = (kMatrixWidth - 1) - x;
       i = (y * kMatrixWidth) + reverseX;
@@ -149,39 +148,47 @@ uint16_t XY( uint8_t x, uint8_t y)
 #define NUM_LEDS (kMatrixWidth * kMatrixHeight)
 
 CRGB leds_plus_safety_pixel[ NUM_LEDS + 1];
-CRGB* const leds( leds_plus_safety_pixel + 1);
+CRGB* const leds(leds_plus_safety_pixel + 1);
 
-uint16_t XYsafe( uint8_t x, uint8_t y)
+uint16_t XYsafe(uint8_t x, uint8_t y)
 {
-  if( x >= kMatrixWidth) return -1;
-  if( y >= kMatrixHeight) return -1;
-  return XY(x,y);
-}
+  if ( x >= kMatrixWidth)
+   return -1;
 
+  if ( y >= kMatrixHeight)
+    return -1;
+
+  return XY(x, y);
+}
 
 // Demo that USES "XY" follows code below
 
 void loop()
 {
-    uint32_t ms = millis();
-    int32_t yHueDelta32 = ((int32_t)cos16( ms * (27/1) ) * (350 / kMatrixWidth));
-    int32_t xHueDelta32 = ((int32_t)cos16( ms * (39/1) ) * (310 / kMatrixHeight));
-    DrawOneFrame( ms / 65536, yHueDelta32 / 32768, xHueDelta32 / 32768);
-    if( ms < 5000 ) {
-      FastLED.setBrightness( scale8( BRIGHTNESS, (ms * 256) / 5000));
-    } else {
-      FastLED.setBrightness(BRIGHTNESS);
-    }
-    FastLED.show();
+  uint32_t ms = millis();
+  int32_t yHueDelta32 = ((int32_t)cos16( ms * (27 / 1) ) * (350 / kMatrixWidth));
+  int32_t xHueDelta32 = ((int32_t)cos16( ms * (39 / 1) ) * (310 / kMatrixHeight));
+
+  DrawOneFrame( ms / 65536, yHueDelta32 / 32768, xHueDelta32 / 32768);
+
+  if ( ms < 5000 ) {
+    FastLED.setBrightness( scale8( BRIGHTNESS, (ms * 256) / 5000));
+  } else {
+    FastLED.setBrightness(BRIGHTNESS);
+  }
+
+  FastLED.show();
 }
 
 void DrawOneFrame( byte startHue8, int8_t yHueDelta8, int8_t xHueDelta8)
 {
   byte lineStartHue = startHue8;
-  for( byte y = 0; y < kMatrixHeight; y++) {
+
+  for ( byte y = 0; y < kMatrixHeight; y++) {
     lineStartHue += yHueDelta8;
     byte pixelHue = lineStartHue;
-    for( byte x = 0; x < kMatrixWidth; x++) {
+
+    for ( byte x = 0; x < kMatrixWidth; x++) {
       pixelHue += xHueDelta8;
       leds[ XY(x, y)]  = CHSV( pixelHue, 255, 255);
     }

@@ -55,7 +55,7 @@ const runnerOutputText = document.querySelector<HTMLElement>('#runner-output-tex
 const leds = document.querySelectorAll<LEDElement>("wokwi-led");
 
 // Set up the LCD1602
-const lcd1602 = document.querySelector<LCD1602Element & HTMLElement>(
+const lcd1602 = document.querySelector<LCD1602Element>(
   "wokwi-lcd1602"
 );
 
@@ -89,7 +89,6 @@ const pixSize = canvas.height / matrix.rows;
 let runner: AVRRunner;
 
 let board = 'uno';
-let firmware = 'firmware.hex';
 
 function executeProgram(hex: string) {
 
@@ -105,14 +104,8 @@ function executeProgram(hex: string) {
   const ssd1306Controller = new SSD1306Controller(cpuMillis);
   const matrixController = new WS2812Controller(matrix.cols * matrix.rows);
 
-  let lastState = PinState.Input;
-
-  let lastStateCycles = 0;
-  let lastUpdateCycles = 0;
-  let pwmHighCycles = 0;
-
   i2cBus.registerDevice(0x3d, ssd1306Controller);
-  // i2cBus.registerDevice(0x27, lcd1602Controller);
+  // i2cBus.registerDevice(0x27, lcd1602);
 
   // Hook to PORTB register
   runner.portB.addListener(value => {
@@ -129,10 +122,6 @@ function executeProgram(hex: string) {
 
   // Hook to PORTD register
   runner.portD.addListener((value) => {
-    // Feed the speaker
-    // runner.speaker.feed(runner.portD.pinState(7));
-    // buzzer.hasSignal = runner.portD.pinState(7) == PinState.High;
-
     // Feed the  matrix
     matrixController.feedValue(runner.portD.pinState(3), cpuNanos());
   });
@@ -152,11 +141,7 @@ function executeProgram(hex: string) {
     const time = formatTime(cpu.cycles / runner.frequency);
     const speed = (cpuPerf.update() * 100).toFixed(0);
     const frame = ssd1306Controller.update();
-    const cyclesSinceUpdate = cpu.cycles - lastUpdateCycles;
-
-    statusLabel.textContent = 'Simulation time: ';
-    statusLabelTimer.textContent = `${time}`;
-    statusLabelSpeed.textContent = `${speed}%`;
+    const pixels = matrixController.update(cpuNanos());
 
     if (frame) {
       ssd1306Controller.toImageData(ssd1306.imageData);
@@ -164,13 +149,14 @@ function executeProgram(hex: string) {
     }
 
     // Update NeoPixel matrix
-    const pixels = matrixController.update(cpuNanos());
-    pixelsUpdate(pixels);
+    if (pixels) {
+      redrawMatrix(pixels);
+    }
 
-    pwmHighCycles = 0;
-
-    lastUpdateCycles = cpu.cycles;
-    lastStateCycles = cpu.cycles;
+    // Update status
+    statusLabel.textContent = 'Simulation time: ';
+    statusLabelTimer.textContent = `${time}`;
+    statusLabelSpeed.textContent = `${speed}%`;
   });
 }
 
@@ -253,27 +239,25 @@ function stopCode() {
   }
 }
 
-function pixelsUpdate(pixels: any) {
-  if (pixels) {
-    for (let row = 0; row < matrix.rows; row++) {
-      for (let col = 0; col < matrix.cols; col++) {
-        const value = pixels[row * matrix.cols + col];
+function redrawMatrix(pixels: any) {
+  for (let row = 0; row < matrix.rows; row++) {
+    for (let col = 0; col < matrix.cols; col++) {
+      const value = pixels[row * matrix.cols + col];
 
-        const b = value & 0xff;
-        const r = (value >> 8) & 0xff;
-        const g = (value >> 16) & 0xff;
+      const b = value & 0xff;
+      const r = (value >> 8) & 0xff;
+      const g = (value >> 16) & 0xff;
 
-        // Canvas update
-        context.fillStyle = `rgb(${r}, ${g}, ${b})`;
-        context.fillRect(col * pixSize, row * pixSize, pixSize, pixSize);
+      // Canvas update
+      context.fillStyle = `rgb(${r}, ${g}, ${b})`;
+      context.fillRect(col * pixSize, row * pixSize, pixSize, pixSize);
 
-        // NeoPixel update
-        matrix.setPixel(row, col, {
-          b: (value & 0xff) / 255,
-          r: ((value >> 8) & 0xff) / 255,
-          g: ((value >> 16) & 0xff) / 255
-        });
-      }
+      // NeoPixel update
+      matrix.setPixel(row, col, {
+        b: (value & 0xff) / 255,
+        r: ((value >> 8) & 0xff) / 255,
+        g: ((value >> 16) & 0xff) / 255
+      });
     }
   }
 }

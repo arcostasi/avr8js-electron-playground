@@ -1,8 +1,11 @@
-// https://avr8js-ssd1306.stackblitz.io/
+/**
+ * https://avr8js-ssd1306.stackblitz.io/
+ */
+
+#include <SPI.h>
+#include <Wire.h>
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
-#include <Wire.h>
-#include "FastLED.h"
 
 // SSD1306
 #define SCREEN_WIDTH 128
@@ -11,7 +14,7 @@
 
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, -1);
 
-unsigned int timerDisplay = 0;
+unsigned long timerDisplay = 0;
 
 int counter = 0;
 

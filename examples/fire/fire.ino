@@ -32,7 +32,7 @@ CRGB leds[NUM_LEDS];
 byte noises[NUM_COLS * NOISE_HEIGHT]; // Precalculated noise table
 byte colorfade[NUM_ROWS]; // Simple colorfade table for speedup
 
-DEFINE_GRADIENT_PALETTE(firepal){
+DEFINE_GRADIENT_PALETTE(firepal) {
     // Define fire palette
     0, 0, 0, 0, // Black
     32, 255, 0, 0, // Red

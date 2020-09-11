@@ -59,6 +59,7 @@ export class WS2812Controller {
         if (delta >= RESET_TIME) {
           this.resetState();
         }
+
         this.detectZero = false;
         this.detectOne = false;
       }

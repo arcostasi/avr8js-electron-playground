@@ -4,7 +4,7 @@
 byte ledPins[] = {13, 12, 11, 10, 9, 8};
 byte i = 0;
 
-unsigned int timerLed = 0;
+unsigned long timerLed = 0;
 
 bool switchLed = true;
 

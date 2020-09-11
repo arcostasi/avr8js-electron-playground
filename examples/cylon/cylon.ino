@@ -24,7 +24,7 @@ void setup() {
 }
 
 void fadeall() {
-    for(int i = 0; i < NUM_LEDS; i++) {
+    for (int i = 0; i < NUM_LEDS; i++) {
         leds[i].nscale8(250);
     }
 }
@@ -35,7 +35,7 @@ void loop() {
     Serial.print("x");
 
     // First slide the led in one direction
-    for(int i = 0; i < NUM_LEDS; i++) {
+    for (int i = 0; i < NUM_LEDS; i++) {
         // Set the i'th led to red
         leds[i] = CHSV(hue++, 255, 255);
         // Show the leds

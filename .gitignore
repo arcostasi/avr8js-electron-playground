@@ -4,5 +4,6 @@
 .vscode
 node_modules
 dist
+sketch
 *.log
 *.hex

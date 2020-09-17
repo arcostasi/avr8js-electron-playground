@@ -5,6 +5,10 @@
             "path": "./examples/blinks/"
         },
         {
+            "name": "lcd",
+            "path": "./examples/lcd/"
+        },
+        {
             "name": "rgb",
             "path": "./examples/rgb/"
         },

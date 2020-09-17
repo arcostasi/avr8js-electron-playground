@@ -4,7 +4,7 @@
  *
  * Copyright (C) 2019, Uri Shaked
  */
-function zeroPad(value: number, length: number) {
+export function zeroPad(value: number, length: number) {
   let sval = value.toString();
   while (sval.length < length) {
     sval = '0' + sval;

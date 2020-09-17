@@ -5,7 +5,7 @@
  * Copyright (C) 2019, Uri Shaked
  */
 const url = 'https://hexi.wokwi.com';
-// const url = 'http://localhost';
+// const url = 'http://localhost:9090';
 
 export interface IHexiResult {
   stdout: string;

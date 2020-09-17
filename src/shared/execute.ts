@@ -9,6 +9,7 @@ import {
   AVRTimer,
   CPU,
   AVRIOPort,
+  AVREEPROM,
   AVRUSART,
   AVRSPI,
   AVRTWI,
@@ -26,6 +27,7 @@ import {
 import { Speaker } from "./speaker";
 import { loadHex } from './intelhex';
 import { MicroTaskScheduler } from './task-scheduler';
+import { EEPROMLocalStorageBackend } from './eeprom';
 
 // ATmega328p params
 const FLASH = 0x8000;
@@ -39,6 +41,7 @@ export class AVRRunner {
   readonly portB: AVRIOPort;
   readonly portC: AVRIOPort;
   readonly portD: AVRIOPort;
+  readonly eeprom: AVREEPROM;
   readonly usart: AVRUSART;
   readonly spi: AVRSPI;
   readonly twi: AVRTWI;
@@ -59,6 +62,7 @@ export class AVRRunner {
     this.portB = new AVRIOPort(this.cpu, portBConfig);
     this.portC = new AVRIOPort(this.cpu, portCConfig);
     this.portD = new AVRIOPort(this.cpu, portDConfig);
+    this.eeprom = new AVREEPROM(this.cpu, new EEPROMLocalStorageBackend());
     this.usart = new AVRUSART(this.cpu, usart0Config, this.frequency);
     this.spi = new AVRSPI(this.cpu, spiConfig, this.frequency);
     this.twi = new AVRTWI(this.cpu, twiConfig, this.frequency);
@@ -67,11 +71,24 @@ export class AVRRunner {
     this.taskScheduler.start();
   }
 
-  serialTransmit() {
+  serialOnLineTransmit() {
     // Serial port to browser console
     this.usart.onLineTransmit = line => {
-      console.log("[Serial] %c%s", "color: blue", line);
+      console.log("[Serial] %c%s", "color: red", line);
     };
+  }
+
+  // Function to send data to the serial port
+  serialWrite(value: string) {
+    // const { UCSRA, UDR } = usart0Config;
+    // const UCSRA_UDRE = 0x20;
+    const { UDR } = usart0Config;
+
+    // Wait for transmit data buffer to go empty
+    // while (!(this.cpu.readData(UCSRA) & (1 << UCSRA_UDRE)))
+
+    // Writing to UDR transmits the byte
+    [...value].forEach(c => this.cpu.writeData(UDR, c.charCodeAt(0)));
   }
 
   analogPort() {
@@ -101,6 +118,7 @@ export class AVRRunner {
       this.timer0.tick();
       this.timer1.tick();
       this.timer2.tick();
+      this.eeprom.tick();
       this.usart.tick();
       this.spi.tick();
       this.twi.tick();

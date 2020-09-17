@@ -4,6 +4,7 @@ import {
   ServoElement,
   SSD1306Element,
   LCD1602Element,
+  PushbuttonElement,
   NeopixelMatrixElement
 } from '@wokwi/elements';
 
@@ -13,10 +14,10 @@ import { CPUPerformance } from '../shared/cpu-performance';
 import { AVRRunner } from "../shared/execute";
 import { formatTime } from "../shared/format-time";
 import { EditorHistoryUtil } from '../shared/editor-history.util';
-import { SSD1306Controller } from "../shared/ssd1306";
+import { SSD1306Controller, SSD1306_ADDR_OTHER } from "../shared/ssd1306";
 import { WS2812Controller } from "../shared/ws2812";
+import { LCD1602Controller, LCD1602_ADDR } from "../shared/lcd1602";
 import { I2CBus } from "../shared/i2c-bus";
-import { PITCHES_H } from "../shared/pitches";
 
 import * as fs from "fs";
 
@@ -43,7 +44,7 @@ clearButton.addEventListener("click", clearOutput);
 const loadHexButton = document.querySelector("#loadhex-button");
 loadHexButton.addEventListener("click", loadHex);
 
-const fileInput = <HTMLInputElement>document.getElementById('file-input');
+const fileInput = document.querySelector<HTMLInputElement>('#file-input');
 fileInput.addEventListener('change', changeFileInput);
 
 const statusLabel = document.querySelector("#status-label");
@@ -51,8 +52,15 @@ const statusLabelTimer = document.querySelector("#status-label-timer");
 const statusLabelSpeed = document.querySelector("#status-label-speed");
 const runnerOutputText = document.querySelector<HTMLElement>('#runner-output-text');
 
+const serialInput = document.querySelector<HTMLInputElement>('#serial-input');
+serialInput.addEventListener("keypress", serialKeyPress);
+
+const serialSend = document.querySelector('#serial-send');
+serialSend.addEventListener("click", serialTransmit);
+
 // Set up LEDs
 const leds = document.querySelectorAll<LEDElement>("wokwi-led");
+const led11 = document.querySelector<LEDElement & Element>('wokwi-led[color=blue]');
 
 // Set up the LCD1602
 const lcd1602 = document.querySelector<LCD1602Element>(
@@ -69,6 +77,8 @@ const matrix = document.querySelector<NeopixelMatrixElement>(
   "wokwi-neopixel-matrix"
 );
 
+const matrixPin = parseInt(matrix.getAttribute("pin"), 10);
+
 // Set up the servo
 const servo = document.querySelector<ServoElement>(
   "wokwi-servo"
@@ -77,6 +87,13 @@ const servo = document.querySelector<ServoElement>(
 // Set up the NeoPixel matrix
 const buzzer = document.querySelector<BuzzerElement>(
   "wokwi-buzzer"
+);
+
+const buzzerPin = parseInt(buzzer.getAttribute("pin"), 10);
+
+// Set up the push button
+const pushButton = document.querySelector<PushbuttonElement & HTMLElement>(
+  "wokwi-pushbutton"
 );
 
 // Set up the NeoPixel canvas
@@ -90,6 +107,9 @@ let runner: AVRRunner;
 
 let board = 'uno';
 
+let hasLEDsPortB: boolean;
+let hasLEDsPortD: boolean;
+
 function executeProgram(hex: string) {
 
   runner = new AVRRunner(hex);
@@ -102,28 +122,71 @@ function executeProgram(hex: string) {
   const i2cBus = new I2CBus(runner.twi);
 
   const ssd1306Controller = new SSD1306Controller(cpuMillis);
+  const lcd1602Controller = new LCD1602Controller(cpuMillis);
   const matrixController = new WS2812Controller(matrix.cols * matrix.rows);
 
-  i2cBus.registerDevice(0x3d, ssd1306Controller);
-  // i2cBus.registerDevice(0x27, lcd1602);
+  // LED PWM
+  const PWM_LED = false;
+  const pin11State = runner.portB.pinState(3);
+
+  let lastState = PinState.Input;
+  let lastStateCycles = 0;
+  let lastUpdateCycles = 0;
+  let ledHighCycles = 0;
+
+  i2cBus.registerDevice(SSD1306_ADDR_OTHER, ssd1306Controller);
+  i2cBus.registerDevice(LCD1602_ADDR, lcd1602Controller);
+
+  // Enable as default
+  hasLEDsPortB = true;
+  hasLEDsPortD = true;
 
   // Hook to PORTB register
   runner.portB.addListener(value => {
-    leds.forEach(function(led) {
-      const pin = parseInt(led.getAttribute("pin"), 10);
-      led.value = value & (1 << (pin - 8)) ? true : false;
-    });
+    // Port B starts at pin 8 to 13
+    if (hasLEDsPortB) {
+      hasLEDsPortB = false;
+      updateLEDs(value, 8);
+    }
+
+    // PWM
+    if (PWM_LED && (lastState !== pin11State)) {
+      const delta = runner.cpu.cycles - lastStateCycles;
+
+      if (lastState === PinState.High) {
+        ledHighCycles += delta;
+      }
+
+      lastState = pin11State;
+      lastStateCycles = runner.cpu.cycles;
+    }
+
+    // Feed the speaker
+    // runner.speaker.feed(runner.portB.pinState(buzzerPin));
+    // buzzer.hasSignal = runner.portB.pinState(buzzerPin) == PinState.High;
   });
 
   // Hook to PORTC register
   runner.portC.addListener((value) => {
-    //
+    // Analog input pins
   });
 
   // Hook to PORTD register
   runner.portD.addListener((value) => {
-    // Feed the  matrix
-    matrixController.feedValue(runner.portD.pinState(3), cpuNanos());
+    // Port D starts at pin 0 to 7
+    // Feed the matrix
+    matrixController.feedValue(runner.portD.pinState(matrixPin), cpuNanos());
+  });
+
+  // Set up the push button
+  pushButton.addEventListener('button-press', () => {
+    const pushButtonPin = parseInt(pushButton.getAttribute("pin"), 10);
+    runner.portD.setPin(pushButtonPin, true);
+  });
+
+  pushButton.addEventListener('button-release', () => {
+    const pushButtonPin = parseInt(pushButton.getAttribute("pin"), 10);
+    runner.portD.setPin(pushButtonPin, false);
   });
 
   // Connect to Serial port
@@ -140,17 +203,46 @@ function executeProgram(hex: string) {
   runner.execute((cpu) => {
     const time = formatTime(cpu.cycles / runner.frequency);
     const speed = (cpuPerf.update() * 100).toFixed(0);
-    const frame = ssd1306Controller.update();
     const pixels = matrixController.update(cpuNanos());
+    const frame = ssd1306Controller.update();
+    const lcd = lcd1602Controller.update();
+
+    if (pixels) {
+    // Update NeoPixel matrix
+      redrawMatrix(pixels);
+    }
 
     if (frame) {
+      // Update SSD1306
       ssd1306Controller.toImageData(ssd1306.imageData);
       ssd1306.redraw();
     }
 
-    // Update NeoPixel matrix
-    if (pixels) {
-      redrawMatrix(pixels);
+    if (lcd) {
+      // Update LCD1602
+      lcd1602.blink = lcd.blink;
+      lcd1602.cursor = lcd.cursor;
+      lcd1602.cursorX = lcd.cursorX;
+      lcd1602.cursorY = lcd.cursorY;
+      lcd1602.characters = lcd.characters;
+      lcd1602.backlight = lcd.backlight;
+    }
+
+    // PWM
+    if (PWM_LED) {
+      const cyclesSinceUpdate = cpu.cycles - lastUpdateCycles;
+      const pin11State = runner.portB.pinState(3);
+
+      if (pin11State === PinState.High) {
+        ledHighCycles += cpu.cycles - lastStateCycles;
+      }
+
+      led11.value = ledHighCycles > 0;
+      led11.brightness = ledHighCycles / cyclesSinceUpdate;
+
+      lastUpdateCycles = cpu.cycles;
+      lastStateCycles = cpu.cycles;
+      ledHighCycles = 0;
     }
 
     // Update status
@@ -176,7 +268,7 @@ async function compileAndRun() {
     statusLabelSpeed.textContent = '0%';
 
     const result = await buildHex(getEditor().getValue(), [
-      // { name: "pitches.h", content: PITCHES_H  }
+      // { name: "pitches.h", content: PITCHES_H  } // Other files
     ], board);
 
     runnerOutputText.textContent = result.stderr || result.stdout;
@@ -235,7 +327,30 @@ function stopCode() {
     runner.stop();
     runner = null;
 
+    // Set backlight off
+    lcd1602.characters.fill(32);
+    lcd1602.backlight = false;
+    lcd1602.blink = false;
+    lcd1602.cursor = false;
+
     statusLabel.textContent = 'Stop simulation: ';
+  }
+}
+
+function serialKeyPress(event: any) {
+  // Ckeck Enter
+  if (event.charCode == 13) {
+    serialTransmit();
+  }
+}
+
+function serialTransmit() {
+  // Serial transmit
+  if (runner) {
+    runner.serialWrite(serialInput.value + "\n");
+    serialInput.value = "";
+  } else {
+    runnerOutputText.textContent += "Warning: AVR is not running!\n";
   }
 }
 
@@ -263,9 +378,28 @@ function redrawMatrix(pixels: any) {
 }
 
 function clearLeds() {
-  [].forEach.call(leds, function(led: LEDElement) {
+  leds.forEach(function(led) {
     const pin = parseInt(led.getAttribute("pin"), 10);
     led.value = false;
+  });
+}
+
+function updateLEDs(value: number, startPin: number) {
+  leds.forEach(function(led) {
+    const pin = parseInt(led.getAttribute("pin"), 10);
+    // Check pin
+    if (pin >= startPin && pin <= startPin + 8) {
+      // Check LED in portB
+      if (startPin == 8)
+        hasLEDsPortB = true;
+
+      // Check LED in portD
+      if (startPin == 0)
+        hasLEDsPortD = true;
+
+      // Set LED
+      led.value = value & (1 << (pin - startPin)) ? true : false;
+    }
   });
 }
 
@@ -287,4 +421,8 @@ function changeFileInput() {
   } else {
     runnerOutputText.textContent += "File not supported, .hex files only!\n";
   }
+}
+
+function printChars(value: string) {
+  return [...value].map(char => char.charCodeAt(0));
 }

@@ -21,28 +21,28 @@
             <wokwi-led color="white" pin="8" label="8"></wokwi-led>
           </div>
           <div class="lcd draggable" style="transform: translate(50px,0px)" data-x="50" data-y="0">
-            <wokwi-lcd1602 pins="i2c" blink="true"></wokwi-lcd1602>
+            <wokwi-lcd1602 pins="i2c" backlight></wokwi-lcd1602>
           </div>
           <div class="ssd1306 draggable" style="transform: translate(440px,-120px)" data-x="440" data-y="-120">
             <wokwi-ssd1306></wokwi-ssd1306>
           </div>
           <div class="neopixel draggable" style="transform: translate(60px,-140px)" data-x="60" data-y="-140">
-            <wokwi-neopixel-matrix cols="16" rows="16"></wokwi-neopixel-matrix>
+            <wokwi-neopixel-matrix cols="16" rows="16" pin="3"></wokwi-neopixel-matrix>
           </div>
           <div class="neopixel draggable" style="transform: translate(390px,-445px)" data-x="390" data-y="-445">
             <canvas class="pixels" height="240" width="240"></canvas>
           </div>
           <div class="servo draggable" style="transform: translate(50px,-340px)" data-x="50" data-y="-340">
-            <wokwi-servo angle="0"></wokwi-servo>
+            <wokwi-servo angle="0" horncolor="black"></wokwi-servo>
           </div>
           <div class="pushbutton draggable" style="transform: translate(280px,-435px)" data-x="280" data-y="-435">
-            <wokwi-pushbutton color="black" pin="2" label="2"></wokwi-pushbutton>
+            <wokwi-pushbutton color="black" pin="7" label="7"></wokwi-pushbutton>
           </div>
           <div class="buzzer draggable" style="transform: translate(420px,-580px)" data-x="420" data-y="-580">
-            <wokwi-buzzer></wokwi-buzzer>
+            <wokwi-buzzer pin="6" label="6"></wokwi-buzzer>
           </div>
           <div class="dht22 draggable" style="transform: translate(540px,-680px)" data-x="540" data-y="-680">
-            <wokwi-dht22 pin="2"></wokwi-dht22>
+            <wokwi-dht22 pin="5" label="5"></wokwi-dht22>
           </div>
           <div class="segment draggable" style="transform: translate(420px,-640px)" data-x="420" data-y="-640">
             <wokwi-7segment digits="4"></wokwi-7segment>
@@ -64,9 +64,11 @@
           <div class="code-editor-container">
             <div id="editor-container" class="code-editor"></div>
           <div class="toolbar">
-            <button id="loadhex-button" class="btn btn-dark"><i class="icon ci-upload"></i> Load HEX</button>
+            <button id="loadhex-button" class="btn btn-dark big"><i class="icon ci-upload"></i> Load HEX</button>
             <button id="clear-button" class="btn btn-dark"><i class="icon ci-more"></i> Clear</button>
             <input id="file-input" type="file" name="name" class="hide" />
+            <input id="serial-input" type="text" class="serial-input">&nbsp;
+            <button id="serial-send" class="btn btn-dark"><i class="icon ci-download"></i> Send</button>
             <div class="spacer"></div>
           </div>
             <div class="runner-output">

@@ -11,7 +11,7 @@
   <body>
     <div id="container" class="container">
       <div class="parent">
-        <div class="child grid">
+        <div id="panel-left" class="child grid">
           <div class="zoom-header noselect">
             <button class="btn btn-dark zoomin"><i class="icon ci-plus2"></i></button>
             <select id="zoom-select" class="zoom-select" onchange="handleZoomChange()">
@@ -20,8 +20,6 @@
               <option value=0.85>85%</option>
               <option value=0.9>90%</option>
               <option value=1 selected>100%</option>
-              <option value=1.2>120%</option>
-              <option value=1.5>150%</option>
               <option value=1>Fit</option>
             </select>
             <button class="btn btn-dark zoomout"><i class="icon ci-less"></i></button>
@@ -64,7 +62,7 @@
             </div>
           </div>
         </div>
-        <div class="child">
+        <div id="panel-right" class="child">
           <div class="toolbar">
             <button id="compile-button" class="btn btn-dark"><i class="icon ci-upload"></i> Compile</button>
             <button id="run-button" class="btn btn-dark"><i class="icon ci-play-outline"></i> Run</button>
@@ -76,7 +74,7 @@
               <i class="icon ci-timer"></i> <span id="status-label-speed" class="color-white">0%</span>
             </div>
           </div>
-          <div id="editor-tab" class="tab"></div>
+          <div id="editor-tab" class="tab noselect"></div>
           <div class="code-editor-container">
             <div id="editor-container" class="code-editor"></div>
             <div class="toolbar">

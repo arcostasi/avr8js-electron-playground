@@ -65,10 +65,7 @@ body {
 }
 
 .child {
-  display: flex;
-  flex-direction: column;
-  flex-basis: 100%;
-  flex: 1;
+  width: 100%;
 }
 
 .elements {
@@ -97,16 +94,12 @@ body {
   height: 100%;
   width: 100%;
   margin: 0;
-}
-
-.grid {
   background-image: radial-gradient(circle at 1px 1px, #333 1px, transparent 0);
   background-size: 10px 10px;
 }
 
 .zoom-header {
   padding: 0 0 15px 0;
-  z-index: 1000;
 }
 
 .zoomin {

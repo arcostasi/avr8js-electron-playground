@@ -45,8 +45,8 @@ class Main {
 
     // Create and control browser windows
     this.mainWindow = new BrowserWindow({
-      height: 900,
-      width: 1400,
+      height: 1024,
+      width: 1600,
       frame: false,
       webPreferences: {
         enableRemoteModule: true,

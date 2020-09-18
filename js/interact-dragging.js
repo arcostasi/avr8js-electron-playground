@@ -22,7 +22,7 @@ interact('.draggable')
 
       // Call this function on every dragend event
       end (event) {
-        var textEl = event.target.querySelector('p')
+        let textEl = event.target.querySelector('p')
 
         textEl && (textEl.textContent =
           'moved a distance of ' +
@@ -34,10 +34,10 @@ interact('.draggable')
   })
 
 function dragMoveListener (event) {
-  var target = event.target
+  let target = event.target
   // Keep the dragged position in the data-x/data-y attributes
-  var x = (parseFloat(target.getAttribute('data-x')) || 0) + event.dx
-  var y = (parseFloat(target.getAttribute('data-y')) || 0) + event.dy
+  const x = (parseFloat(target.getAttribute('data-x')) || 0) + event.dx
+  const y = (parseFloat(target.getAttribute('data-y')) || 0) + event.dy
 
   // Translate the element
   target.style.webkitTransform =

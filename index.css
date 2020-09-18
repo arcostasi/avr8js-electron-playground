@@ -1,39 +1,39 @@
 @font-face {
-    font-family: 'Open Sans';
-    font-style: normal;
-    font-weight: 300;
-    src: local('Open Sans Light'), local('OpenSans-Light'), url(./font/opensans/opensans-light.woff2) format('woff2');
-    unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02C6, U+02DA, U+02DC, U+2000-206F, U+2074, U+20AC, U+2212, U+2215, U+E0FF, U+EFFD, U+F000
+  font-family: 'Open Sans';
+  font-style: normal;
+  font-weight: 300;
+  src: local('Open Sans Light'), local('OpenSans-Light'), url(./font/opensans/opensans-light.woff2) format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02C6, U+02DA, U+02DC, U+2000-206F, U+2074, U+20AC, U+2212, U+2215, U+E0FF, U+EFFD, U+F000
 }
 
 @font-face {
-    font-family: 'Open Sans';
-    font-style: normal;
-    font-weight: 400;
-    src: local('Open Sans'), local('OpenSans'), url(./font/opensans/opensans.woff2) format('woff2');
-    unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02C6, U+02DA, U+02DC, U+2000-206F, U+2074, U+20AC, U+2212, U+2215, U+E0FF, U+EFFD, U+F000
+  font-family: 'Open Sans';
+  font-style: normal;
+  font-weight: 400;
+  src: local('Open Sans'), local('OpenSans'), url(./font/opensans/opensans.woff2) format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02C6, U+02DA, U+02DC, U+2000-206F, U+2074, U+20AC, U+2212, U+2215, U+E0FF, U+EFFD, U+F000
 }
 
 @font-face {
-    font-family: 'Open Sans';
-    font-style: normal;
-    font-weight: 700;
-    src: local('Open Sans Bold'), local('OpenSans-Bold'), url(./font/opensans/opensans-bold.woff2) format('woff2');
-    unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02C6, U+02DA, U+02DC, U+2000-206F, U+2074, U+20AC, U+2212, U+2215, U+E0FF, U+EFFD, U+F000
+  font-family: 'Open Sans';
+  font-style: normal;
+  font-weight: 700;
+  src: local('Open Sans Bold'), local('OpenSans-Bold'), url(./font/opensans/opensans-bold.woff2) format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02C6, U+02DA, U+02DC, U+2000-206F, U+2074, U+20AC, U+2212, U+2215, U+E0FF, U+EFFD, U+F000
 }
 
 @font-face {
-    font-family: clockicons;
-    src: url(./font/clockicons/clockicons.woff2) format('woff2');
-    font-weight: 400;
-    font-style: normal
+  font-family: clockicons;
+  src: url(./font/clockicons/clockicons.woff2) format('woff2');
+  font-weight: 400;
+  font-style: normal
 }
 
 @font-face {
-    font-family: VPSSonLaHoa;
-    src: url(./font/vps-solaho/vpssolah.woff2) format("woff2");
-    font-weight: 400;
-    font-style: normal
+  font-family: VPSSonLaHoa;
+  src: url(./font/vps-solaho/vpssolah.woff2) format("woff2");
+  font-weight: 400;
+  font-style: normal
 }
 
 html {
@@ -46,14 +46,9 @@ body {
   color: #aaa;
   background-color: #1e1e1e;
   overflow: hidden;
-
 }
 
-::-webkit-scrollbar {
-  /*display: none;*/
-}
-
-.app-container {
+.container {
   position: fixed;
   display: flex;
   flex-direction: column;
@@ -66,6 +61,7 @@ body {
   flex-direction: row;
   flex-wrap: wrap;
   width: 100%;
+  height: 100vh;
 }
 
 .child {
@@ -73,6 +69,56 @@ body {
   flex-direction: column;
   flex-basis: 100%;
   flex: 1;
+}
+
+.elements {
+  height: 100%;
+  width: 100%;
+  border: 1px solid #393939;
+}
+
+.elements::-webkit-scrollbar-track
+{
+  -webkit-box-shadow: inset 0 0 1px #393939;
+}
+
+.elements::-webkit-scrollbar
+{
+  width: 15px;
+  background-color: #1e1e1e;
+}
+
+.elements::-webkit-scrollbar-thumb
+{
+  background-color: #333;
+}
+
+.grid {
+  height: 100%;
+  width: 100%;
+  margin: 0;
+}
+
+.grid {
+  background-image: radial-gradient(circle at 1px 1px, #333 1px, transparent 0);
+  background-size: 10px 10px;
+}
+
+.zoom-header {
+  padding: 0 0 15px 0;
+  z-index: 1000;
+}
+
+.zoomin {
+  margin: 5px 0 0 5px;
+  padding: 7px !important;
+  font-size: 21px !important;
+}
+
+.zoomout {
+  margin: 5px 0 0 0px;
+  padding: 7px !important;
+  font-size: 21px !important;
 }
 
 .double-column {
@@ -89,6 +135,11 @@ body {
   box-sizing: border-box;
   color: #aaa;
   width: 100%;
+  z-index: 1000;
+}
+
+.tab {
+  z-index: 1000;
 }
 
 .toolbar > button {
@@ -117,16 +168,17 @@ body {
 .code-editor-container {
   width: 100%;
   max-width: 100%;
-  height: 80vh;
+  height: 85vh;
   background-color: #1e1e1e;
   border: 1px solid #202020;
   box-sizing: border-box;
+  z-index: 1000;
 }
 
 .code-editor {
   width: 100%;
   max-width: 100%;
-  height: 50vh;
+  height: 60vh;
   border: 1px solid #202020;
   box-sizing: border-box;
 }
@@ -134,7 +186,7 @@ body {
 .runner-output {
   display: flex;
   flex-direction: column;
-  height: 32vh;
+  height: 25vh;
   width: 0%;
   min-width: 100%;
   padding: 10px 10px;
@@ -146,7 +198,7 @@ body {
 
 .runner-output pre {
   width: 100%;
-  max-width: 650px;
+  height: 100%;
   margin: 0px;
   padding: 4px;
   overflow-wrap: break-word;
@@ -167,7 +219,7 @@ body {
 
 .runner-output::-webkit-scrollbar-thumb
 {
-  background-color: #4e4e4e;
+  background-color: #333;
 }
 
 .serial-input {
@@ -188,6 +240,29 @@ body {
   -ms-transition: all .4s ease-in-out;
   -o-transition: all .4s ease-in-out;
   transition: all .4s ease-in-out;
+}
+
+.zoom-select {
+  cursor: pointer;
+  border-radius: 0px;
+  text-decoration: none;
+  color: #aaa;
+  background-color: #1e1e1e;
+  box-sizing: border-box;
+  padding: 6px 7px;
+  font-size: 14px;
+  font-weight: 400;
+  letter-spacing: 2px;
+  -webkit-transition: all .4s ease-in-out;
+  -moz-transition: all .4s ease-in-out;
+  -ms-transition: all .4s ease-in-out;
+  -o-transition: all .4s ease-in-out;
+  transition: all .4s ease-in-out;
+}
+
+.serial-checkbox {
+  margin-top: 18px;
+  text-decoration: none;
 }
 
 .error {
@@ -284,6 +359,11 @@ body {
 button {
   color: #aaa !important;
   white-space: nowrap;
+  user-select: none;
+}
+
+button:focus {
+  outline: 0 !important;
 }
 
 .buttons>div {
@@ -408,407 +488,413 @@ input[type="submit"]:hover,
   color: #fff;
 }
 
+.noselect {
+  user-select: none; /* Non-prefixed version,
+            currently supported by Chrome */
+}
+
+
 [class*=" ci-"],
 [class^=ci-] {
-    font-family: clockicons !important;
-    speak: none;
-    font-style: normal;
-    font-weight: 400;
-    font-variant: normal;
-    text-transform: none;
-    line-height: 1;
-    -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale
+  font-family: clockicons !important;
+  speak: none;
+  font-style: normal;
+  font-weight: 400;
+  font-variant: normal;
+  text-transform: none;
+  line-height: 1;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale
 }
 
 .ci-logo:before {
-    content: "\e905"
+  content: "\e905"
 }
 
 .ci-collapse:before {
-    content: "\e904"
+  content: "\e904"
 }
 
 .ci-colon2:before {
-    content: "\e903"
+  content: "\e903"
 }
 
 .ci-comma:before {
-    content: "\2c"
+  content: "\2c"
 }
 
 .ci-hyphen:before {
-    content: "\2d"
+  content: "\2d"
 }
 
 .ci-period:before {
-    content: "\2e"
+  content: "\2e"
 }
 
 .ci-zero:before {
-    content: "\30"
+  content: "\30"
 }
 
 .ci-one:before {
-    content: "\31"
+  content: "\31"
 }
 
 .ci-two:before {
-    content: "\32"
+  content: "\32"
 }
 
 .ci-three:before {
-    content: "\33"
+  content: "\33"
 }
 
 .ci-four:before {
-    content: "\34"
+  content: "\34"
 }
 
 .ci-five:before {
-    content: "\35"
+  content: "\35"
 }
 
 .ci-six:before {
-    content: "\36"
+  content: "\36"
 }
 
 .ci-seven:before {
-    content: "\37"
+  content: "\37"
 }
 
 .ci-eight:before {
-    content: "\38"
+  content: "\38"
 }
 
 .ci-nine:before {
-    content: "\39"
+  content: "\39"
 }
 
 .ci-colon:before {
-    content: "\3a"
+  content: "\3a"
 }
 
 .ci-A:before {
-    content: "\41"
+  content: "\41"
 }
 
 .ci-M:before {
-    content: "\4d"
+  content: "\4d"
 }
 
 .ci-O:before {
-    content: "\4f"
+  content: "\4f"
 }
 
 .ci-P:before {
-    content: "\50"
+  content: "\50"
 }
 
 .ci-a:before {
-    content: "\61"
+  content: "\61"
 }
 
 .ci-d:before {
-    content: "\64"
+  content: "\64"
 }
 
 .ci-m:before {
-    content: "\6d"
+  content: "\6d"
 }
 
 .ci-o:before {
-    content: "\6f"
+  content: "\6f"
 }
 
 .ci-p:before {
-    content: "\70"
+  content: "\70"
 }
 
 .ci-y:before {
-    content: "\79"
+  content: "\79"
 }
 
 .ci-quoteright:before {
-    content: "\2019"
+  content: "\2019"
 }
 
 .ci-contrast:before {
-    content: "\f275"
+  content: "\f275"
 }
 
 .ci-arrow-down:before {
-    content: "\f3d0"
+  content: "\f3d0"
 }
 
 .ci-arrow-left:before {
-    content: "\f3d2"
+  content: "\f3d2"
 }
 
 .ci-arrow-right:before {
-    content: "\f3d3"
+  content: "\f3d3"
 }
 
 .ci-arrow-thin-down:before {
-    content: "\f3d4"
+  content: "\f3d4"
 }
 
 .ci-arrow-thin-up:before {
-    content: "\f3d7"
+  content: "\f3d7"
 }
 
 .ci-arrow-up:before {
-    content: "\f3d8"
+  content: "\f3d8"
 }
 
 .ci-checkmark-outline:before {
-    content: "\f3fe"
+  content: "\f3fe"
 }
 
 .ci-checkmark:before {
-    content: "\f3ff"
+  content: "\f3ff"
 }
 
 .ci-circle-outline:before {
-    content: "\f401"
+  content: "\f401"
 }
 
 .ci-pause-outline:before {
-    content: "\f477"
+  content: "\f477"
 }
 
 .ci-play-outline:before {
-    content: "\f487"
+  content: "\f487"
 }
 
 .ci-redo-outline:before {
-    content: "\f498"
+  content: "\f498"
 }
 
 .ci-redo:before {
-    content: "\f499"
+  content: "\f499"
 }
 
 .ci-load-c:before {
-    content: "\f29c"
+  content: "\f29c"
 }
 
 .ci-circle:before {
-    content: "\f21b"
+  content: "\f21b"
 }
 
 .ci-android-outline:before {
-    content: "\f224"
+  content: "\f224"
 }
 
 .ci-apple-outline:before {
-    content: "\f226"
+  content: "\f226"
 }
 
 .ci-windows-outline:before {
-    content: "\f246"
+  content: "\f246"
 }
 
 .ci-android:before {
-    content: "\e900"
+  content: "\e900"
 }
 
 .ci-apple:before {
-    content: "\e901"
+  content: "\e901"
 }
 
 .ci-windows:before {
-    content: "\e902"
+  content: "\e902"
 }
 
 .ci-less:before {
-    content: "\e644"
+  content: "\e644"
 }
 
 .ci-upload:before {
-    content: "\e606"
+  content: "\e606"
 }
 
 .ci-tools:before {
-    content: "\e60a"
+  content: "\e60a"
 }
 
 .ci-timer:before {
-    content: "\e60b"
+  content: "\e60b"
 }
 
 .ci-stopwatch:before {
-    content: "\e610"
+  content: "\e610"
 }
 
 .ci-star:before {
-    content: "\e611"
+  content: "\e611"
 }
 
 .ci-share:before {
-    content: "\e616"
+  content: "\e616"
 }
 
 .ci-search:before {
-    content: "\e618"
+  content: "\e618"
 }
 
 .ci-radio:before {
-    content: "\e61e"
+  content: "\e61e"
 }
 
 .ci-print:before {
-    content: "\e61f"
+  content: "\e61f"
 }
 
 .ci-plus2:before {
-    content: "\e623"
+  content: "\e623"
 }
 
 .ci-phone:before {
-    content: "\e627"
+  content: "\e627"
 }
 
 .ci-more:before {
-    content: "\e632"
+  content: "\e632"
 }
 
 .ci-monitor:before {
-    content: "\e634"
+  content: "\e634"
 }
 
 .ci-menu:before {
-    content: "\e636"
+  content: "\e636"
 }
 
 .ci-mail:before {
-    content: "\e639"
+  content: "\e639"
 }
 
 .ci-link:before {
-    content: "\e641"
+  content: "\e641"
 }
 
 .ci-like:before {
-    content: "\e642"
+  content: "\e642"
 }
 
 .ci-info:before {
-    content: "\e647"
+  content: "\e647"
 }
 
 .ci-help1:before {
-    content: "\e64a"
+  content: "\e64a"
 }
 
 .ci-global:before {
-    content: "\e64f"
+  content: "\e64f"
 }
 
 .ci-gift:before {
-    content: "\e652"
+  content: "\e652"
 }
 
 .ci-expand1:before {
-    content: "\e657"
+  content: "\e657"
 }
 
 .ci-edit:before {
-    content: "\e659"
+  content: "\e659"
 }
 
 .ci-download:before {
-    content: "\e65c"
+  content: "\e65c"
 }
 
 .ci-display2:before {
-    content: "\e65d"
+  content: "\e65d"
 }
 
 .ci-diskette:before {
-    content: "\e65f"
+  content: "\e65f"
 }
 
 .ci-date:before {
-    content: "\e660"
+  content: "\e660"
 }
 
 .ci-copy-file:before {
-    content: "\e665"
+  content: "\e665"
 }
 
 .ci-config:before {
-    content: "\e666"
+  content: "\e666"
 }
 
 .ci-clock:before {
-    content: "\e66b"
+  content: "\e66b"
 }
 
 .ci-cart:before {
-    content: "\e66e"
+  content: "\e66e"
 }
 
 .ci-bell:before {
-    content: "\e677"
+  content: "\e677"
 }
 
 .ci-attention:before {
-    content: "\e67b"
+  content: "\e67b"
 }
 
 .ci-alarm:before {
-    content: "\e67e"
+  content: "\e67e"
 }
 
 .ci-close:before {
-    content: "\e680"
+  content: "\e680"
 }
 
 .ci-close-circle:before {
-    content: "\e681"
+  content: "\e681"
 }
 
 .ci-angle-up:before {
-    content: "\e682"
+  content: "\e682"
 }
 
 .ci-angle-right:before {
-    content: "\e684"
+  content: "\e684"
 }
 
 .ci-angle-left:before {
-    content: "\e686"
+  content: "\e686"
 }
 
 .ci-angle-down:before {
-    content: "\e688"
+  content: "\e688"
 }
 
 .ci-volume:before {
-    content: "\e692"
+  content: "\e692"
 }
 
 .ci-mute:before {
-    content: "\e69f"
+  content: "\e69f"
 }
 
 .ci-photo:before {
-    content: "\e6bf"
+  content: "\e6bf"
 }
 
 .ci-check:before {
-    content: "\e6ca"
+  content: "\e6ca"
 }
 
 .ci-menu3:before {
-    content: "\e6cc"
+  content: "\e6cc"
 }
 
 .ci-input-check:before {
-    content: "\e6cd"
+  content: "\e6cd"
 }
 
 .ci-point:before {
-    content: "\e6ce"
+  content: "\e6ce"
 }

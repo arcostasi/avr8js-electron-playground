@@ -8,6 +8,9 @@ require(['vs/editor/editor.main'], function () {
   editor = monaco.editor.create(document.getElementById('editor-container'), {
     model: null,
     theme: "vs-dark",
+    fontSize: 18,
+    renderWhitespace: "all",
+    automaticLayout: true,
     minimap: {
       enabled: false
     }

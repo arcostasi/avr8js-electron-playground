@@ -1,3 +1,13 @@
+// Using CommonJS modules
+let Split = require('split.js')
+
+Split(['#panel-left', '#panel-right'], {
+  sizes: [50, 50],
+  minSize: [710, 100],
+  expandToMin: false
+})
+
+// Serial output hidden
 document.querySelector('.serial-checkbox').addEventListener('click', (el) => {
   let check = document.getElementById('serial-hidden');
   let editor = document.getElementById('editor-container')

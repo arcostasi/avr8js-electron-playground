@@ -1,4 +1,4 @@
-const zoomArr = [0.5, 0.75, 0.85, 0.9, 1, 1.2, 1.5];
+const zoomArr = [0.5, 0.75, 0.85, 0.9, 1];
 const element = document.querySelector('.elements');
 
 let value = element.getBoundingClientRect().width / element.offsetWidth;

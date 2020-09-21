@@ -226,6 +226,13 @@ function executeProgram(hex: string) {
       lcd1602.cursorY = lcd.cursorY;
       lcd1602.characters = lcd.characters;
       lcd1602.backlight = lcd.backlight;
+      if (lcd.cgramUpdated) {
+        const font = lcd1602.font.slice(0);
+        const cgramChars = lcd.cgram.slice(0, 0x40);
+        font.set(cgramChars, 0);
+        font.set(cgramChars, 0x40);
+        lcd1602.font = font;
+      }
     }
 
     // PWM

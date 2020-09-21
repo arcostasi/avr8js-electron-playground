@@ -106,7 +106,9 @@ export class LCD1602Controller implements I2CDevice {
         cursorX: this.addr % 64,
         cursorY: Math.floor(this.addr / 64),
         characters: characters,
-        backlight: this.backlight
+        backlight: this.backlight,
+        cgram: this.cgram,
+        cgramUpdated: this.cgramUpdated,
     });
 
     this.cgramUpdated = false;

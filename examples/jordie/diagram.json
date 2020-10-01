@@ -1,0 +1,49 @@
+{
+  "version": 1,
+  "author": "Uri Shaked",
+  "editor": "wokwi",
+  "parts": [
+    { "id": "uno", "type": "wokwi-arduino-uno", "top": 160, "left": 20 },
+    {
+      "id": "lcd",
+      "type": "wokwi-lcd1602",
+      "attrs": { "pins": "i2c"},
+      "top": 0,
+      "left": 35
+    },
+    {
+      "id": "btn-blue",
+      "type": "wokwi-pushbutton",
+      "attrs": { "color": "blue" },
+      "top": 10,
+      "left": 376
+    },
+    {
+      "id": "btn-green",
+      "type": "wokwi-pushbutton",
+      "top": 70,
+      "left": 376,
+      "attrs": { "color": "green" }
+    },
+    {
+      "id": "btn-black",
+      "type": "wokwi-pushbutton",
+      "top": 130,
+      "left": 376,
+      "attrs": { "color": "red" }
+    }
+  ],
+  "connections": [
+
+    ["uno:GND.2", "lcd:GND", "black", ["v15", "*", "h-20"]],
+    ["uno:A4", "lcd:SDA", "orange", ["v-10", "*", "h-10"]],
+    ["uno:A5", "lcd:SCL", "yellow", ["v-20", "*", "h0"]],
+    ["uno:5V", "lcd:VCC", "red", ["v25", "*", "h-30"]],
+    ["uno:5", "btn-blue:1.l", "blue", ["v-30", "*", "h-30"]],
+    ["uno:GND.2", "btn-blue:2.r", "black", ["v35", "*", "h30"]],
+    ["uno:4", "btn-green:1.l", "green", ["v-20", "*", "h-20"]],
+    ["uno:GND.2", "btn-green:2.r", "black", ["v25", "*", "h20"]],
+    ["uno:RESET", "btn-black:1.l", "red", ["v50", "*", "h-10"]],
+    ["uno:GND.2", "btn-black:2.r", "black", ["v15", "*", "h10"]]
+  ]
+}

@@ -1,3 +1,12 @@
+// const Panzoom = require('@panzoom/panzoom');
+// const elem = document.getElementById('elements');
+// const panzoom = Panzoom(elem, {
+//   maxScale: 5
+// });
+
+// panzoom.pan(10, 10);
+// panzoom.zoom(1, { animate: true });
+
 const zoomArr = [0.5, 0.75, 0.85, 0.9, 1];
 const element = document.querySelector('.elements');
 
@@ -28,3 +37,4 @@ document.querySelector('.zoomout').addEventListener('click', () => {
     element.style['transform'] = `scale(${value})`
   }
 });
+

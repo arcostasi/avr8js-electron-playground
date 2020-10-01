@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "author": "Anderson",
+  "editor": "wokwi",
+  "parts": [
+    { "id": "uno", "type": "wokwi-arduino-uno", "top": 50, "left": 50 }
+  ],
+  "connections": [
+    ["uno:GND.1", "led:C", "black", []]
+  ]
+}

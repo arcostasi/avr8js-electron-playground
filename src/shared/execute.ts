@@ -6,6 +6,7 @@
  */
 import {
   avrInstruction,
+  avrInterrupt,
   AVRTimer,
   CPU,
   AVRIOPort,
@@ -21,7 +22,7 @@ import {
   timer2Config,
   usart0Config,
   spiConfig,
-  twiConfig
+  twiConfig,
 } from 'avr8js';
 
 import { Speaker } from "./speaker";
@@ -48,8 +49,10 @@ export class AVRRunner {
   readonly speaker: Speaker;
   readonly frequency = 16e6; // 16 MHZ
   readonly workUnitCycles = 500000;
-
   readonly taskScheduler = new MicroTaskScheduler();
+
+  // Serial buffer
+  private serialBuffer: any = [];
 
   constructor(hex: string) {
     // Load program
@@ -68,27 +71,69 @@ export class AVRRunner {
     this.twi = new AVRTWI(this.cpu, twiConfig, this.frequency);
     this.speaker = new Speaker(this.cpu, this.frequency);
 
-    this.taskScheduler.start();
-  }
+    // this.serialOnLineTransmit();
+    this.cpu.readHooks[usart0Config.UDR] = () => this.serialBuffer.shift() || 0;
 
-  serialOnLineTransmit() {
-    // Serial port to browser console
-    this.usart.onLineTransmit = line => {
-      console.log("[Serial] %c%s", "color: red", line);
-    };
+    this.taskScheduler.start();
   }
 
   // Function to send data to the serial port
   serialWrite(value: string) {
-    // const { UCSRA, UDR } = usart0Config;
-    // const UCSRA_UDRE = 0x20;
-    const { UDR } = usart0Config;
-
-    // Wait for transmit data buffer to go empty
-    // while (!(this.cpu.readData(UCSRA) & (1 << UCSRA_UDRE)))
-
     // Writing to UDR transmits the byte
-    [...value].forEach(c => this.cpu.writeData(UDR, c.charCodeAt(0)));
+    [...value].forEach(c => {
+      // Write a character
+      this.serialBuffer.push(c.charCodeAt(0));
+      // this.cpu.writeData(usart0Config.UDR, c.charCodeAt(0));
+      // Check LF (Line Feed)
+      if (c === '\n') {
+        this.serialBuffer.length = 0; // Clear serial buffer
+      }
+    });
+  }
+
+  serialOnLineTransmit() {
+    // Serial port to browser console
+    this.usart.onLineTransmit = (line) => {
+      console.log("[Serial] %c%s", "color: red", line);
+    };
+  }
+
+  rxCompleteInterrupt() {
+    const UCSRA = this.cpu.data[usart0Config.UCSRA];
+
+    if ((UCSRA & 0x20) && (this.serialBuffer.length > 0)) {
+      avrInterrupt(this.cpu, usart0Config.rxCompleteInterrupt);
+    }
+  }
+
+  // CPU main loop
+  execute(callback: (cpu: CPU) => void) {
+    const cyclesToRun = this.cpu.cycles + this.workUnitCycles;
+
+    while (this.cpu.cycles < cyclesToRun) {
+      // Instruction timing is currently based on ATmega328p
+      avrInstruction(this.cpu);
+
+      // Ticks update
+      this.timer0.tick();
+      this.timer1.tick();
+      this.timer2.tick();
+      this.eeprom.tick();
+      this.usart.tick();
+      this.spi.tick();
+      this.twi.tick();
+
+      // Serial complete interrupt
+      this.rxCompleteInterrupt();
+    }
+
+    callback(this.cpu);
+
+    this.taskScheduler.postTask(() => this.execute(callback));
+  }
+
+  stop() {
+    this.taskScheduler.stop();
   }
 
   analogPort() {
@@ -105,31 +150,5 @@ export class AVRRunner {
         return true; // Don't update
       }
     };
-  }
-
-  // CPU main loop
-  execute(callback: (cpu: CPU) => void) {
-    const cyclesToRun = this.cpu.cycles + this.workUnitCycles;
-
-    while (this.cpu.cycles < cyclesToRun) {
-      // Instruction timing is currently based on ATmega328p
-      avrInstruction(this.cpu);
-      // Ticks update
-      this.timer0.tick();
-      this.timer1.tick();
-      this.timer2.tick();
-      this.eeprom.tick();
-      this.usart.tick();
-      this.spi.tick();
-      this.twi.tick();
-    }
-
-    callback(this.cpu);
-
-    this.taskScheduler.postTask(() => this.execute(callback));
-  }
-
-  stop() {
-    this.taskScheduler.stop();
   }
 }

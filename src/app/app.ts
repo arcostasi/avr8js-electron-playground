@@ -354,7 +354,7 @@ function serialKeyPress(event: any) {
 function serialTransmit() {
   // Serial transmit
   if (runner) {
-    runner.serialWrite(serialInput.value + "\n");
+    runner.serialWrite(serialInput.value + "\r\n");
     serialInput.value = "";
   } else {
     runnerOutputText.textContent += "Warning: AVR is not running!\n";

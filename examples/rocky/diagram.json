@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "author": "Anderson Costa",
+  "editor": "wokwi",
+  "parts": [
+    { "id": "uno", "type": "wokwi-arduino-uno", "top": 120, "left": 20 },
+    { "id": "led-red", "type": "wokwi-led", "attrs": { "color": "red" }, "left": 100, "top": 10 },
+    {
+      "id": "btn-black",
+      "type": "wokwi-pushbutton",
+      "attrs": { "color": "black" },
+      "top": 10,
+      "left": 180
+    }
+  ],
+  "connections": [
+    ["uno:7", "led-red:A", "red", ["v-30", "*", "h6"]],
+    ["uno:GND.1", "led-red:C", "black", ["v-15", "*", "h-8", "v4"]],
+    ["uno:2", "btn-black:2.r", "blue", ["v0", "*", "h10"]],
+    ["uno:GND.1", "btn-black:1.l", "black", ["v-15", "*", "h-6"]]
+  ]
+}

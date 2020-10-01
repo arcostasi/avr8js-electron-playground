@@ -83,11 +83,6 @@ export class AVRRunner {
     [...value].forEach(c => {
       // Write a character
       this.serialBuffer.push(c.charCodeAt(0));
-      // this.cpu.writeData(usart0Config.UDR, c.charCodeAt(0));
-      // Check LF (Line Feed)
-      if (c === '\n') {
-        this.serialBuffer.length = 0; // Clear serial buffer
-      }
     });
   }
 
@@ -124,7 +119,9 @@ export class AVRRunner {
       this.twi.tick();
 
       // Serial complete interrupt
-      this.rxCompleteInterrupt();
+      if (this.cpu.interruptsEnabled) {
+        this.rxCompleteInterrupt();
+      }
     }
 
     callback(this.cpu);

@@ -1,3 +1,10 @@
+/**
+ * Arduino Blink
+ * Part of Wokwi Playground
+ * https://wokwi.com/playground/blink
+ * Copyright (C) 2019, Uri Shaked
+ */
+
 #define DELAY_LED 250
 
 // LEDs connected to pins 8..13

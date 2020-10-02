@@ -1,5 +1,8 @@
 /**
+ * Blue LED connected to pin 11 => Enjoy!
+ * Part of AVR8js
  * https://avr8js-ssd1306.stackblitz.io/
+ * Copyright (C) 2019, Uri Shaked
  */
 
 #include <SPI.h>

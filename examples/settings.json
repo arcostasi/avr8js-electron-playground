@@ -9,8 +9,8 @@
             "path": "./examples/lcd/"
         },
         {
-            "name": "rgb",
-            "path": "./examples/rgb/"
+            "name": "neopixel",
+            "path": "./examples/neopixel/"
         },
         {
             "name": "fire",
@@ -29,14 +29,6 @@
             "path": "./examples/metaballs/"
         },
         {
-            "name": "pacifica",
-            "path": "./examples/pacifica/"
-        },
-        {
-            "name": "xymatrix",
-            "path": "./examples/xymatrix/"
-        },
-        {
             "name": "brainy",
             "path": "./examples/brainy/"
         },
@@ -47,6 +39,10 @@
         {
             "name": "ssdcounter",
             "path": "./examples/ssdcounter/"
+        },
+        {
+            "name": "serial_echo",
+            "path": "./examples/serial_echo/"
         }
     ],
     "settings": {

@@ -1,9 +1,13 @@
 /**
+ * LCD-1602 Arduino Simulation
+ * Part of Wokwi Playground
  * https://wokwi.com/playground/lcd1602-i2c
+ * Copyright (C) 2020, Uri Shaked
  */
 
 #include <LiquidCrystal_I2C.h>
 
+// The LCD1602 is connected at I²C address 0x27
 LiquidCrystal_I2C lcd(0x27, 16, 2);
 
 byte heart[8] = {
@@ -27,7 +31,7 @@ void setup() {
 }
 
 int i = 0;
-char *msg = "Hello, World!";
+char *msg = "Hello, Wokwi!";
 
 void loop() {
   if (i < strlen(msg)) {

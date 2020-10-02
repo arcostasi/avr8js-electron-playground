@@ -293,14 +293,13 @@ async function compileAndRun() {
 
       clearLeds();
       executeProgram(result.hex);
-    } else {
-      runButton.removeAttribute('disabled');
     }
   } catch (err) {
-    runButton.removeAttribute('disabled');
+    compileButton.removeAttribute('disabled');
     alert('Failed: ' + err);
   } finally {
     statusLabel.textContent = '';
+    runButton.removeAttribute('disabled');
   }
 }
 

@@ -2,6 +2,8 @@ let editor;
 let projectPath;
 let projectName;
 let projectHex;
+let projectFiles;
+let projectBoard;
 
 require.config({ paths: { 'vs': './node_modules/monaco-editor/min/vs' } });
 require(['vs/editor/editor.main'], function () {
@@ -52,6 +54,28 @@ setProjectHex = function(folder, fileHex) {
   projectHex = folder.concat(fileHex);
 }
 
+initProjectFiles = function() {
+  projectFiles = [];
+}
+
+getProjectFiles = function() {
+  return projectFiles;
+}
+
+setProjectFiles = function(folder, fileName) {
+  let file = [{ name: fileName, content: folder + fileName }];
+  // Concat multiple files
+  projectFiles = projectFiles.concat(file);
+}
+
+getProjectBoard = function() {
+  return projectBoard;
+}
+
+setProjectBoard = function(board) {
+  projectBoard = board;
+}
+
 readTextFile = function(folder, fileName)
 {
   let rawFile = new XMLHttpRequest();
@@ -69,10 +93,23 @@ readTextFile = function(folder, fileName)
   rawFile.send();
 }
 
-loader = function (path, name) {
+loader = function(path, name, files, board = 'uno') {
   // Set project path & name
   setProjectPath(path);
   setProjectName(name);
+  setProjectBoard(board);
+
+  let filesSplit = files.split(",");
+
+  // Clear project files
+  initProjectFiles();
+
+  // Get files
+  filesSplit.forEach((fileName, index) => {
+    if (fileName) {
+      setProjectFiles(path, fileName);
+    }
+  });
 
   // Set project hex filename
   setProjectHex(getProjectPath(), getProjectName('.hex'));

@@ -25,6 +25,8 @@ export class AVRRunner {
   readonly portB: AVRIOPort;
   readonly portC: AVRIOPort;
   readonly portD: AVRIOPort;
+  readonly frequency = 16e6; // 16 MHZ
+  readonly workUnitCycles = 500000;
 
   private stopped = false;
 

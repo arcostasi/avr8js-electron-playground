@@ -2,47 +2,58 @@
     "projects": [
         {
             "name": "blinks",
-            "path": "./examples/blinks/"
+            "path": "./examples/blinks/",
+            "board": "uno"
+        },
+        {
+            "name": "buttons",
+            "path": "./examples/buttons/",
+            "board": "uno"
         },
         {
             "name": "lcd",
-            "path": "./examples/lcd/"
+            "path": "./examples/lcd/",
+            "board": "uno"
         },
         {
             "name": "neopixel",
-            "path": "./examples/neopixel/"
+            "path": "./examples/neopixel/",
+            "board": "uno"
         },
         {
             "name": "fire",
-            "path": "./examples/fire/"
+            "path": "./examples/fire/",
+            "board": "uno"
         },
         {
             "name": "rain",
-            "path": "./examples/rain/"
-        },
-        {
-            "name": "cylon",
-            "path": "./examples/cylon/"
+            "path": "./examples/rain/",
+            "board": "uno"
         },
         {
             "name": "metaballs",
-            "path": "./examples/metaballs/"
+            "path": "./examples/metaballs/",
+            "board": "uno"
         },
         {
             "name": "brainy",
-            "path": "./examples/brainy/"
+            "path": "./examples/brainy/",
+            "board": "uno"
         },
         {
             "name": "ssd1306",
-            "path": "./examples/ssd1306/"
+            "path": "./examples/ssd1306/",
+            "board": "uno"
         },
         {
             "name": "ssdcounter",
-            "path": "./examples/ssdcounter/"
+            "path": "./examples/ssdcounter/",
+            "board": "uno"
         },
         {
             "name": "serial_echo",
-            "path": "./examples/serial_echo/"
+            "path": "./examples/serial_echo/",
+            "board": "uno"
         }
     ],
     "settings": {

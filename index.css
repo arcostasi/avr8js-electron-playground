@@ -285,8 +285,6 @@ body {
 .lcd {
   width: 300px;
   max-width: 300px;
-  transform: scale(0.5);
-  opacity: 0.99;
 }
 
 .keypad {
@@ -310,13 +308,15 @@ body {
 }
 
 .pushbutton {
-  width: 150px;
-  max-width: 150px;
+  width: 500px;
+  max-width: 500px;
+  padding-bottom: 20px;
 }
 
 .neopixel {
   width: 280px;
   max-width: 280px;
+  padding-bottom: 20px;
 }
 
 .pixels {

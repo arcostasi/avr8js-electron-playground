@@ -1,25 +1,26 @@
 /**
  * Speaker
  * Part of AVR8js
- *
+ * From https://stackblitz.com/edit/avr8js-simon-game?file=speaker.ts
  * Copyright (C) 2019, Uri Shaked
  */
 import { ICPU } from 'avr8js';
 
-const SAMPLE_RATE = 44100;
-const CHUNKS_PER_SECOND = 8;
+const CHUNKS_PER_SECOND = 20;
 
+// TODO: Fix sound stuttering
 export class Speaker {
   private readonly context = new AudioContext();
 
   private chunkBuffer = new AudioBuffer({
-    length: SAMPLE_RATE / CHUNKS_PER_SECOND,
+    length: this.context.sampleRate / CHUNKS_PER_SECOND,
     numberOfChannels: 1,
-    sampleRate: SAMPLE_RATE
+    sampleRate: this.context.sampleRate
   });
 
   private chunk = this.chunkBuffer.getChannelData(0);
   private node: AudioBufferSourceNode | null = null;
+
   private prevValue = 0;
   private playedSamples = 0;
   private lastSample = 0;
@@ -28,9 +29,11 @@ export class Speaker {
 
   feed(value: number) {
     const currentTime = this.cpu.cycles / this.mhz;
-    let currentSample = Math.floor(currentTime * SAMPLE_RATE) - this.playedSamples;
+    const { sampleRate } = this.context;
 
-    if (currentSample - this.lastSample > SAMPLE_RATE / 20) {
+    let currentSample = Math.floor(currentTime * sampleRate) - this.playedSamples;
+
+    if ((currentSample - this.lastSample) > (sampleRate / CHUNKS_PER_SECOND)) {
       this.lastSample = currentSample;
       currentSample = 0;
     } else {
@@ -47,9 +50,9 @@ export class Speaker {
       currentSample %= this.chunk.length;
 
       this.chunkBuffer = new AudioBuffer({
-        length: SAMPLE_RATE / CHUNKS_PER_SECOND,
+        length: sampleRate / CHUNKS_PER_SECOND,
         numberOfChannels: 1,
-        sampleRate: SAMPLE_RATE
+        sampleRate: sampleRate
       });
 
       this.chunk = this.chunkBuffer.getChannelData(0);

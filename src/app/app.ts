@@ -115,7 +115,7 @@ let hasLEDsOnPortD: boolean;
 pushButtons.forEach(function(button) {
   button.addEventListener('button-press', () => {
     const pushButtonPin = parseInt(button.getAttribute("pin"), 10);
-    runner.portC.setPin(pushButtonPin, true);
+    runner.portD.setPin(pushButtonPin, true);
   });
 });
 
@@ -123,7 +123,7 @@ pushButtons.forEach(function(button) {
 pushButtons.forEach(function(button) {
   button.addEventListener('button-release', () => {
     const pushButtonPin = parseInt(button.getAttribute("pin"), 10);
-    runner.portC.setPin(pushButtonPin, false);
+    runner.portD.setPin(pushButtonPin, false);
   });
 });
 

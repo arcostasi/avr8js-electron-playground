@@ -6,7 +6,7 @@
  */
 
 byte ledPins[] = {13, 12, 11, 10, 9, 8};
-byte buttonPins[] = {A0, A1, A2, A3, A4, A5};
+byte buttonPins[] = {2, 3, 4, 5, 6, 7};
 
 void setup() {
   for (int i = 0; i < sizeof(buttonPins); i++) {

@@ -58,13 +58,23 @@ export class AVRRunner {
     // Load program
     loadHex(hex, new Uint8Array(this.program.buffer));
 
-    this.cpu = new CPU(this.program);
+    // Check hex size
+    if (hex.length > 2048) {
+      // Fake RAM Size
+      this.cpu = new CPU(this.program, FLASH);
+    } else {
+      // Arduino UNO (ATmega328)
+      this.cpu = new CPU(this.program);
+    }
+
     this.timer0 = new AVRTimer(this.cpu, timer0Config);
     this.timer1 = new AVRTimer(this.cpu, timer1Config);
     this.timer2 = new AVRTimer(this.cpu, timer2Config);
+
     this.portB = new AVRIOPort(this.cpu, portBConfig);
     this.portC = new AVRIOPort(this.cpu, portCConfig);
     this.portD = new AVRIOPort(this.cpu, portDConfig);
+
     this.eeprom = new AVREEPROM(this.cpu, new EEPROMLocalStorageBackend());
     this.usart = new AVRUSART(this.cpu, usart0Config, this.frequency);
     this.spi = new AVRSPI(this.cpu, spiConfig, this.frequency);

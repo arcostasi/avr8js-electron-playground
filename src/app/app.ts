@@ -8,7 +8,7 @@ import {
   NeopixelMatrixElement
 } from '@wokwi/elements';
 
-import { PinState } from 'avr8js';
+import { PinState, portDConfig } from 'avr8js';
 import { buildHex } from "../shared/compile";
 import { CPUPerformance } from '../shared/cpu-performance';
 import { AVRRunner } from "../shared/execute";
@@ -27,6 +27,8 @@ declare function getProjectPath(): any;
 declare function getProjectName(ext: any): any;
 declare function getProjectHex(): any;
 declare function setProjectHex(folder: any, fileHex: any): any;
+declare function getProjectFiles(): any;
+declare function getProjectBoard(): any;
 
 // Add events to the buttons
 const compileButton = document.querySelector("#compile-button");
@@ -60,7 +62,6 @@ serialSend.addEventListener("click", serialTransmit);
 
 // Set up LEDs
 const leds = document.querySelectorAll<LEDElement>("wokwi-led");
-const led11 = document.querySelector<LEDElement & Element>('wokwi-led[color=blue]');
 
 // Set up the LCD1602
 const lcd1602 = document.querySelector<LCD1602Element>(
@@ -92,7 +93,7 @@ const buzzer = document.querySelector<BuzzerElement>(
 const buzzerPin = parseInt(buzzer.getAttribute("pin"), 10);
 
 // Set up the push button
-const pushButton = document.querySelector<PushbuttonElement & HTMLElement>(
+const pushButtons = document.querySelectorAll<PushbuttonElement & HTMLElement>(
   "wokwi-pushbutton"
 );
 
@@ -107,8 +108,24 @@ let runner: AVRRunner;
 
 let board = 'uno';
 
-let hasLEDsPortB: boolean;
-let hasLEDsPortD: boolean;
+let hasLEDsOnPortB: boolean;
+let hasLEDsOnPortD: boolean;
+
+// Set up press push buttons
+pushButtons.forEach(function(button) {
+  button.addEventListener('button-press', () => {
+    const pushButtonPin = parseInt(button.getAttribute("pin"), 10);
+    runner.portC.setPin(pushButtonPin, true);
+  });
+});
+
+// Set up release push buttons
+pushButtons.forEach(function(button) {
+  button.addEventListener('button-release', () => {
+    const pushButtonPin = parseInt(button.getAttribute("pin"), 10);
+    runner.portC.setPin(pushButtonPin, false);
+  });
+});
 
 function executeProgram(hex: string) {
 
@@ -125,50 +142,34 @@ function executeProgram(hex: string) {
   const lcd1602Controller = new LCD1602Controller(cpuMillis);
   const matrixController = new WS2812Controller(matrix.cols * matrix.rows);
 
-  // LED PWM
-  const PWM_LED = false;
-  const pin11State = runner.portB.pinState(3);
-
   let lastState = PinState.Input;
   let lastStateCycles = 0;
   let lastUpdateCycles = 0;
   let ledHighCycles = 0;
 
+  // Enable as default
+  hasLEDsOnPortB = true;
+  hasLEDsOnPortD = true;
+
   i2cBus.registerDevice(SSD1306_ADDR_OTHER, ssd1306Controller);
   i2cBus.registerDevice(LCD1602_ADDR, lcd1602Controller);
 
-  // Enable as default
-  hasLEDsPortB = true;
-  hasLEDsPortD = true;
-
   // Hook to PORTB register
-  runner.portB.addListener(value => {
+  runner.portB.addListener((value) => {
     // Port B starts at pin 8 to 13
-    if (hasLEDsPortB) {
-      hasLEDsPortB = false;
+    if (hasLEDsOnPortB) {
+      hasLEDsOnPortB = false;
       updateLEDs(value, 8);
     }
 
-    // PWM
-    if (PWM_LED && (lastState !== pin11State)) {
-      const delta = runner.cpu.cycles - lastStateCycles;
-
-      if (lastState === PinState.High) {
-        ledHighCycles += delta;
-      }
-
-      lastState = pin11State;
-      lastStateCycles = runner.cpu.cycles;
-    }
-
-    // Feed the speaker
-    // runner.speaker.feed(runner.portB.pinState(buzzerPin));
-    // buzzer.hasSignal = runner.portB.pinState(buzzerPin) == PinState.High;
+    // Speaker
+    runner.speaker.feed(value & (1 << 0));
+    // buzzer.hasSignal = ((value & 0x01) == 1) ? true: false;
   });
 
   // Hook to PORTC register
   runner.portC.addListener((value) => {
-    // Analog input pins
+    // Analog input pins (A0-A5)
   });
 
   // Hook to PORTD register
@@ -176,17 +177,6 @@ function executeProgram(hex: string) {
     // Port D starts at pin 0 to 7
     // Feed the matrix
     matrixController.feedValue(runner.portD.pinState(matrixPin), cpuNanos());
-  });
-
-  // Set up the push button
-  pushButton.addEventListener('button-press', () => {
-    const pushButtonPin = parseInt(pushButton.getAttribute("pin"), 10);
-    runner.portD.setPin(pushButtonPin, true);
-  });
-
-  pushButton.addEventListener('button-release', () => {
-    const pushButtonPin = parseInt(pushButton.getAttribute("pin"), 10);
-    runner.portD.setPin(pushButtonPin, false);
   });
 
   // Connect to Serial port
@@ -226,30 +216,19 @@ function executeProgram(hex: string) {
       lcd1602.cursorY = lcd.cursorY;
       lcd1602.characters = lcd.characters;
       lcd1602.backlight = lcd.backlight;
+
+      // Check custom character
       if (lcd.cgramUpdated) {
         const font = lcd1602.font.slice(0);
         const cgramChars = lcd.cgram.slice(0, 0x40);
+
+        // Set character
         font.set(cgramChars, 0);
         font.set(cgramChars, 0x40);
+
+        // Get character
         lcd1602.font = font;
       }
-    }
-
-    // PWM
-    if (PWM_LED) {
-      const cyclesSinceUpdate = cpu.cycles - lastUpdateCycles;
-      const pin11State = runner.portB.pinState(3);
-
-      if (pin11State === PinState.High) {
-        ledHighCycles += cpu.cycles - lastStateCycles;
-      }
-
-      led11.value = ledHighCycles > 0;
-      led11.brightness = ledHighCycles / cyclesSinceUpdate;
-
-      lastUpdateCycles = cpu.cycles;
-      lastStateCycles = cpu.cycles;
-      ledHighCycles = 0;
     }
 
     // Update status
@@ -274,9 +253,8 @@ async function compileAndRun() {
     statusLabelTimer.textContent = '00:00.000';
     statusLabelSpeed.textContent = '0%';
 
-    const result = await buildHex(getEditor().getValue(), [
-      // { name: "pitches.h", content: PITCHES_H  } // Other files
-    ], board);
+    const result = await buildHex(getEditor().getValue(),
+      getProjectFiles(), getProjectBoard());
 
     runnerOutputText.textContent = result.stderr || result.stdout;
 
@@ -394,17 +372,19 @@ function updateLEDs(value: number, startPin: number) {
   leds.forEach(function(led) {
     const pin = parseInt(led.getAttribute("pin"), 10);
     // Check pin
-    if (pin >= startPin && pin <= startPin + 8) {
-      // Check LED in portB
+    if ((pin >= startPin) && (pin <= startPin + 8)) {
+      // Checks in portB
       if (startPin == 8)
-        hasLEDsPortB = true;
+        hasLEDsOnPortB = true;
 
-      // Check LED in portD
+      // Checks in portD
       if (startPin == 0)
-        hasLEDsPortD = true;
+        hasLEDsOnPortD = true;
+
+      const bit = 1 << (pin - startPin);
 
       // Set LED
-      led.value = value & (1 << (pin - startPin)) ? true : false;
+      led.value = value & bit ? true : false;
     }
   });
 }

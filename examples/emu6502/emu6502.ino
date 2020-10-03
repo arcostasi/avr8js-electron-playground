@@ -1,19 +1,21 @@
-#include <LiquidCrystal_I2C.h>
+// #include <SPI.h>
+// #include <Wire.h>
+// #include <Adafruit_GFX.h>
+// #include <Adafruit_SSD1306.h>
 
-#define LCD_ADDR 0x27 // LCD address
-#define LCD_COLS 16   // Number of columns on the LCD
-#define LCD_ROWS 2    // Number of lines on the LCD
+// SSD1306 settings
+#define SCREEN_WIDTH 128
+#define SCREEN_HEIGHT 64
+#define DELAY_DISPLAY 1000
+
 #define LF       10   // Line Feed
 #define CR       13   // Carriage Return
 
-LiquidCrystal_I2C lcd(LCD_ADDR, LCD_COLS, LCD_ROWS);
-
 uint8_t curkey = 0;
-uint8_t row = 0;
-uint8_t col = 0;
 
 bool cr = false;
-bool clear = false;
+
+// Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, -1);
 
 extern "C" {
     uint16_t getpc();
@@ -35,41 +37,14 @@ extern "C" {
         if (cr && value == LF) {
             cr = false;
 
-            if (col > 0) {
-                row++;
-            }
+            // Show
+            // display.display();
 
-            col = 0;
             return;
         }
 
-        // Checks the limit rows
-        if (row >= LCD_ROWS) {
-            clear = true;
-        }
-
-        // Check the LCD cleanliness
-        if (clear) {
-            // LCD Clear
-            clear = false;
-            lcd.clear();
-
-            // Reset positions
-            row = 0;
-            col = 0;
-        }
-
-        // Print on the LCD
-        lcd.setCursor(col, row);
-        lcd.write(value);
-
-        // Checks the limit cols
-        if (col < LCD_COLS) {
-            col++;
-        } else {
-            col=0;
-            row++;
-        }
+        // Print on the SSD1306
+        // display.write(value);
     }
 
     uint8_t getkey() {
@@ -80,6 +55,9 @@ extern "C" {
 }
 
 void setup () {
+    // Increase RAM size
+    SP = 0x7fff;
+
     // Reset the 6502 emulator
     uint32_t romSize = reset6502();
 
@@ -92,10 +70,9 @@ void setup () {
     Serial.println(" bytes");
 
     // Initializes the LCD
-    lcd.init();
-    lcd.backlight();
-    lcd.setCursor(0, 0);
-    lcd.print("[emu6502]");
+    // display.begin(SSD1306_SWITCHCAPVCC, 0x3D);
+    // display.display();
+    // delay(1000);
 }
 
 void loop () {

@@ -14,7 +14,8 @@ extern void serout(uint8_t value);
 
 #define NULL (void *) 0
 
-#define RAM_SIZE 1536
+// #define RAM_SIZE 1536
+#define RAM_SIZE 16384
 
 // 6502 defines
 #define UNDOCUMENTED // When this is defined, undocumented opcodes are handled.

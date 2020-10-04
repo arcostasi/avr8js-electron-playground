@@ -11,52 +11,72 @@
             "board": "uno"
         },
         {
+            "name": "sevseg",
+            "path": "./examples/sevseg/",
+            "board": "uno"
+        },
+        {
             "name": "lcd",
             "path": "./examples/lcd/",
-            "board": "uno"
+            "board": "uno",
+            "optimized": "lcd"
         },
         {
             "name": "neopixel",
             "path": "./examples/neopixel/",
-            "board": "uno"
+            "board": "uno",
+            "optimized": "neopixel"
         },
         {
             "name": "fire",
             "path": "./examples/fire/",
-            "board": "uno"
+            "board": "uno",
+            "optimized": "neopixel"
         },
         {
             "name": "rain",
             "path": "./examples/rain/",
-            "board": "uno"
+            "board": "uno",
+            "optimized": "neopixel"
         },
         {
             "name": "metaballs",
             "path": "./examples/metaballs/",
-            "board": "uno"
+            "board": "uno",
+            "optimized": "neopixel"
         },
         {
             "name": "brainy",
             "path": "./examples/brainy/",
-            "board": "uno"
+            "board": "uno",
+            "optimized": "neopixel"
         },
         {
             "name": "ssd1306",
             "path": "./examples/ssd1306/",
-            "board": "uno"
+            "board": "uno",
+            "optimized": "ssd1306"
         },
         {
             "name": "ssdcounter",
             "path": "./examples/ssdcounter/",
-            "board": "uno"
+            "board": "uno",
+            "optimized": "ssd1306"
         },
         {
-            "name": "serial_echo",
-            "path": "./examples/serial_echo/",
-            "board": "uno"
+            "name": "emu6502",
+            "path": "./examples/emu6502/",
+            "board": "fakeuno",
+            "optimized": "ssd1306",
+            "__fakeRamSize": "32768",
+            "files": [
+                "cpu.c",
+                "rom.h"
+            ]
         }
     ],
     "settings": {
+        "debug": false,
         "files.associations": {
             "*.ino": "ino",
             "*.hex": "hex"

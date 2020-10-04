@@ -293,7 +293,7 @@ body {
 }
 
 .servo {
-  width: 250px;
+  width: 170px;
   max-width: 500px;
 }
 
@@ -303,12 +303,12 @@ body {
 }
 
 .buzzer {
-  width: 100px;
+  width: 50px;
   max-width: 100px;
 }
 
 .pushbutton {
-  width: 500px;
+  width: 460px;
   max-width: 500px;
   padding-bottom: 20px;
 }
@@ -328,12 +328,12 @@ body {
 }
 
 .segment {
-  width: 150px;
+  width: 50px;
   max-width: 150px;
 }
 
 .dht22 {
-  width: 100px;
+  width: 60px;
   max-width: 100px;
 }
 

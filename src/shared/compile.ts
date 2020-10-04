@@ -5,7 +5,6 @@
  * Copyright (C) 2019, Uri Shaked
  */
 const url = 'https://hexi.wokwi.com';
-// const url = 'http://localhost:9090';
 
 export interface IHexiResult {
   stdout: string;
@@ -18,8 +17,16 @@ export interface IHexiResult {
  * @param files - array[]
  * @param board - 'nano', 'uno', 'mega'
  */
-export async function buildHex(source: string, files: any[] = [], board: string = 'uno') {
-  const resp = await fetch(url + '/build', {
+export async function buildHex(source: string, files: any,
+  board: string = 'uno', debug: boolean = false) {
+  // Check FakeRamSize test
+  if (!debug && (board = 'fakeuno')) {
+    board = 'uno';
+  }
+
+  let _url = debug ? 'http://localhost:9090' : url;
+
+  const resp = await fetch(_url + '/build', {
     method: 'POST',
     mode: 'cors',
     cache: 'no-cache',
@@ -28,6 +35,11 @@ export async function buildHex(source: string, files: any[] = [], board: string 
     },
     body: JSON.stringify({ sketch: source, files, board: board })
   });
+
+  if (!resp.ok) {
+    const message = `An error has occured: ${resp.status}`;
+    throw new Error(message);
+  }
 
   return (await resp.json()) as IHexiResult;
 }

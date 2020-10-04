@@ -1,31 +1,42 @@
 import { Titlebar, Color } from 'custom-electron-titlebar'
 
-let examples = require('../../examples/settings.json');
+const fs = require('fs')
+let json = require('../../examples/settings.json');
 
 // Get Loader
 declare function loader(path: any, name: any, files: any, board: any): any;
-declare function setFiles(path: any, name: any): any;
+declare function setDebug(value: boolean): any;
 
 document.addEventListener('DOMContentLoaded', (event) => {
 
-  examples.projects.forEach((data: any, index: any) => {
+  json.projects.forEach((data: any, index: any) => {
 
-    let loader = "loader('" + data.path + "', '"
-                            + data.name + "', ";
+    let loader = "loader('" + data.path + "','"
+                            + data.name + "'";
 
     if (data.files != undefined) {
-      loader += "'" + data.files + "', ";
+      loader += ",'" + data.files + "'";
     } else {
-      loader +=  "'', ";
+      loader += ",''";
     }
 
     if (data.board != undefined) {
-      loader += "'" + data.board + "');";
+      loader += ",'" + data.board + "'";
     }
+
+    if (data.optimized != undefined) {
+      loader += ",'" + data.optimized + "'";
+    }
+
+    loader += ");";
 
     document.getElementById("editor-tab").innerHTML +=
       '<button class="btn-white" onclick="' + loader + '">' + data.name + "</button>\n";
   });
+
+  if (json.settings.debug != undefined) {
+    setDebug(json.settings.debug);
+  }
 
   // Load initial example
   loader('./examples/blinks/', 'blinks', '', 'uno');

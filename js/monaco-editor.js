@@ -1,4 +1,7 @@
 let editor;
+let diagram;
+let optimized;
+let debug;
 let projectPath;
 let projectName;
 let projectHex;
@@ -59,11 +62,11 @@ initProjectFiles = function() {
 }
 
 getProjectFiles = function() {
+  // return JSON.stringify(projectFiles);
   return projectFiles;
 }
 
-setProjectFiles = function(folder, fileName) {
-  let file = [{ name: fileName, content: folder + fileName }];
+setProjectFiles = function(file) {
   // Concat multiple files
   projectFiles = projectFiles.concat(file);
 }
@@ -76,24 +79,51 @@ setProjectBoard = function(board) {
   projectBoard = board;
 }
 
-readTextFile = function(folder, fileName)
+setOptimized = function (componentName) {
+  optimized = componentName;
+}
+
+getOptimized = function() {
+  return optimized;
+}
+
+setDiagram = function(content) {
+  diagram = content;
+}
+
+setDebug = function(value) {
+  debug = value;
+}
+
+getDebug = function() {
+  return debug;
+}
+
+readTextFile = function(folder, fileName, type = 'file')
 {
-  let rawFile = new XMLHttpRequest();
+  let request = new XMLHttpRequest();
 
-  rawFile.open("GET", folder.concat(fileName), true);
+  request.open("GET", folder.concat(fileName), true);
 
-  rawFile.onreadystatechange = function () {
-    if (rawFile.readyState === 4) {
-      if (rawFile.status === 200 || rawFile.status == 0) {
-        setModel(rawFile.responseText, 'cpp');
+  request.onreadystatechange = function () {
+    if (request.readyState === 4) {
+      if (request.status === 200 || request.status == 0) {
+        if (type == 'file') {
+          let file = { "name": fileName, "content": request.responseText };
+          setProjectFiles(file);
+        } else if (type == 'model') {
+          setModel(request.responseText, 'cpp');
+        } else if (type == 'diagram') {
+          setDiagram(request.responseText);
+        }
       }
     }
   }
 
-  rawFile.send();
+  request.send();
 }
 
-loader = function(path, name, files, board = 'uno') {
+loader = function(path, name, files, board = 'uno', optimized = 'none') {
   // Set project path & name
   setProjectPath(path);
   setProjectName(name);
@@ -107,7 +137,7 @@ loader = function(path, name, files, board = 'uno') {
   // Get files
   filesSplit.forEach((fileName, index) => {
     if (fileName) {
-      setProjectFiles(path, fileName);
+      readTextFile(path, fileName);
     }
   });
 
@@ -115,5 +145,13 @@ loader = function(path, name, files, board = 'uno') {
   setProjectHex(getProjectPath(), getProjectName('.hex'));
 
   // Load project file
-  readTextFile(getProjectPath(), getProjectName('.ino'));
+  readTextFile(getProjectPath(), getProjectName('.ino'), 'model');
+
+  // Load project diagram
+  // readTextFile(getProjectPath(), 'diagram.json', 'diagram');
+
+  // Check component optimized
+  if (optimized != 'none') {
+    setOptimized(optimized);
+  }
 }

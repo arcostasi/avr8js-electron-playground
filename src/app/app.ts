@@ -5,6 +5,7 @@ import {
   SSD1306Element,
   LCD1602Element,
   PushbuttonElement,
+  SevenSegmentElement,
   NeopixelMatrixElement
 } from '@wokwi/elements';
 
@@ -29,6 +30,8 @@ declare function getProjectHex(): any;
 declare function setProjectHex(folder: any, fileHex: any): any;
 declare function getProjectFiles(): any;
 declare function getProjectBoard(): any;
+declare function getOptimized(): any;
+declare function getDebug(): any;
 
 // Add events to the buttons
 const compileButton = document.querySelector("#compile-button");
@@ -97,6 +100,11 @@ const pushButtons = document.querySelectorAll<PushbuttonElement & HTMLElement>(
   "wokwi-pushbutton"
 );
 
+// Set up the NeoPixel matrix
+const segment = document.querySelector<SevenSegmentElement>(
+  "wokwi-7segment"
+);
+
 // Set up the NeoPixel canvas
 const canvas = document.querySelector("canvas");
 const context = canvas.getContext("2d");
@@ -157,14 +165,17 @@ function executeProgram(hex: string) {
   // Hook to PORTB register
   runner.portB.addListener((value) => {
     // Port B starts at pin 8 to 13
-    if (hasLEDsOnPortB) {
-      hasLEDsOnPortB = false;
-      updateLEDs(value, 8);
+    if (getOptimized() == 'buzzer') {
+      // Speaker
+      runner.speaker.feed(value & (1 << 0));
+      // buzzer.hasSignal = ((value & 0x01) == 1) ? true: false;
+    } else {
+      // None optimized
+      if (hasLEDsOnPortB) {
+        hasLEDsOnPortB = false;
+        updateLEDs(value, 8);
+      }
     }
-
-    // Speaker
-    runner.speaker.feed(value & (1 << 0));
-    // buzzer.hasSignal = ((value & 0x01) == 1) ? true: false;
   });
 
   // Hook to PORTC register
@@ -175,8 +186,12 @@ function executeProgram(hex: string) {
   // Hook to PORTD register
   runner.portD.addListener((value) => {
     // Port D starts at pin 0 to 7
-    // Feed the matrix
-    matrixController.feedValue(runner.portD.pinState(matrixPin), cpuNanos());
+    if (getOptimized() == 'neopixel') {
+      // Feed the matrix
+      matrixController.feedValue(runner.portD.pinState(matrixPin), cpuNanos());
+    } else {
+      updateSegment(value)
+    }
   });
 
   // Connect to Serial port
@@ -193,41 +208,42 @@ function executeProgram(hex: string) {
   runner.execute((cpu) => {
     const time = formatTime(cpu.cycles / runner.frequency);
     const speed = (cpuPerf.update() * 100).toFixed(0);
-    const pixels = matrixController.update(cpuNanos());
-    const frame = ssd1306Controller.update();
-    const lcd = lcd1602Controller.update();
 
-    if (pixels) {
-    // Update NeoPixel matrix
-      redrawMatrix(pixels);
-    }
-
-    if (frame) {
+    if (getOptimized() == 'neopixel') {
+      const pixels = matrixController.update(cpuNanos());
+      if (pixels) {
+      // Update NeoPixel matrix
+        redrawMatrix(pixels);
+      }
+    } else if (getOptimized() == 'ssd1306') {
+      const frame = ssd1306Controller.update();
       // Update SSD1306
       ssd1306Controller.toImageData(ssd1306.imageData);
       ssd1306.redraw();
-    }
+    } else if (getOptimized() == 'lcd') {
+      const lcd = lcd1602Controller.update();
+      // Check component
+      if (lcd) {
+        // Update LCD1602
+        lcd1602.blink = lcd.blink;
+        lcd1602.cursor = lcd.cursor;
+        lcd1602.cursorX = lcd.cursorX;
+        lcd1602.cursorY = lcd.cursorY;
+        lcd1602.characters = lcd.characters;
+        lcd1602.backlight = lcd.backlight;
 
-    if (lcd) {
-      // Update LCD1602
-      lcd1602.blink = lcd.blink;
-      lcd1602.cursor = lcd.cursor;
-      lcd1602.cursorX = lcd.cursorX;
-      lcd1602.cursorY = lcd.cursorY;
-      lcd1602.characters = lcd.characters;
-      lcd1602.backlight = lcd.backlight;
+        // Check custom character
+        if (lcd.cgramUpdated) {
+          const font = lcd1602.font.slice(0);
+          const cgramChars = lcd.cgram.slice(0, 0x40);
 
-      // Check custom character
-      if (lcd.cgramUpdated) {
-        const font = lcd1602.font.slice(0);
-        const cgramChars = lcd.cgram.slice(0, 0x40);
+          // Set character
+          font.set(cgramChars, 0);
+          font.set(cgramChars, 0x40);
 
-        // Set character
-        font.set(cgramChars, 0);
-        font.set(cgramChars, 0x40);
-
-        // Get character
-        lcd1602.font = font;
+          // Get character
+          lcd1602.font = font;
+        }
       }
     }
 
@@ -254,9 +270,7 @@ async function compileAndRun() {
     statusLabelSpeed.textContent = '0%';
 
     const result = await buildHex(getEditor().getValue(),
-      getProjectFiles(), getProjectBoard());
-
-    runnerOutputText.textContent = result.stderr || result.stdout;
+      getProjectFiles(), getProjectBoard(), getDebug());
 
     if (result.hex) {
       // Set project hex filename
@@ -272,9 +286,14 @@ async function compileAndRun() {
       clearLeds();
       executeProgram(result.hex);
     }
+
+    // Check result error
+    if (result.stderr != undefined || result.stdout != undefined) {
+      runnerOutputText.textContent = result.stderr || result.stdout;
+    }
   } catch (err) {
     compileButton.removeAttribute('disabled');
-    alert('Failed: ' + err);
+    runnerOutputText.textContent += err + "\n";
   } finally {
     statusLabel.textContent = '';
     runButton.removeAttribute('disabled');
@@ -387,6 +406,20 @@ function updateLEDs(value: number, startPin: number) {
       led.value = value & bit ? true : false;
     }
   });
+}
+
+function updateSegment(value: number) {
+  // Set segment values
+  segment.values = [
+    value & (1 << 0),
+    value & (1 << 1),
+    value & (1 << 2),
+    value & (1 << 3),
+    value & (1 << 4),
+    value & (1 << 5),
+    value & (1 << 6),
+    value & (1 << 7)
+  ];
 }
 
 function clearOutput() {

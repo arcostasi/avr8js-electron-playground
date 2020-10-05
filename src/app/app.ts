@@ -9,7 +9,7 @@ import {
   NeopixelMatrixElement
 } from '@wokwi/elements';
 
-import { PinState, portDConfig } from 'avr8js';
+import { PinState } from 'avr8js';
 import { buildHex } from "../shared/compile";
 import { CPUPerformance } from '../shared/cpu-performance';
 import { AVRRunner } from "../shared/execute";
@@ -30,7 +30,7 @@ declare function getProjectHex(): any;
 declare function setProjectHex(folder: any, fileHex: any): any;
 declare function getProjectFiles(): any;
 declare function getProjectBoard(): any;
-declare function getOptimized(): any;
+declare function getComponents(): any;
 declare function getDebug(): any;
 
 // Add events to the buttons
@@ -117,6 +117,7 @@ let runner: AVRRunner;
 let board = 'uno';
 
 let hasLEDsOnPortB: boolean;
+let hasLEDsOnPortC: boolean;
 let hasLEDsOnPortD: boolean;
 
 // Set up press push buttons
@@ -155,8 +156,17 @@ function executeProgram(hex: string) {
   let lastUpdateCycles = 0;
   let ledHighCycles = 0;
 
+  // Components feeding
+  let feedLed = getComponents().includes('wokwi-led');
+  let feedBuzzer = getComponents().includes('wokwi-buzzer');
+  let feedNeoPixel = getComponents().includes('wokwi-neopixel-matrix');
+  let feed7Segment = getComponents().includes('wokwi-7segment');
+  let feedSsd1306 = getComponents().includes('wokwi-ssd1306');
+  let feedLcd1602 = getComponents().includes('wokwi-lcd1602');
+
   // Enable as default
   hasLEDsOnPortB = true;
+  hasLEDsOnPortC = true;
   hasLEDsOnPortD = true;
 
   i2cBus.registerDevice(SSD1306_ADDR_OTHER, ssd1306Controller);
@@ -165,31 +175,51 @@ function executeProgram(hex: string) {
   // Hook to PORTB register
   runner.portB.addListener((value) => {
     // Port B starts at pin 8 to 13
-    if (getOptimized() == 'buzzer') {
-      // Speaker
-      runner.speaker.feed(value & (1 << 0));
-      // buzzer.hasSignal = ((value & 0x01) == 1) ? true: false;
-    } else {
+    if (feedLed) {
       // None optimized
       if (hasLEDsOnPortB) {
         hasLEDsOnPortB = false;
         updateLEDs(value, 8);
       }
     }
+
+    // Speaker
+    if (feedBuzzer) {
+      runner.speaker.feed(value & (1 << 0));
+      buzzer.hasSignal = ((value & 0x01) == 1) ? true: false;
+    }
   });
 
   // Hook to PORTC register
   runner.portC.addListener((value) => {
     // Analog input pins (A0-A5)
+    if (feedLed) {
+      // None optimized
+      if (hasLEDsOnPortC) {
+        hasLEDsOnPortC = false;
+        updateLEDs(value, 0);
+      }
+    }
   });
 
   // Hook to PORTD register
   runner.portD.addListener((value) => {
     // Port D starts at pin 0 to 7
-    if (getOptimized() == 'neopixel') {
-      // Feed the matrix
+    if (feedLed) {
+      // None optimized
+      if (hasLEDsOnPortD) {
+        hasLEDsOnPortD = false;
+        updateLEDs(value, 0);
+      }
+    }
+
+    // Feed the NeoPixel Matrix
+    if (feedNeoPixel) {
       matrixController.feedValue(runner.portD.pinState(matrixPin), cpuNanos());
-    } else {
+    }
+
+    // Feed the 7 segment
+    if (feed7Segment) {
       updateSegment(value)
     }
   });
@@ -209,18 +239,22 @@ function executeProgram(hex: string) {
     const time = formatTime(cpu.cycles / runner.frequency);
     const speed = (cpuPerf.update() * 100).toFixed(0);
 
-    if (getOptimized() == 'neopixel') {
+    if (feedNeoPixel) {
       const pixels = matrixController.update(cpuNanos());
       if (pixels) {
-      // Update NeoPixel matrix
+        // Update NeoPixel matrix
         redrawMatrix(pixels);
       }
-    } else if (getOptimized() == 'ssd1306') {
+    }
+
+    if (feedSsd1306) {
       const frame = ssd1306Controller.update();
       // Update SSD1306
       ssd1306Controller.toImageData(ssd1306.imageData);
       ssd1306.redraw();
-    } else if (getOptimized() == 'lcd') {
+    }
+
+    if (feedLcd1602) {
       const lcd = lcd1602Controller.update();
       // Check component
       if (lcd) {
@@ -330,11 +364,17 @@ function stopCode() {
     runner.stop();
     runner = null;
 
-    // Set backlight off
-    lcd1602.characters.fill(32);
-    lcd1602.backlight = false;
-    lcd1602.blink = false;
-    lcd1602.cursor = false;
+    // Turn off the LEDs
+    clearLeds();
+
+    // Turn off the 7 segment
+    clearSegment();
+
+     // Turn off the LCD1602
+    clearLcd();
+
+    // Turn off the NeoPixel Matrix
+    clearMatrix();
 
     statusLabel.textContent = 'Stop simulation: ';
   }
@@ -380,6 +420,29 @@ function redrawMatrix(pixels: any) {
   }
 }
 
+function clearMatrix() {
+  for (let row = 0; row < matrix.rows; row++) {
+    for (let col = 0; col < matrix.cols; col++) {
+      const value = 0;
+
+      const b = value & 0xff;
+      const r = (value >> 8) & 0xff;
+      const g = (value >> 16) & 0xff;
+
+      // Canvas update
+      context.fillStyle = `rgb(${r}, ${g}, ${b})`;
+      context.fillRect(col * pixSize, row * pixSize, pixSize, pixSize);
+
+      // NeoPixel update
+      matrix.setPixel(row, col, {
+        b: (value & 0xff) / 255,
+        r: ((value >> 8) & 0xff) / 255,
+        g: ((value >> 16) & 0xff) / 255
+      });
+    }
+  }
+}
+
 function clearLeds() {
   leds.forEach(function(led) {
     const pin = parseInt(led.getAttribute("pin"), 10);
@@ -396,9 +459,11 @@ function updateLEDs(value: number, startPin: number) {
       if (startPin == 8)
         hasLEDsOnPortB = true;
 
-      // Checks in portD
-      if (startPin == 0)
+      // Checks in portC&D
+      if (startPin == 0) {
+        hasLEDsOnPortC = true;
         hasLEDsOnPortD = true;
+      }
 
       const bit = 1 << (pin - startPin);
 
@@ -420,6 +485,19 @@ function updateSegment(value: number) {
     value & (1 << 6),
     value & (1 << 7)
   ];
+}
+
+function clearSegment() {
+  // Turn off the 7 segment
+  segment.values = [0, 0, 0, 0, 0, 0, 0, 0];
+}
+
+function clearLcd() {
+  // Set backlight off
+  lcd1602.characters.fill(32);
+  lcd1602.backlight = false;
+  lcd1602.blink = false;
+  lcd1602.cursor = false;
 }
 
 function clearOutput() {

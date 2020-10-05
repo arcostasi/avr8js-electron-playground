@@ -4,7 +4,7 @@ const fs = require('fs')
 let json = require('../../examples/settings.json');
 
 // Get Loader
-declare function loader(path: any, name: any, files: any, board: any): any;
+declare function loader(path: any, name: any, files: any, board: any, components: any): any;
 declare function setDebug(value: boolean): any;
 
 document.addEventListener('DOMContentLoaded', (event) => {
@@ -24,8 +24,8 @@ document.addEventListener('DOMContentLoaded', (event) => {
       loader += ",'" + data.board + "'";
     }
 
-    if (data.optimized != undefined) {
-      loader += ",'" + data.optimized + "'";
+    if (data.components != undefined) {
+      loader += ",'" + data.components + "'";
     }
 
     loader += ");";
@@ -39,7 +39,7 @@ document.addEventListener('DOMContentLoaded', (event) => {
   }
 
   // Load initial example
-  loader('./examples/blinks/', 'blinks', '', 'uno');
+  loader('./examples/blinks/', 'blinks', '', 'uno', ['wokwi-led']);
 });
 
 // Change titlebar color

@@ -1,6 +1,6 @@
 let editor;
 let diagram;
-let optimized;
+let components;
 let debug;
 let projectPath;
 let projectName;
@@ -79,12 +79,12 @@ setProjectBoard = function(board) {
   projectBoard = board;
 }
 
-setOptimized = function (componentName) {
-  optimized = componentName;
+setComponents = function (componentName) {
+  components = componentName;
 }
 
-getOptimized = function() {
-  return optimized;
+getComponents = function() {
+  return components;
 }
 
 setDiagram = function(content) {
@@ -123,7 +123,7 @@ readTextFile = function(folder, fileName, type = 'file')
   request.send();
 }
 
-loader = function(path, name, files, board = 'uno', optimized = 'none') {
+loader = function(path, name, files, board = 'uno', components = []) {
   // Set project path & name
   setProjectPath(path);
   setProjectName(name);
@@ -150,8 +150,8 @@ loader = function(path, name, files, board = 'uno', optimized = 'none') {
   // Load project diagram
   // readTextFile(getProjectPath(), 'diagram.json', 'diagram');
 
-  // Check component optimized
-  if (optimized != 'none') {
-    setOptimized(optimized);
+  // Check component
+  if (components != []) {
+    setComponents(components);
   }
 }

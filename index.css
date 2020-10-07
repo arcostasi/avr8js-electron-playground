@@ -179,7 +179,7 @@ body {
 .runner-output {
   display: flex;
   flex-direction: column;
-  height: 25vh;
+  height: 23vh;
   width: 0%;
   min-width: 100%;
   padding: 10px 10px;

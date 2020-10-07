@@ -227,6 +227,7 @@ function executeProgram(hex: string) {
   // Connect to Serial port
   runner.usart.onByteTransmit = (value: number) => {
     runnerOutputText.textContent += String.fromCharCode(value);
+    runnerOutputText.scrollIntoView({ block: 'end', behavior: 'smooth' });
   };
 
   // Connect to SPI

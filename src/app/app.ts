@@ -377,6 +377,8 @@ function stopCode() {
     // Turn off the NeoPixel Matrix
     clearMatrix();
 
+    // Turn off speaker
+    buzzer.hasSignal = false;
     statusLabel.textContent = 'Stop simulation: ';
   }
 }

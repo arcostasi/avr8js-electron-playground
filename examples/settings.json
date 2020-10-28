@@ -30,7 +30,8 @@
             "path": "./examples/lcd/",
             "board": "uno",
             "components": [
-                "wokwi-lcd1602"
+                "wokwi-lcd1602",
+                "wokwi-pushbutton"
             ]
         },
         {

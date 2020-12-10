@@ -48,7 +48,7 @@ export class AVRRunner {
     this.stopped = false;
     for (;;) {
       avrInstruction(this.cpu);
-      this.timer.tick();
+      this.cpu.tick();
       if (this.cpu.cycles % 500000 === 0) {
         callback(this.cpu);
         await new Promise((resolve) => setTimeout(resolve, 0));

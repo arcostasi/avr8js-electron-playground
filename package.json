@@ -13,7 +13,7 @@
   "dependencies": {
     "@panzoom/panzoom": "^4.3.2",
     "@wokwi/elements": "^0.27.2",
-    "avr8js": "^0.13.1",
+    "avr8js": "^0.14.0",
     "custom-electron-titlebar": "^3.2.5",
     "electron": "^9.3.5",
     "interactjs": "^1.10.1",

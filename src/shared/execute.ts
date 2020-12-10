@@ -120,13 +120,7 @@ export class AVRRunner {
       avrInstruction(this.cpu);
 
       // Ticks update
-      this.timer0.tick();
-      this.timer1.tick();
-      this.timer2.tick();
-      this.eeprom.tick();
-      this.usart.tick();
-      this.spi.tick();
-      this.twi.tick();
+      this.cpu.tick();
 
       // Serial complete interrupt
       if (this.cpu.interruptsEnabled) {

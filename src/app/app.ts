@@ -20,18 +20,9 @@ import { WS2812Controller } from "../shared/ws2812";
 import { LCD1602Controller, LCD1602_ADDR } from "../shared/lcd1602";
 import { I2CBus } from "../shared/i2c-bus";
 
+// Using CommonJS modules
+import * as ed from './editor'
 import * as fs from "fs";
-
-// Get Monaco Editor
-declare function getEditor(): any;
-declare function getProjectPath(): any;
-declare function getProjectName(ext: any): any;
-declare function getProjectHex(): any;
-declare function setProjectHex(folder: any, fileHex: any): any;
-declare function getProjectFiles(): any;
-declare function getProjectBoard(): any;
-declare function getComponents(): any;
-declare function getDebug(): any;
 
 // Add events to the buttons
 const compileButton = document.querySelector("#compile-button");
@@ -157,12 +148,12 @@ function executeProgram(hex: string) {
   let ledHighCycles = 0;
 
   // Components feeding
-  let feedLed = getComponents().includes('wokwi-led');
-  let feedBuzzer = getComponents().includes('wokwi-buzzer');
-  let feedNeoPixel = getComponents().includes('wokwi-neopixel-matrix');
-  let feed7Segment = getComponents().includes('wokwi-7segment');
-  let feedSsd1306 = getComponents().includes('wokwi-ssd1306');
-  let feedLcd1602 = getComponents().includes('wokwi-lcd1602');
+  let feedLed = ed.getComponents().includes('wokwi-led');
+  let feedBuzzer = ed.getComponents().includes('wokwi-buzzer');
+  let feedNeoPixel = ed.getComponents().includes('wokwi-neopixel-matrix');
+  let feed7Segment = ed.getComponents().includes('wokwi-7segment');
+  let feedSsd1306 = ed.getComponents().includes('wokwi-ssd1306');
+  let feedLcd1602 = ed.getComponents().includes('wokwi-lcd1602');
 
   // Enable as default
   hasLEDsOnPortB = true;
@@ -304,15 +295,15 @@ async function compileAndRun() {
     statusLabelTimer.textContent = '00:00.000';
     statusLabelSpeed.textContent = '0%';
 
-    const result = await buildHex(getEditor().getValue(),
-      getProjectFiles(), getProjectBoard(), getDebug());
+    const result = await buildHex(ed.getEditor().getValue(),
+      ed.getProjectFiles(), ed.getProjectBoard(), ed.getDebug());
 
     if (result.hex) {
       // Set project hex filename
-      setProjectHex(getProjectPath(), getProjectName('.hex'));
+      ed.setProjectHex(ed.getProjectPath(), ed.getProjectName('.hex'));
 
       // Save hex
-      fs.writeFile(getProjectHex(), result.hex, function (err) {
+      fs.writeFile(ed.getProjectHex(), result.hex, function (err) {
           if (err) return console.log(err)
       });
 
@@ -324,24 +315,24 @@ async function compileAndRun() {
 
     // Check result error
     if (result.stderr != undefined || result.stdout != undefined) {
+      statusLabel.textContent = '   Build error!  ';
       runnerOutputText.textContent = result.stderr || result.stdout;
     }
   } catch (err) {
-    compileButton.removeAttribute('disabled');
     runnerOutputText.textContent += err + "\n";
   } finally {
-    statusLabel.textContent = '';
+    compileButton.removeAttribute('disabled');
     runButton.removeAttribute('disabled');
   }
 }
 
 function storeUserSnippet() {
   EditorHistoryUtil.clearSnippet();
-  EditorHistoryUtil.storeSnippet(getEditor().getValue());
+  EditorHistoryUtil.storeSnippet(ed.getEditor().getValue());
 }
 
 function onlyRun() {
-  fs.readFile(getProjectHex(), 'utf8', function(err, data) {
+  fs.readFile(ed.getProjectHex(), 'utf8', function(err, data) {
     if (err) {
       runnerOutputText.textContent += err + "\n";
     }
@@ -516,7 +507,7 @@ function changeFileInput() {
 
   if (file.name.match(/\.(hex)$/)) {
     // Set project hex filename
-    setProjectHex(file.path, '');
+    ed.setProjectHex(file.path, '');
     runnerOutputText.textContent += "Load HEX: " + file.path + "\n";
   } else {
     runnerOutputText.textContent += "File not supported, .hex files only!\n";

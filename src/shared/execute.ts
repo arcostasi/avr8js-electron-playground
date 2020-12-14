@@ -14,6 +14,7 @@ import {
   AVRUSART,
   AVRSPI,
   AVRTWI,
+  AVRClock,
   portBConfig,
   portCConfig,
   portDConfig,
@@ -36,6 +37,7 @@ const FLASH = 0x8000;
 export class AVRRunner {
   readonly program = new Uint16Array(FLASH);
   readonly cpu: CPU;
+  readonly clock: AVRClock;
   readonly timer0: AVRTimer;
   readonly timer1: AVRTimer;
   readonly timer2: AVRTimer;
@@ -48,8 +50,11 @@ export class AVRRunner {
   readonly twi: AVRTWI;
   readonly speaker: Speaker;
   readonly frequency = 16e6; // 16 MHZ
-  readonly workUnitCycles = 500000;
+  readonly workUnitCycles = 100000;
+  readonly timerSyncFix = 10; // ms
   readonly taskScheduler = new MicroTaskScheduler();
+
+  private cyclesToRun: number = 0;
 
   // Serial buffer
   private serialBuffer: any = [];
@@ -66,6 +71,8 @@ export class AVRRunner {
       // Arduino UNO (ATmega328)
       this.cpu = new CPU(this.program);
     }
+
+    this.clock = new AVRClock(this.cpu, this.frequency);
 
     this.timer0 = new AVRTimer(this.cpu, timer0Config);
     this.timer1 = new AVRTimer(this.cpu, timer1Config);
@@ -113,13 +120,12 @@ export class AVRRunner {
 
   // CPU main loop
   execute(callback: (cpu: CPU) => void) {
-    const cyclesToRun = this.cpu.cycles + this.workUnitCycles;
+    this.cyclesToRun = this.cpu.cycles + this.workUnitCycles;
 
-    while (this.cpu.cycles < cyclesToRun) {
+    while (this.cpu.cycles < this.cyclesToRun) {
       // Instruction timing is currently based on ATmega328p
       avrInstruction(this.cpu);
 
-      // Ticks update
       this.cpu.tick();
 
       // Serial complete interrupt

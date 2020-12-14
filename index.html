@@ -99,15 +99,13 @@
       </div>
     </div>
     <script>
-      require('./js/interact-snapping.js')
-      require('./js/interact-zoom.js')
-      require('./js/interact-container.js')
       require('./node_modules/@wokwi/elements/dist/wokwi-elements.bundle.min.js')
+      require('./dist/app/editor.js')
       require('./dist/app/app.js')
       require('./dist/app/preload.js')
     </script>
     <!-- You can also require other files to run in this process -->
     <script src="./node_modules/monaco-editor/min/vs/loader.js"></script>
-    <script src="./js/monaco-editor.js"></script>
+    <script>editorLoaded();</script>
   </body>
 </html>

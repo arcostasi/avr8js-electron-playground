@@ -11,6 +11,9 @@ export class CPUPerformance {
   private prevCycles = 0;
   private samples = new Float32Array(64);
   private sampleIndex = 0;
+  private avg = 0
+  private result = 0;
+  private resultTime = 0;
 
   constructor(private cpu: ICPU, private MHZ: number) {}
 
@@ -37,9 +40,13 @@ export class CPUPerformance {
 
     this.prevCycles = this.cpu.cycles;
     this.prevTime = performance.now();
+    this.avg = this.samples.reduce((x, y) => x + y) / this.samples.length;
 
-    const avg = this.samples.reduce((x, y) => x + y) / this.samples.length;
+    if ((this.prevTime - this.resultTime) > 100) {
+      this.resultTime = this.prevTime;
+      this.result = this.avg;
+    }
 
-    return avg;
+    return this.result;
   }
 }

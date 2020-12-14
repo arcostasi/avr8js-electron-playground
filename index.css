@@ -447,6 +447,7 @@ input[type="submit"]:hover {
 }
 
 .btn-white {
+  margin-right: 2px;
   border: solid 2px #fff;
   background: transparent;
   color: #fff !important;

@@ -54,10 +54,20 @@ export class AVRRunner {
   readonly timerSyncFix = 10; // ms
   readonly taskScheduler = new MicroTaskScheduler();
 
-  private cyclesToRun: number = 0;
-
   // Serial buffer
   private serialBuffer: any = [];
+
+  // Timers
+  private timerSync: number = 0;
+  private timerClock: number = 0;
+  private lastTimerClock: number = 0;
+  private lastTimerSync: number = 0;
+  private cyclesToRun: number = 0;
+  private workSyncCycles: number = 0.1;
+
+  private samples = new Float32Array(64);
+  private sampleIndex = 0;
+  private avg = 0
 
   constructor(hex: string) {
     // Load program
@@ -120,7 +130,34 @@ export class AVRRunner {
 
   // CPU main loop
   execute(callback: (cpu: CPU) => void) {
-    this.cyclesToRun = this.cpu.cycles + this.workUnitCycles;
+
+    if ((performance.now() - this.timerSync) > this.timerSyncFix) {
+      this.timerSync = performance.now();
+      this.timerClock = this.clock.timeMillis - this.lastTimerClock;
+
+      if (this.timerClock > this.timerSyncFix) {
+        // High speed correction
+        this.workSyncCycles *= this.timerSyncFix / this.timerClock;
+      } else {
+        this.workSyncCycles += 0.0001;
+      }
+
+      if (!this.sampleIndex) {
+        this.samples.fill(this.workSyncCycles);
+      }
+
+      this.samples[this.sampleIndex++ % this.samples.length] = this.workSyncCycles;
+      this.avg = this.samples.reduce((x, y) => x + y) / this.samples.length;
+
+      if (this.sampleIndex >= this.samples.length) {
+        this.sampleIndex = 0;
+        this.workSyncCycles = this.avg;
+      }
+
+      this.lastTimerClock = this.clock.timeMillis;
+    }
+
+    this.cyclesToRun = this.cpu.cycles + this.workUnitCycles * this.workSyncCycles;
 
     while (this.cpu.cycles < this.cyclesToRun) {
       // Instruction timing is currently based on ATmega328p

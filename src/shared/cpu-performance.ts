@@ -42,7 +42,7 @@ export class CPUPerformance {
     this.prevTime = performance.now();
     this.avg = this.samples.reduce((x, y) => x + y) / this.samples.length;
 
-    if ((this.prevTime - this.resultTime) > 100) {
+    if ((this.prevTime - this.resultTime) > 200) {
       this.resultTime = this.prevTime;
       this.result = this.avg;
     }

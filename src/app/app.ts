@@ -146,6 +146,7 @@ function executeProgram(hex: string) {
   let lastStateCycles = 0;
   let lastUpdateCycles = 0;
   let ledHighCycles = 0;
+  let previousMillis = 0;
 
   // Components feeding
   let feedLed = ed.getComponents().includes('wokwi-led');
@@ -162,6 +163,8 @@ function executeProgram(hex: string) {
 
   i2cBus.registerDevice(SSD1306_ADDR_OTHER, ssd1306Controller);
   i2cBus.registerDevice(LCD1602_ADDR, lcd1602Controller);
+
+  statusLabel.textContent = 'Simulation time: ';
 
   // Hook to PORTB register
   runner.portB.addListener((value) => {
@@ -230,6 +233,7 @@ function executeProgram(hex: string) {
   runner.execute((cpu) => {
     const time = formatTime(cpu.cycles / runner.frequency);
     const speed = (cpuPerf.update() * 100).toFixed(0);
+    const millis = performance.now();
 
     if (feedNeoPixel) {
       const pixels = matrixController.update(cpuNanos());
@@ -273,10 +277,13 @@ function executeProgram(hex: string) {
       }
     }
 
-    // Update status
-    statusLabel.textContent = 'Simulation time: ';
     statusLabelTimer.textContent = `${time}`;
-    statusLabelSpeed.textContent = `${speed}%`;
+
+    if ((millis - previousMillis) > 200) {
+      // Update status
+      previousMillis = millis;
+      statusLabelSpeed.textContent = padLeft(speed, '0', 3) + '%';
+    }
   });
 }
 
@@ -315,7 +322,6 @@ async function compileAndRun() {
 
     // Check result error
     if (result.stderr != undefined || result.stdout != undefined) {
-      statusLabel.textContent = '   Build error!  ';
       runnerOutputText.textContent = result.stderr || result.stdout;
     }
   } catch (err) {
@@ -516,4 +522,8 @@ function changeFileInput() {
 
 function printChars(value: string) {
   return [...value].map(char => char.charCodeAt(0));
+}
+
+function padLeft(text: string, padChar: string, size: number): string {
+  return (String(padChar).repeat(size) + text).substr((size * -1), size);
 }

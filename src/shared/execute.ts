@@ -30,6 +30,7 @@ import { loadHex } from './intelhex';
 import { MicroTaskScheduler } from './task-scheduler';
 import { EEPROMLocalStorageBackend } from './eeprom';
 import { CPUPerformance } from '../shared/cpu-performance';
+import { PID } from '../shared/pid';
 
 // ATmega328p params
 const FLASH = 0x8000;
@@ -51,14 +52,15 @@ export class AVRRunner {
   readonly frequency = 16e6; // 16 MHZ
   readonly taskScheduler = new MicroTaskScheduler();
   readonly performance: CPUPerformance;
+  readonly pid: PID;
 
   // Serial buffer
   private serialBuffer: any = [];
 
   // Cycles
-  private cyclesToRun: number = 0;
-  private workSyncCycles: number = 1;
-  private workUnitCycles = 100000;
+  private cyclesToRun: number;
+  private workSyncCycles: number;
+  private workUnitCycles: number = 100000;
 
   constructor(hex: string) {
     // Load program
@@ -74,6 +76,9 @@ export class AVRRunner {
     }
 
     this.performance = new CPUPerformance(this.cpu, this.frequency);
+
+    this.pid = new PID(0.25, 0.01, 0.01);
+    this.pid.addSetPoint(1);
 
     this.timer0 = new AVRTimer(this.cpu, timer0Config);
     this.timer1 = new AVRTimer(this.cpu, timer1Config);
@@ -123,10 +128,12 @@ export class AVRRunner {
   execute(callback: (cpu: CPU) => void) {
     const speed = this.performance.update();
 
-    if (speed > 1.02) {
-      this.workSyncCycles *= Math.floor(1 / speed);
+    this.pid.addNewSample(speed);
+
+    if (speed > this.pid.getSetPoint(0.02)) {
+      this.workSyncCycles *= (this.pid.process(0.5));
     } else {
-      this.workSyncCycles = 1;
+      this.workSyncCycles = this.pid.getSetPoint();
     }
 
     this.cyclesToRun = this.cpu.cycles + this.workUnitCycles * this.workSyncCycles;

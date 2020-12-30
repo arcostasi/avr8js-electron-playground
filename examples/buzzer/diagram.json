@@ -7,9 +7,16 @@
       "id": "uno",
       "type": "wokwi-arduino-uno",
       "top": 300,
-      "left": 260,
+      "left": 260
+    },
+    {
+      "id": "display",
+      "type": "wokwi-buzzer",
+      "left": 380,
+      "top": 200,
       "attrs": {
-        "__fakeRamSize": "32768"
+        "digits": "8",
+        "common": "anode"
       }
     }
   ],

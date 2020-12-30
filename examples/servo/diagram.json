@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "author": "Anderson",
+  "editor": "playground",
+  "parts": [
+    {
+      "id": "uno",
+      "type": "wokwi-arduino-uno",
+      "top": 400,
+      "left": 260
+    },
+    {
+      "id": "servo",
+      "type": "wokwi-servo",
+      "top": 160,
+      "left": 300,
+      "attrs": { "horncolor": "black" },
+      "rotate": 0
+    }
+  ],
+  "connections": [
+    ["uno:9", "servo:PWM", "orange", []],
+    ["uno:5V", "servo:V+", "red", []],
+    ["uno:GND.1", "servo:GND", "black", []]]
+}

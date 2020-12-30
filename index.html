@@ -10,80 +10,45 @@
   </head>
   <body>
     <div id="container" class="container">
+      <div class="toolbar">
+        <div class="zoom-header noselect">
+          <button class="btn btn-dark zoomin"><i class="icon ci-plus2"></i></button>
+          <select id="zoom-select" class="zoom-select" onchange="handleZoomChange()">
+            <option value=0.5>50%</option>
+            <option value=0.75>75%</option>
+            <option value=0.85>85%</option>
+            <option value=0.9>90%</option>
+            <option value=1 selected>100%</option>
+            <option value=1>Fit</option>
+          </select>
+          <button class="btn btn-dark zoomout"><i class="icon ci-less"></i></button>
+        </div>
+        <div class="spacer"></div>
+        <button id="loadhex-button" class="btn btn-dark big"><i class="icon ci-upload"></i> Load HEX</button>
+        <button id="compile-button" class="btn btn-dark"><i class="icon ci-upload"></i> Compile</button>
+        <button id="run-button" class="btn btn-dark"><i class="icon ci-play-outline"></i> Run</button>
+        <button id="stop-button" class="btn btn-dark" disabled><i class="icon ci-pause-outline"></i> Stop</button>
+        <div class="spacer"></div>
+        <div class="slider-container">
+          <input type="range" min="1" max="100" value="50" class="slider" id="sync-cycles">
+          <span class="slider-label" id="sync-cycles-label">Sync. Cycles: 1</span>
+        </div>
+        <div class="status">
+          <span id="status-label">Simulation time: </span>
+          <i class="icon ci-stopwatch"></i> <span id="status-label-timer" class="color-white">00:00.000</span>
+          <i class="icon ci-timer"></i> <span id="status-label-speed" class="color-white">0%</span>
+        </div>
+      </div>
       <div class="parent">
         <div id="panel-left" class="child grid">
-          <div class="zoom-header noselect">
-            <button class="btn btn-dark zoomin"><i class="icon ci-plus2"></i></button>
-            <select id="zoom-select" class="zoom-select" onchange="handleZoomChange()">
-              <option value=0.5>50%</option>
-              <option value=0.75>75%</option>
-              <option value=0.85>85%</option>
-              <option value=0.9>90%</option>
-              <option value=1 selected>100%</option>
-              <option value=1>Fit</option>
-            </select>
-            <button class="btn btn-dark zoomout"><i class="icon ci-less"></i></button>
-          </div>
-          <div id="elements" class="elements">
-            <div class="leds draggable" style="transform: translate(220px,0px)" data-x="220" data-y="0">
-              <wokwi-led color="red" pin="13" label="13"></wokwi-led>
-              <wokwi-led color="green" pin="12" label="12"></wokwi-led>
-              <wokwi-led color="blue" pin="11" label="11"></wokwi-led>
-              <wokwi-led color="yellow" pin="10" label="10"></wokwi-led>
-              <wokwi-led color="orange" pin="9" label="9"></wokwi-led>
-              <wokwi-led color="white" pin="8" label="8"></wokwi-led>
-            </div>
-            <div class="pushbutton draggable" style="transform: translate(120px,0px)" data-x="120" data-y="0">
-              <wokwi-pushbutton color="red" pin="2" label="2"></wokwi-pushbutton>
-              <wokwi-pushbutton color="green" pin="3" label="3"></wokwi-pushbutton>
-              <wokwi-pushbutton color="blue" pin="4" label="4"></wokwi-pushbutton>
-              <wokwi-pushbutton color="yellow" pin="5" label="5"></wokwi-pushbutton>
-              <wokwi-pushbutton color="orange" pin="6" label="6"></wokwi-pushbutton>
-              <wokwi-pushbutton color="black" pin="7" label="7"></wokwi-pushbutton>
-            </div>
-            <div class="lcd draggable" style="transform: translate(50px,0px)" data-x="50" data-y="0">
-              <wokwi-lcd1602 pins="i2c" backlight></wokwi-lcd1602>
-            </div>
-            <div class="ssd1306 draggable" style="transform: translate(440px,-120px)" data-x="440" data-y="-120">
-              <wokwi-ssd1306></wokwi-ssd1306>
-            </div>
-            <div class="neopixel draggable" style="transform: translate(60px,-140px)" data-x="60" data-y="-140">
-              <wokwi-neopixel-matrix cols="16" rows="16" pin="3" background="#000"></wokwi-neopixel-matrix>
-            </div>
-            <div class="neopixel draggable" style="transform: translate(390px,-465px)" data-x="390" data-y="-465">
-              <canvas class="pixels" height="240" width="240"></canvas>
-            </div>
-            <div class="servo draggable" style="transform: translate(100px,-450px)" data-x="100" data-y="-450">
-              <wokwi-servo angle="0" horncolor="black"></wokwi-servo>
-            </div>
-            <div class="buzzer draggable" style="transform: translate(420px,-580px)" data-x="420" data-y="-580">
-              <wokwi-buzzer pin="6" label="6"></wokwi-buzzer>
-            </div>
-            <div class="dht22 draggable" style="transform: translate(540px,-680px)" data-x="540" data-y="-680">
-              <wokwi-dht22 pin="5" label="5"></wokwi-dht22>
-            </div>
-            <div class="segment draggable" style="transform: translate(330px,-790px)" data-x="330" data-y="-790">
-              <wokwi-7segment values="[0,0,0,0,0,0,0,0]" color="red" pins="extend"></wokwi-7segment>
-            </div>
-          </div>
+          <div id="project-tab" class="tab noselect"></div>
+          <div id="elements" class="elements noselect"></div>
         </div>
         <div id="panel-right" class="child">
-          <div class="toolbar">
-            <button id="compile-button" class="btn btn-dark"><i class="icon ci-upload"></i> Compile</button>
-            <button id="run-button" class="btn btn-dark"><i class="icon ci-play-outline"></i> Run</button>
-            <button id="stop-button" class="btn btn-dark" disabled><i class="icon ci-pause-outline"></i> Stop</button>
-            <div class="spacer"></div>
-            <div class="status">
-              <span id="status-label">Simulation time: </span>
-              <i class="icon ci-stopwatch"></i> <span id="status-label-timer" class="color-white">00:00.000</span>
-              <i class="icon ci-timer"></i> <span id="status-label-speed" class="color-white">0%</span>
-            </div>
-          </div>
-          <div id="editor-tab" class="tab noselect"></div>
           <div class="code-editor-container">
+            <div id="editor-tab" class="tab noselect"></div>
             <div id="editor-container" class="code-editor"></div>
             <div class="toolbar">
-              <button id="loadhex-button" class="btn btn-dark big"><i class="icon ci-upload"></i> Load HEX</button>
               <button id="clear-button" class="btn btn-dark"><i class="icon ci-more"></i> Clear</button>
               <input id="file-input" type="file" name="name" class="hide" />
               <input id="serial-input" type="text" class="serial-input">&nbsp;

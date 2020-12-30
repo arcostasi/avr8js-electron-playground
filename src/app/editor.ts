@@ -1,3 +1,5 @@
+const fs = require('fs');
+
 declare const window: any;
 declare const monaco: any;
 declare function editorLoaded(): any;
@@ -8,12 +10,12 @@ let Split = require('split.js')
 let debug: boolean;
 let editor: any;
 let diagram: string;
-let components: any;
 let projectPath: string;
 let projectName: string;
 let projectHex: string;
 let projectFiles: any;
 let projectBoard: string;
+let projectOptions: any;
 
 window.editorLoaded = () => {
   window.require.config({
@@ -93,12 +95,12 @@ export function setProjectBoard(board: string) {
   projectBoard = board;
 }
 
-export function setComponents(componentName: any) {
-  components = componentName;
+export function getProjectOptions() {
+  return projectOptions;
 }
 
-export function getComponents() {
-  return components;
+export function setProjectOptions(options: any) {
+  projectOptions = options;
 }
 
 export function setDiagram(content: string) {
@@ -137,7 +139,7 @@ function readTextFile(folder: string, fileName: string, type: string = 'file')
   request.send();
 }
 
-export function loader(path: string, name: string, files: any, board: string = 'uno', ext: string = 'ino', components: any = []) {
+export function loader(path: string, name: string, files: any, board: string = 'uno', ext: string = 'ino') {
   // Set project path & name
   setProjectPath(path);
   setProjectName(name);
@@ -161,17 +163,116 @@ export function loader(path: string, name: string, files: any, board: string = '
   // Load project file
   readTextFile(getProjectPath(), getProjectName('.ino'), 'model');
 
-  // Check component
-  if (components != []) {
-    setComponents(components);
-  }
+  openDiagram(path + 'diagram.json');
 }
 
 Split(['#panel-left', '#panel-right'], {
   sizes: [50, 50],
-  minSize: [710, 100],
+  minSize: [800, 600],
   expandToMin: false,
   onDragEnd: function(sizes: any) {
     editorLoaded();
   },
 });
+
+function openDiagram(file: string) {
+  fs.access(file, fs.F_OK, (err: any) => {
+    // Remove all elements
+    removeAllChildren(document.getElementById("elements"));
+
+    if (err) {
+      console.error(err);
+      return;
+    }
+
+    fetch(file).then(response => response.json()).then(diagram => {
+      // Get parts
+      diagram.parts.forEach((data: any, index: any) => {
+        let div = document.createElement("div");
+        let type = data.type;
+
+        // Change neopixel canvas
+        if (data.type == "wokwi-neopixel-canvas") {
+          type = "canvas";
+        }
+
+        // Create element
+        let element = document.createElement(type);
+
+        // Define element ID
+        element.setAttribute("id", data.id);
+
+        if (data.attrs != undefined) {
+          let attr = Object.entries(data.attrs);
+          // Assign different attributes to the element
+          attr.forEach((a: any, x: any) => {
+            // Checks the RAM Size
+            if ((a[0] == "__fakeRamSize") &&
+                (data.type == "wokwi-arduino-uno")) {
+              setProjectOptions({ramSize: a[1]});
+              return;
+            }
+            // Set attribute and value
+            element.setAttribute(a[0], a[1]);
+          });
+        }
+
+        // Assign custom attributes and styles
+        let style = "transform:";
+
+        if ((data.top != undefined) && (data.left != undefined)) {
+           div.setAttribute("data-x", data.left);
+           div.setAttribute("data-y", data.top);
+           style += "translate(" + data.left + "px," + data.top + "px)";
+        }
+
+        if (data.rotate != undefined) {
+          div.setAttribute("data-angle", data.rotate);
+          style += "rotate(" + data.rotate + "deg)";
+        } else {
+          style += "rotate(0deg)";
+        }
+
+        style += ";";
+
+        // Checks background color
+        if ((data.attrs != undefined) && (data.attrs.background != undefined)) {
+           style += "background: " + data.attrs.background;
+        }
+
+        div.setAttribute("style", style);
+
+        // Assign custom class
+        switch (data.type) {
+          case "wokwi-neopixel-matrix": div.className = "neopixel"; break;
+          case "wokwi-lcd1602": div.className = "lcd"; break;
+          case "wokwi-ssd1306": div.className = "ssd1306"; break;
+          case "wokwi-buzzer": div.className = "buzzer"; break;
+          case "wokwi-neopixel-canvas":
+            div.className = "neocanvas";
+            element.className = "pixels";
+            break;
+          default: div.className = "element"; break;
+        }
+
+        // Add drag
+        div.className += " draggable"
+
+        // Add element
+        div.appendChild(element);
+        document.getElementById("elements").appendChild(div);
+      });
+    });
+  });
+}
+
+function removeAllChildren(parent: any) {
+    // Create the Range object
+    var rangeObj = new Range();
+
+    // Select all of the parent's children
+    rangeObj.selectNodeContents(parent);
+
+    // Delete everything that is selected
+    rangeObj.deleteContents();
+}

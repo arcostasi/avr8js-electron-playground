@@ -35,10 +35,10 @@ document.addEventListener('DOMContentLoaded', (event) => {
     button.setAttribute("class", "btn-white");
     button.innerText = data.name;
     button.onclick = function() {
-      ed.loader(data.path, data.name, data.files, board, ext, data.components);
+      ed.loader(data.path, data.name, data.files, board, ext);
     }
 
-    document.getElementById("editor-tab").appendChild(button);
+    document.getElementById("project-tab").appendChild(button);
   });
 
   if (json.settings.debug != undefined) {
@@ -46,7 +46,7 @@ document.addEventListener('DOMContentLoaded', (event) => {
   }
 
   // Load start
-  ed.loader('./examples/blinks/', 'blinks', [], 'uno', 'ino', ['wokwi-led']);
+  ed.loader('./examples/leds/', 'leds', [], 'uno', 'ino');
 });
 
 // Interact
@@ -58,7 +58,7 @@ interact('.draggable')
     modifiers: [
       interact.modifiers.snap({
         targets: [
-          interact.createSnapGrid({ x: 10, y: 10 })
+          interact.createSnapGrid({ x: 5, y: 5 })
         ],
         range: Infinity,
         relativePoints: [ { x: 0, y: 0 } ]
@@ -94,15 +94,17 @@ function dragMoveListener(event: any) {
   // Keep the dragged position in the data-x/data-y attributes
   const x = (parseFloat(target.getAttribute('data-x')) || 0) + event.dx
   const y = (parseFloat(target.getAttribute('data-y')) || 0) + event.dy
+  const a = (parseFloat(target.getAttribute('data-angle')) || 0)
 
   // Translate the element
   target.style.webkitTransform =
     target.style.transform =
-      'translate(' + x + 'px, ' + y + 'px)'
+      'translate(' + x + 'px, ' + y + 'px) rotate(' + a + 'deg)'
 
   // Update the posiion attributes
   target.setAttribute('data-x', x)
   target.setAttribute('data-y', y)
+  target.setAttribute('data-angle', a)
 }
 
 // This function is used later in the resizing and gesture demos

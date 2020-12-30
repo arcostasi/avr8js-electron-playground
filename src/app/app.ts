@@ -54,82 +54,39 @@ serialInput.addEventListener("keypress", serialKeyPress);
 const serialSend = document.querySelector('#serial-send');
 serialSend.addEventListener("click", serialTransmit);
 
-// Set up LEDs
-const leds = document.querySelectorAll<LEDElement>("wokwi-led");
+const syncCyclesSlider = document.querySelector<HTMLInputElement>('#sync-cycles');
+syncCyclesSlider.addEventListener('change', changeSyncCycles);
 
-// Set up the LCD1602
-const lcd1602 = document.querySelector<LCD1602Element>(
-  "wokwi-lcd1602"
-);
+let syncCyclesLabel = document.querySelector<HTMLElement>('#sync-cycles-label');
 
-// Set up the SSD1306
-const ssd1306 = document.querySelector<SSD1306Element>(
-  "wokwi-ssd1306"
-);
-
-// Set up the NeoPixel matrix
-const matrix = document.querySelector<NeopixelMatrixElement>(
-  "wokwi-neopixel-matrix"
-);
-
-const matrixPin = parseInt(matrix.getAttribute("pin"), 10);
-
-// Set up the servo
-const servo = document.querySelector<ServoElement>(
-  "wokwi-servo"
-);
-
-// Set up the NeoPixel matrix
-const buzzer = document.querySelector<BuzzerElement>(
-  "wokwi-buzzer"
-);
-
-const buzzerPin = parseInt(buzzer.getAttribute("pin"), 10);
-
-// Set up the push button
-const pushButtons = document.querySelectorAll<PushbuttonElement & HTMLElement>(
-  "wokwi-pushbutton"
-);
-
-// Set up the NeoPixel matrix
-const segment = document.querySelector<SevenSegmentElement>(
-  "wokwi-7segment"
-);
-
-// Set up the NeoPixel canvas
-const canvas = document.querySelector("canvas");
-const context = canvas.getContext("2d");
-
-const pixSize = canvas.height / matrix.rows;
-
-// Set up toolbar
-let runner: AVRRunner;
-
-let board = 'uno';
+let leds: any;
+let lcd1602: any;
+let ssd1306: any;
+let matrix: any;
+let servo: any;
+let buzzer: any;
+let pushButtons: any;
+let segment: any;
+let canvas: any;
+let context: any;
+let pixSize: number;
 
 let hasLEDsOnPortB: boolean;
 let hasLEDsOnPortC: boolean;
 let hasLEDsOnPortD: boolean;
 
-// Set up press push buttons
-pushButtons.forEach(function(button) {
-  button.addEventListener('button-press', () => {
-    const pushButtonPin = parseInt(button.getAttribute("pin"), 10);
-    runner.portD.setPin(pushButtonPin, true);
-  });
-});
+let matrixPin = 3;
+let buzzerPin = 8;
 
-// Set up release push buttons
-pushButtons.forEach(function(button) {
-  button.addEventListener('button-release', () => {
-    const pushButtonPin = parseInt(button.getAttribute("pin"), 10);
-    runner.portD.setPin(pushButtonPin, false);
-  });
-});
+let runner: AVRRunner;
+let board = 'uno';
+
+let syncCycles = 1;
 
 function executeProgram(hex: string) {
 
   runner = new AVRRunner(hex);
+  runner.setSyncCycles(syncCycles);
 
   const cpuNanos = () => Math.round((runner.cpu.cycles / runner.frequency) * 1000000000);
   const cpuMillis = () => Math.round((runner.cpu.cycles / runner.frequency) * 1000);
@@ -140,7 +97,6 @@ function executeProgram(hex: string) {
 
   const ssd1306Controller = new SSD1306Controller(cpuMillis);
   const lcd1602Controller = new LCD1602Controller(cpuMillis);
-  const matrixController = new WS2812Controller(matrix.cols * matrix.rows);
 
   let lastState = PinState.Input;
   let lastStateCycles = 0;
@@ -148,28 +104,105 @@ function executeProgram(hex: string) {
   let ledHighCycles = 0;
   let previousMillis = 0;
 
-  // Components feeding
-  let feedLed = ed.getComponents().includes('wokwi-led');
-  let feedBuzzer = ed.getComponents().includes('wokwi-buzzer');
-  let feedNeoPixel = ed.getComponents().includes('wokwi-neopixel-matrix');
-  let feed7Segment = ed.getComponents().includes('wokwi-7segment');
-  let feedSsd1306 = ed.getComponents().includes('wokwi-ssd1306');
-  let feedLcd1602 = ed.getComponents().includes('wokwi-lcd1602');
+  let matrixController: WS2812Controller;
+
+  // Set up LEDs
+  leds = document.querySelectorAll<LEDElement>("wokwi-led");
+
+  // Set up the LCD1602
+  lcd1602 = document.querySelector<LCD1602Element>(
+    "wokwi-lcd1602"
+  );
+
+  // Set up the SSD1306
+  ssd1306 = document.querySelector<SSD1306Element>(
+    "wokwi-ssd1306"
+  );
+
+  // Set up the NeoPixel matrix
+  matrix = document.querySelector<NeopixelMatrixElement>(
+    "wokwi-neopixel-matrix"
+  );
+
+  // Set up the servo
+  servo = document.querySelector<ServoElement>(
+    "wokwi-servo"
+  );
+
+  // Set up the NeoPixel matrix
+  buzzer = document.querySelector<BuzzerElement>(
+    "wokwi-buzzer"
+  );
+
+  // Set up the push button
+  pushButtons = document.querySelectorAll<PushbuttonElement & HTMLElement>(
+    "wokwi-pushbutton"
+  );
+
+  // Set up the NeoPixel matrix
+  segment = document.querySelector<SevenSegmentElement>(
+    "wokwi-7segment"
+  );
+
+  // Set up the NeoPixel canvas
+  canvas = document.querySelector<HTMLCanvasElement>(".pixels");
+
+  if (canvas != undefined) {
+    context = canvas.getContext("2d");
+    pixSize = canvas.getAttribute("height") / canvas.getAttribute("rows");
+  }
+
+  if ((matrix != undefined) && (matrix.hasAttribute("pin"))) {
+    matrixPin = parseInt(matrix.getAttribute("pin"), 10);
+  } else if ((canvas != undefined) && (canvas.hasAttribute("pin"))) {
+    matrixPin = parseInt(canvas.getAttribute("pin"), 10);
+  }
+
+  if ((buzzer != undefined) && (buzzer.hasAttribute("pin"))) {
+    buzzerPin = parseInt(buzzer.getAttribute("pin"), 10);
+  }
+
+  // Feed the NeoPixel Matrix
+  if (matrix != undefined) {
+    matrixController = new WS2812Controller(matrix.cols * matrix.rows);
+  } else if (canvas != undefined) {
+    canvas.cols = canvas.getAttribute("cols");
+    canvas.rows = canvas.getAttribute("rows");
+    matrixController = new WS2812Controller(canvas.cols * canvas.rows);
+  }
+
+  // Set up press push buttons
+  pushButtons.forEach(function(button: any) {
+    button.addEventListener('button-press', () => {
+      const pushButtonPin = parseInt(button.getAttribute("pin"), 10);
+      runner.portD.setPin(pushButtonPin, true);
+    });
+  });
+
+  // Set up release push buttons
+  pushButtons.forEach(function(button: any) {
+    button.addEventListener('button-release', () => {
+      const pushButtonPin = parseInt(button.getAttribute("pin"), 10);
+      runner.portD.setPin(pushButtonPin, false);
+    });
+  });
+
+  i2cBus.registerDevice(SSD1306_ADDR_OTHER, ssd1306Controller);
+  i2cBus.registerDevice(LCD1602_ADDR, lcd1602Controller);
 
   // Enable as default
   hasLEDsOnPortB = true;
   hasLEDsOnPortC = true;
   hasLEDsOnPortD = true;
 
-  i2cBus.registerDevice(SSD1306_ADDR_OTHER, ssd1306Controller);
-  i2cBus.registerDevice(LCD1602_ADDR, lcd1602Controller);
+  clearLeds();
 
   statusLabel.textContent = 'Simulation time: ';
 
   // Hook to PORTB register
   runner.portB.addListener((value) => {
     // Port B starts at pin 8 to 13
-    if (feedLed) {
+    if (leds != undefined) {
       // None optimized
       if (hasLEDsOnPortB) {
         hasLEDsOnPortB = false;
@@ -178,7 +211,7 @@ function executeProgram(hex: string) {
     }
 
     // Speaker
-    if (feedBuzzer) {
+    if (buzzer != undefined) {
       runner.speaker.feed(value & (1 << 0));
       buzzer.hasSignal = ((value & 0x01) == 1) ? true: false;
     }
@@ -187,7 +220,7 @@ function executeProgram(hex: string) {
   // Hook to PORTC register
   runner.portC.addListener((value) => {
     // Analog input pins (A0-A5)
-    if (feedLed) {
+    if (leds != undefined) {
       // None optimized
       if (hasLEDsOnPortC) {
         hasLEDsOnPortC = false;
@@ -199,7 +232,7 @@ function executeProgram(hex: string) {
   // Hook to PORTD register
   runner.portD.addListener((value) => {
     // Port D starts at pin 0 to 7
-    if (feedLed) {
+    if (leds != undefined) {
       // None optimized
       if (hasLEDsOnPortD) {
         hasLEDsOnPortD = false;
@@ -208,12 +241,12 @@ function executeProgram(hex: string) {
     }
 
     // Feed the NeoPixel Matrix
-    if (feedNeoPixel) {
+    if (matrixController != undefined) {
       matrixController.feedValue(runner.portD.pinState(matrixPin), cpuNanos());
     }
 
     // Feed the 7 segment
-    if (feed7Segment) {
+    if (segment != undefined) {
       updateSegment(value)
     }
   });
@@ -235,22 +268,23 @@ function executeProgram(hex: string) {
     const speed = (cpuPerf.update() * 100).toFixed(0);
     const millis = performance.now();
 
-    if (feedNeoPixel) {
+    if ((matrix != undefined) || (canvas != undefined)) {
       const pixels = matrixController.update(cpuNanos());
       if (pixels) {
         // Update NeoPixel matrix
         redrawMatrix(pixels);
+        redrawCanvas(pixels);
       }
     }
 
-    if (feedSsd1306) {
+    if (ssd1306 != undefined) {
       const frame = ssd1306Controller.update();
       // Update SSD1306
       ssd1306Controller.toImageData(ssd1306.imageData);
       ssd1306.redraw();
     }
 
-    if (feedLcd1602) {
+    if (lcd1602 != undefined) {
       const lcd = lcd1602Controller.update();
       // Check component
       if (lcd) {
@@ -297,13 +331,14 @@ async function compileAndRun() {
 
   clearOutput();
 
-  try {
-    statusLabel.textContent = 'Compiling...';
-    statusLabelTimer.textContent = '00:00.000';
-    statusLabelSpeed.textContent = '0%';
+  statusLabel.textContent = 'Compiling...';
+  statusLabelTimer.textContent = '00:00.000';
+  statusLabelSpeed.textContent = '0%';
 
-    const result = await buildHex(ed.getEditor().getValue(),
-      ed.getProjectFiles(), ed.getProjectBoard(), ed.getDebug());
+  try {
+
+    const result = await buildHex(ed.getEditor().getValue(), ed.getProjectFiles(),
+      ed.getProjectBoard(), ed.getProjectOptions(), ed.getDebug());
 
     if (result.hex) {
       // Set project hex filename
@@ -315,8 +350,6 @@ async function compileAndRun() {
       });
 
       stopButton.removeAttribute('disabled');
-
-      clearLeds();
       executeProgram(result.hex);
     }
 
@@ -346,8 +379,6 @@ function onlyRun() {
     if (data) {
       stopButton.removeAttribute('disabled');
       runButton.setAttribute('disabled', '1');
-
-      clearLeds();
       executeProgram(data);
     }
   });
@@ -374,8 +405,14 @@ function stopCode() {
     // Turn off the NeoPixel Matrix
     clearMatrix();
 
+    // Turn off the NeoPixel Canvas
+    clearCanvas();
+
     // Turn off speaker
-    buzzer.hasSignal = false;
+    if (buzzer != undefined) {
+      buzzer.hasSignal = false;
+    }
+
     statusLabel.textContent = 'Stop simulation: ';
   }
 }
@@ -398,106 +435,146 @@ function serialTransmit() {
 }
 
 function redrawMatrix(pixels: any) {
-  for (let row = 0; row < matrix.rows; row++) {
-    for (let col = 0; col < matrix.cols; col++) {
-      const value = pixels[row * matrix.cols + col];
+  if (matrix != undefined) {
+    for (let row = 0; row < matrix.rows; row++) {
+      for (let col = 0; col < matrix.cols; col++) {
+        const value = pixels[row * matrix.cols + col];
+        const b = value & 0xff;
+        const r = (value >> 8) & 0xff;
+        const g = (value >> 16) & 0xff;
 
-      const b = value & 0xff;
-      const r = (value >> 8) & 0xff;
-      const g = (value >> 16) & 0xff;
+        // NeoPixel update
+        matrix.setPixel(row, col, {
+          b: (value & 0xff) / 255,
+          r: ((value >> 8) & 0xff) / 255,
+          g: ((value >> 16) & 0xff) / 255
+        });
+      }
+    }
+  }
+}
 
-      // Canvas update
-      context.fillStyle = `rgb(${r}, ${g}, ${b})`;
-      context.fillRect(col * pixSize, row * pixSize, pixSize, pixSize);
+function redrawCanvas(pixels: any) {
+  if (canvas != undefined) {
+    for (let row = 0; row < canvas.rows; row++) {
+      for (let col = 0; col < canvas.cols; col++) {
+        const value = pixels[row * canvas.cols + col];
+        const b = value & 0xff;
+        const r = (value >> 8) & 0xff;
+        const g = (value >> 16) & 0xff;
 
-      // NeoPixel update
-      matrix.setPixel(row, col, {
-        b: (value & 0xff) / 255,
-        r: ((value >> 8) & 0xff) / 255,
-        g: ((value >> 16) & 0xff) / 255
-      });
+        // Canvas update
+        context.fillStyle = `rgb(${r}, ${g}, ${b})`;
+        context.fillRect(col * pixSize, row * pixSize, pixSize, pixSize);
+      }
     }
   }
 }
 
 function clearMatrix() {
-  for (let row = 0; row < matrix.rows; row++) {
-    for (let col = 0; col < matrix.cols; col++) {
-      const value = 0;
+  if (matrix != undefined) {
+    for (let row = 0; row < matrix.rows; row++) {
+      for (let col = 0; col < matrix.cols; col++) {
+        const value = 0;
+        const b = value & 0xff;
+        const r = (value >> 8) & 0xff;
+        const g = (value >> 16) & 0xff;
 
-      const b = value & 0xff;
-      const r = (value >> 8) & 0xff;
-      const g = (value >> 16) & 0xff;
+        // NeoPixel update
+        matrix.setPixel(row, col, {
+          b: (value & 0xff) / 255,
+          r: ((value >> 8) & 0xff) / 255,
+          g: ((value >> 16) & 0xff) / 255
+        });
+      }
+    }
+  }
+}
 
-      // Canvas update
-      context.fillStyle = `rgb(${r}, ${g}, ${b})`;
-      context.fillRect(col * pixSize, row * pixSize, pixSize, pixSize);
+function clearCanvas() {
+  if (canvas != undefined) {
+    for (let row = 0; row < canvas.rows; row++) {
+      for (let col = 0; col < canvas.cols; col++) {
+        const value = 0;
+        const b = value & 0xff;
+        const r = (value >> 8) & 0xff;
+        const g = (value >> 16) & 0xff;
 
-      // NeoPixel update
-      matrix.setPixel(row, col, {
-        b: (value & 0xff) / 255,
-        r: ((value >> 8) & 0xff) / 255,
-        g: ((value >> 16) & 0xff) / 255
-      });
+        if (canvas != undefined) {
+          // Canvas update
+          context.fillStyle = `rgb(${r}, ${g}, ${b})`;
+          context.fillRect(col * pixSize, row * pixSize, pixSize, pixSize);
+        }
+      }
     }
   }
 }
 
 function clearLeds() {
-  leds.forEach(function(led) {
-    const pin = parseInt(led.getAttribute("pin"), 10);
-    led.value = false;
-  });
+  if (leds != undefined) {
+    leds.forEach(function(led: any) {
+      const pin = parseInt(led.getAttribute("pin"), 10);
+      led.value = false;
+    });
+  }
 }
 
 function updateLEDs(value: number, startPin: number) {
-  leds.forEach(function(led) {
-    const pin = parseInt(led.getAttribute("pin"), 10);
-    // Check pin
-    if ((pin >= startPin) && (pin <= startPin + 8)) {
-      // Checks in portB
-      if (startPin == 8)
-        hasLEDsOnPortB = true;
+  if (leds != undefined) {
+    leds.forEach(function(led: any) {
+      const pin = parseInt(led.getAttribute("pin"), 10);
+      // Check pin
+      if ((pin >= startPin) && (pin <= startPin + 8)) {
+        // Checks in portB
+        if (startPin == 8)
+          hasLEDsOnPortB = true;
 
-      // Checks in portC&D
-      if (startPin == 0) {
-        hasLEDsOnPortC = true;
-        hasLEDsOnPortD = true;
+        // Checks in portC&D
+        if (startPin == 0) {
+          hasLEDsOnPortC = true;
+          hasLEDsOnPortD = true;
+        }
+
+        const bit = 1 << (pin - startPin);
+
+        // Set LED
+        led.value = value & bit ? true : false;
       }
-
-      const bit = 1 << (pin - startPin);
-
-      // Set LED
-      led.value = value & bit ? true : false;
-    }
-  });
+    });
+  }
 }
 
 function updateSegment(value: number) {
-  // Set segment values
-  segment.values = [
-    value & (1 << 0),
-    value & (1 << 1),
-    value & (1 << 2),
-    value & (1 << 3),
-    value & (1 << 4),
-    value & (1 << 5),
-    value & (1 << 6),
-    value & (1 << 7)
-  ];
+  if (segment != undefined) {
+    // Set segment values
+    segment.values = [
+      value & (1 << 0),
+      value & (1 << 1),
+      value & (1 << 2),
+      value & (1 << 3),
+      value & (1 << 4),
+      value & (1 << 5),
+      value & (1 << 6),
+      value & (1 << 7)
+    ];
+  }
 }
 
 function clearSegment() {
-  // Turn off the 7 segment
-  segment.values = [0, 0, 0, 0, 0, 0, 0, 0];
+  if (segment != undefined) {
+    // Turn off the 7 segment
+    segment.values = [0, 0, 0, 0, 0, 0, 0, 0];
+  }
 }
 
 function clearLcd() {
-  // Set backlight off
-  lcd1602.characters.fill(32);
-  lcd1602.backlight = false;
-  lcd1602.blink = false;
-  lcd1602.cursor = false;
+  if (lcd1602 != undefined) {
+    // Set backlight off
+    lcd1602.characters.fill(32);
+    lcd1602.backlight = false;
+    lcd1602.blink = false;
+    lcd1602.cursor = false;
+  }
 }
 
 function clearOutput() {
@@ -518,6 +595,24 @@ function changeFileInput() {
   } else {
     runnerOutputText.textContent += "File not supported, .hex files only!\n";
   }
+}
+
+function changeSyncCycles() {
+  syncCycles = roundFloatNumber(mapFloat(parseInt(syncCyclesSlider.value), 1, 100, 0.01, 1.99), 2);
+  syncCyclesLabel.textContent = "Sync. Cycles: " + syncCycles;
+
+  if (runner) {
+      runner.setSyncCycles(syncCycles);
+  }
+}
+
+function mapFloat(x: number, inMin: number, inMax: number, outMin: number, outMax: number) {
+  return (x - inMin) * (outMax - outMin) / (inMax - inMin) + outMin;
+}
+
+function roundFloatNumber(num: number, dp: number) {
+  let numToFixedDp = Number(num).toFixed(dp);
+  return Number(numToFixedDp);
 }
 
 function printChars(value: string) {

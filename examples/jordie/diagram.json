@@ -34,7 +34,6 @@
     }
   ],
   "connections": [
-
     ["uno:GND.2", "lcd:GND", "black", ["v15", "*", "h-20"]],
     ["uno:A4", "lcd:SDA", "orange", ["v-10", "*", "h-10"]],
     ["uno:A5", "lcd:SCL", "yellow", ["v-20", "*", "h0"]],

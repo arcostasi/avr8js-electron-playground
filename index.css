@@ -42,6 +42,7 @@ html {
 
 body {
   margin: 0;
+  padding: 0;
   font-family: 'Open Sans', sans-serif;
   color: #aaa;
   background-color: #1e1e1e;
@@ -99,7 +100,7 @@ body {
 }
 
 .zoom-header {
-  padding: 0 0 15px 0;
+  padding: 0 0 7px 0;
 }
 
 .zoomin {
@@ -269,6 +270,7 @@ body {
 
 .resize-drag {
   color: #000;
+  background-color: #333;
   font-size: 20px;
   font-family: sans-serif;
   border-radius: 8px;
@@ -277,53 +279,53 @@ body {
   box-sizing: border-box;
 }
 
+.element {
+  position: absolute;
+  width: 50px;
+  max-width: 500px;
+}
+
 .leds {
-  width: 270px;
-  max-width: 270px;
+  width: 50px;
 }
 
 .lcd {
   width: 300px;
-  max-width: 300px;
 }
 
 .keypad {
   width: 250px;
-  max-width: 500px;
 }
 
 .servo {
   width: 170px;
-  max-width: 500px;
 }
 
 .ssd1306 {
   width: 150px;
-  max-width: 150px;
 }
 
 .buzzer {
   width: 50px;
-  max-width: 100px;
 }
 
 .pushbutton {
-  width: 460px;
-  max-width: 500px;
-  padding-bottom: 20px;
+  width: 60px;
 }
 
 .neopixel {
-  width: 280px;
-  max-width: 280px;
-  padding-bottom: 20px;
+  width: 400px;
+  padding: 4px;
+}
+
+.neocanvas {
+  width: 400px;
+  height: 400px;
+  padding: 4px;
 }
 
 .pixels {
   display: inline-block;
-  padding: 8px;
-  margin-bottom: 8px;
-  background: #333;
   box-sizing: border-box;
 }
 
@@ -487,6 +489,58 @@ input[type="submit"]:hover,
             currently supported by Chrome */
 }
 
+.slider-container {
+  width: 100px; /* Width of the outside container */
+  margin-top: 12px;
+  margin-bottom: 5px;
+  margin-left: 30px;
+  margin-right: 25px;
+}
+
+/* The slider itself */
+.slider {
+  -webkit-appearance: none;  /* Override default CSS styles */
+  appearance: none;
+  width: 100%; /* Full-width */
+  height: 7px; /* Specified height */
+  background: #d3d3d3; /* Grey background */
+  outline: none; /* Remove outline */
+  opacity: 0.7; /* Set transparency (for mouse-over effects on hover) */
+  -webkit-transition: .2s; /* 0.2 seconds transition on hover */
+  transition: opacity .2s;
+}
+
+/* Mouse-over effects */
+.slider:hover {
+  opacity: 1; /* Fully shown on mouse-over */
+}
+
+/* The slider handle (use -webkit- (Chrome, Opera, Safari, Edge) and -moz- (Firefox) to override default look) */
+.slider::-webkit-slider-thumb {
+  -webkit-appearance: none; /* Override default look */
+  appearance: none;
+  width: 15px; /* Set a specific slider handle width */
+  height: 15px; /* Slider handle height */
+  background: #4CAF50; /* Green background */
+  cursor: pointer; /* Cursor on hover */
+}
+
+.slider::-moz-range-thumb {
+  width: 15px; /* Set a specific slider handle width */
+  height: 15px; /* Slider handle height */
+  background: #4CAF50; /* Green background */
+  cursor: pointer; /* Cursor on hover */
+}
+
+.slider-label {
+  font-size: 10px;
+  text-align: center;
+  color: gray;
+  position: relative;
+  line-height: 1;
+  top: -5px;
+  margin-left: 3px;
+}
 
 [class*=" ci-"],
 [class^=ci-] {

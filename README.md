@@ -1,8 +1,8 @@
 # AVR8js Electron Playground
 
-A Electron with TypeScript implementation of the AVR 8-bit architecture.
+An [AVR8js](https://github.com/wokwi/avr8js) and [Wokwi Elements](https://github.com/wokwi/wokwi-elements) playground implemented with [Electron](https://github.com/electron/electron).
 
-[AVR8js](https://github.com/wokwi/avr8js) + [Wokwi Elements](https://github.com/wokwi/wokwi-elements) + [Electron](https://github.com/electron/electron) + [Monaco Editor](https://github.com/microsoft/monaco-editor)
+<img src="examples/print.png" alt="" width="784px">
 
 To run this application:
 

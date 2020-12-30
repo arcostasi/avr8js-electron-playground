@@ -1,0 +1,30 @@
+{
+  "version": 1,
+  "author": "Anderson",
+  "editor": "playground",
+  "parts": [
+    {
+      "id": "uno",
+      "type": "wokwi-arduino-uno",
+      "top": 550,
+      "left": 260
+    },
+    {
+      "id": "neopixels",
+      "type": "wokwi-neopixel-matrix",
+      "top": 160,
+      "left": 200,
+      "attrs": {
+        "rows": "16",
+        "cols": "16",
+        "pin": "3",
+        "background": "#333"
+      }
+    }
+  ],
+  "connections": [
+    ["uno:GND.1", "neopixels:VSS", "black", []],
+    ["uno:3", "neopixels:DIN", "green", []],
+    ["uno:5V", "neopixels:VDD", "red", []]
+  ]
+}

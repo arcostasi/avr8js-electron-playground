@@ -6,7 +6,7 @@
  */
 import { ICPU } from 'avr8js';
 
-const CHUNKS_PER_SECOND = 20;
+const CHUNKS_PER_SECOND = 50;
 
 // TODO: Fix sound stuttering
 export class Speaker {
@@ -33,11 +33,10 @@ export class Speaker {
 
     let currentSample = Math.floor(currentTime * sampleRate) - this.playedSamples;
 
+    this.lastSample = currentSample;
+
     if ((currentSample - this.lastSample) > (sampleRate / CHUNKS_PER_SECOND)) {
-      this.lastSample = currentSample;
       currentSample = 0;
-    } else {
-      this.lastSample = currentSample;
     }
 
     if (currentSample > this.chunk.length) {

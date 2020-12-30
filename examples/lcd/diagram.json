@@ -1,0 +1,68 @@
+{
+  "version": 1,
+  "author": "Anderson",
+  "editor": "playground",
+  "parts": [
+    {
+      "id": "uno",
+      "type": "wokwi-arduino-uno",
+      "top": 270,
+      "left": 250
+    },
+    {
+      "id": "lcd",
+      "type": "wokwi-lcd1602",
+      "top": 40,
+      "left": 240,
+      "attrs": {
+        "pins": "i2c"
+      }
+    },
+    {
+      "id": "btn1",
+      "type": "wokwi-pushbutton",
+      "top": 60,
+      "left": 200,
+      "attrs": {
+        "color": "red",
+        "pin": "2"
+      }
+    },
+    {
+      "id": "btn2",
+      "type": "wokwi-pushbutton",
+      "top": 60,
+      "left": 300,
+      "attrs": {
+        "color": "green",
+        "pin": "3"
+      }
+    },
+    {
+      "id": "btn3",
+      "type": "wokwi-pushbutton",
+      "top": 60,
+      "left": 400,
+      "attrs": {
+        "color": "blue",
+        "pin": "4"
+      }
+    },
+    {
+      "id": "btn4",
+      "type": "wokwi-pushbutton",
+      "top": 60,
+      "left": 500,
+      "attrs": {
+        "color": "yellow",
+        "pin": "5"
+      }
+    }
+  ],
+  "connections": [
+    ["uno:GND.2", "lcd:GND", "black", ["v14", "*", "h-20"]],
+    ["uno:5V", "lcd:VCC", "red", ["v18", "*", "h-16"]],
+    ["uno:A4", "lcd:SDA", "green", ["v22", "*", "h-12"]],
+    ["uno:A5", "lcd:SCL", "blue", ["v26", "*", "h-8"]]
+  ]
+}

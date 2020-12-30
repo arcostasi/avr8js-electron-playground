@@ -18,7 +18,7 @@ export interface IHexiResult {
  * @param board - 'nano', 'uno', 'mega'
  */
 export async function buildHex(source: string, files: any,
-  board: string = 'uno', debug: boolean = false) {
+  board: string = 'uno', options: any = {}, debug: boolean = false) {
   // Check FakeRamSize test
   if (!debug && (board = 'fakeuno')) {
     board = 'uno';
@@ -33,7 +33,12 @@ export async function buildHex(source: string, files: any,
     headers: {
       'Content-Type': 'application/json'
     },
-    body: JSON.stringify({ sketch: source, files, board: board })
+    body: JSON.stringify({
+      sketch: source,
+      files,
+      board: board,
+      options: options
+    })
   });
 
   if (!resp.ok) {

@@ -1,38 +1,24 @@
 {
     "projects": [
         {
-            "name": "blinks",
-            "path": "./examples/blinks/",
-            "board": "uno",
-            "components": [
-                "wokwi-led"
-            ]
+            "name": "leds",
+            "path": "./examples/leds/",
+            "board": "uno"
         },
         {
             "name": "buttons",
             "path": "./examples/buttons/",
-            "board": "uno",
-            "components": [
-                "wokwi-led",
-                "wokwi-pushbutton"
-            ]
+            "board": "uno"
         },
         {
             "name": "7segment",
             "path": "./examples/7segment/",
-            "board": "uno",
-            "components": [
-                "wokwi-7segment"
-            ]
+            "board": "uno"
         },
         {
             "name": "lcd",
             "path": "./examples/lcd/",
-            "board": "uno",
-            "components": [
-                "wokwi-lcd1602",
-                "wokwi-pushbutton"
-            ]
+            "board": "uno"
         },
         {
             "name": "buzzer",
@@ -40,75 +26,47 @@
             "files": [
                 "pitches.h"
             ],
-            "board": "uno",
-            "components": [
-                "wokwi-buzzer"
-            ]
+            "board": "uno"
         },
         {
             "name": "neopixel",
             "path": "./examples/neopixel/",
-            "board": "uno",
-            "components": [
-                "wokwi-neopixel-matrix"
-            ]
+            "board": "uno"
         },
         {
             "name": "fire",
             "path": "./examples/fire/",
-            "board": "uno",
-            "components": [
-                "wokwi-neopixel-matrix"
-            ]
+            "board": "uno"
         },
         {
             "name": "rain",
             "path": "./examples/rain/",
-            "board": "uno",
-            "components": [
-                "wokwi-neopixel-matrix"
-            ]
+            "board": "uno"
         },
         {
             "name": "metaballs",
             "path": "./examples/metaballs/",
-            "board": "uno",
-            "components": [
-                "wokwi-neopixel-matrix"
-            ]
+            "board": "uno"
         },
         {
             "name": "brainy",
             "path": "./examples/brainy/",
-            "board": "uno",
-            "components": [
-                "wokwi-neopixel-matrix"
-            ]
+            "board": "uno"
         },
         {
             "name": "ssd1306",
             "path": "./examples/ssd1306/",
-            "board": "uno",
-            "components": [
-                "wokwi-ssd1306"
-            ]
+            "board": "uno"
         },
         {
             "name": "counter",
             "path": "./examples/counter/",
-            "board": "uno",
-            "components": [
-                "wokwi-ssd1306"
-            ]
+            "board": "uno"
         },
         {
             "name": "emu6502",
             "path": "./examples/emu6502/",
             "board": "fakeuno",
-            "components": [
-                "wokwi-ssd1306"
-            ],
-            "__fakeRamSize": "32768",
             "files": [
                 "cpu.c",
                 "rom.h"

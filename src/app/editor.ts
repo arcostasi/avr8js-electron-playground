@@ -245,7 +245,10 @@ function openDiagram(file: string) {
         // Assign custom class
         switch (data.type) {
           case "wokwi-neopixel-matrix": div.className = "neopixel"; break;
-          case "wokwi-lcd1602": div.className = "lcd"; break;
+          case "wokwi-lcd1602":
+            div.className = "lcd";
+            element.backlight = false;
+            break;
           case "wokwi-ssd1306": div.className = "ssd1306"; break;
           case "wokwi-buzzer": div.className = "buzzer"; break;
           case "wokwi-neopixel-canvas":

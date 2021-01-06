@@ -6,56 +6,16 @@
     {
       "id": "uno",
       "type": "wokwi-arduino-uno",
-      "top": 270,
-      "left": 250
+      "top": 300,
+      "left": 260
     },
     {
       "id": "lcd",
       "type": "wokwi-lcd1602",
-      "top": 40,
-      "left": 240,
+      "top": 120,
+      "left": 250,
       "attrs": {
         "pins": "i2c"
-      }
-    },
-    {
-      "id": "btn1",
-      "type": "wokwi-pushbutton",
-      "top": 60,
-      "left": 200,
-      "attrs": {
-        "color": "red",
-        "pin": "2"
-      }
-    },
-    {
-      "id": "btn2",
-      "type": "wokwi-pushbutton",
-      "top": 60,
-      "left": 300,
-      "attrs": {
-        "color": "green",
-        "pin": "3"
-      }
-    },
-    {
-      "id": "btn3",
-      "type": "wokwi-pushbutton",
-      "top": 60,
-      "left": 400,
-      "attrs": {
-        "color": "blue",
-        "pin": "4"
-      }
-    },
-    {
-      "id": "btn4",
-      "type": "wokwi-pushbutton",
-      "top": 60,
-      "left": 500,
-      "attrs": {
-        "color": "yellow",
-        "pin": "5"
       }
     }
   ],

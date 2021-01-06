@@ -29,38 +29,18 @@
             "board": "uno"
         },
         {
-            "name": "neopixel",
-            "path": "./examples/neopixel/",
+            "name": "neopixel-matrix",
+            "path": "./examples/neopixel-matrix/",
             "board": "uno"
         },
         {
-            "name": "fire",
-            "path": "./examples/fire/",
-            "board": "uno"
-        },
-        {
-            "name": "rain",
-            "path": "./examples/rain/",
-            "board": "uno"
-        },
-        {
-            "name": "metaballs",
-            "path": "./examples/metaballs/",
-            "board": "uno"
-        },
-        {
-            "name": "brainy",
-            "path": "./examples/brainy/",
+            "name": "neopixel-canvas",
+            "path": "./examples/neopixel-canvas/",
             "board": "uno"
         },
         {
             "name": "ssd1306",
             "path": "./examples/ssd1306/",
-            "board": "uno"
-        },
-        {
-            "name": "counter",
-            "path": "./examples/counter/",
             "board": "uno"
         },
         {

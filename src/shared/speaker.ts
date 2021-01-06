@@ -6,7 +6,7 @@
  */
 import { ICPU } from 'avr8js';
 
-const CHUNKS_PER_SECOND = 50;
+const CHUNKS_PER_SECOND = 20;
 
 // TODO: Fix sound stuttering
 export class Speaker {

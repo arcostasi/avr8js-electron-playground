@@ -1,3 +1,8 @@
+/**
+ * Simple 7-Segment Counter
+ * Segment display at pins 0-7.
+ */
+
 #include "SevSeg.h"
 
 SevSeg sevseg;
@@ -10,8 +15,10 @@ void setup() {
   byte segmentPins[] = {0, 1, 2, 3, 4, 5, 6, 7};
   byte hardwareConfig = COMMON_CATHODE;
 
-  sevseg.begin(hardwareConfig, numDigits, digitPins, segmentPins, resistorsOnSegments);
+  sevseg.begin(hardwareConfig, numDigits, digitPins,
+    segmentPins, resistorsOnSegments);
   sevseg.setBrightness(90);
+
   delay(1000);
 }
 

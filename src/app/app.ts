@@ -147,25 +147,25 @@ function executeProgram(hex: string) {
   // Set up the NeoPixel canvas
   canvas = document.querySelector<HTMLCanvasElement>(".pixels");
 
-  if (canvas != undefined) {
+  if (canvas) {
     context = canvas.getContext("2d");
     pixSize = canvas.getAttribute("height") / canvas.getAttribute("rows");
   }
 
-  if ((matrix != undefined) && (matrix.hasAttribute("pin"))) {
+  if ((matrix) && (matrix.hasAttribute("pin"))) {
     matrixPin = parseInt(matrix.getAttribute("pin"), 10);
-  } else if ((canvas != undefined) && (canvas.hasAttribute("pin"))) {
+  } else if ((canvas) && (canvas.hasAttribute("pin"))) {
     matrixPin = parseInt(canvas.getAttribute("pin"), 10);
   }
 
-  if ((buzzer != undefined) && (buzzer.hasAttribute("pin"))) {
+  if ((buzzer) && (buzzer.hasAttribute("pin"))) {
     buzzerPin = parseInt(buzzer.getAttribute("pin"), 10);
   }
 
   // Feed the NeoPixel Matrix
-  if (matrix != undefined) {
+  if (matrix) {
     matrixController = new WS2812Controller(matrix.cols * matrix.rows);
-  } else if (canvas != undefined) {
+  } else if (canvas) {
     canvas.cols = canvas.getAttribute("cols");
     canvas.rows = canvas.getAttribute("rows");
     matrixController = new WS2812Controller(canvas.cols * canvas.rows);
@@ -202,7 +202,7 @@ function executeProgram(hex: string) {
   // Hook to PORTB register
   runner.portB.addListener((value) => {
     // Port B starts at pin 8 to 13
-    if (leds != undefined) {
+    if (leds) {
       // None optimized
       if (hasLEDsOnPortB) {
         hasLEDsOnPortB = false;
@@ -211,7 +211,7 @@ function executeProgram(hex: string) {
     }
 
     // Speaker
-    if (buzzer != undefined) {
+    if (buzzer) {
       runner.speaker.feed(value & (1 << 0));
       buzzer.hasSignal = ((value & 0x01) == 1) ? true: false;
     }
@@ -220,7 +220,7 @@ function executeProgram(hex: string) {
   // Hook to PORTC register
   runner.portC.addListener((value) => {
     // Analog input pins (A0-A5)
-    if (leds != undefined) {
+    if (leds) {
       // None optimized
       if (hasLEDsOnPortC) {
         hasLEDsOnPortC = false;
@@ -232,7 +232,7 @@ function executeProgram(hex: string) {
   // Hook to PORTD register
   runner.portD.addListener((value) => {
     // Port D starts at pin 0 to 7
-    if (leds != undefined) {
+    if (leds) {
       // None optimized
       if (hasLEDsOnPortD) {
         hasLEDsOnPortD = false;
@@ -241,12 +241,12 @@ function executeProgram(hex: string) {
     }
 
     // Feed the NeoPixel Matrix
-    if (matrixController != undefined) {
+    if (matrixController) {
       matrixController.feedValue(runner.portD.pinState(matrixPin), cpuNanos());
     }
 
     // Feed the 7 segment
-    if (segment != undefined) {
+    if (segment) {
       updateSegment(value)
     }
   });
@@ -268,7 +268,7 @@ function executeProgram(hex: string) {
     const speed = (cpuPerf.update() * 100).toFixed(0);
     const millis = performance.now();
 
-    if ((matrix != undefined) || (canvas != undefined)) {
+    if ((matrix) || (canvas)) {
       const pixels = matrixController.update(cpuNanos());
       if (pixels) {
         // Update NeoPixel matrix
@@ -277,14 +277,14 @@ function executeProgram(hex: string) {
       }
     }
 
-    if (ssd1306 != undefined) {
+    if (ssd1306) {
       const frame = ssd1306Controller.update();
       // Update SSD1306
       ssd1306Controller.toImageData(ssd1306.imageData);
       ssd1306.redraw();
     }
 
-    if (lcd1602 != undefined) {
+    if (lcd1602) {
       const lcd = lcd1602Controller.update();
       // Check component
       if (lcd) {
@@ -354,7 +354,7 @@ async function compileAndRun() {
     }
 
     // Check result error
-    if (result.stderr != undefined || result.stdout != undefined) {
+    if (result.stderr || result.stdout) {
       runnerOutputText.textContent = result.stderr || result.stdout;
     }
   } catch (err) {
@@ -409,7 +409,7 @@ function stopCode() {
     clearCanvas();
 
     // Turn off speaker
-    if (buzzer != undefined) {
+    if (buzzer) {
       buzzer.hasSignal = false;
     }
 
@@ -435,7 +435,7 @@ function serialTransmit() {
 }
 
 function redrawMatrix(pixels: any) {
-  if (matrix != undefined) {
+  if (matrix) {
     for (let row = 0; row < matrix.rows; row++) {
       for (let col = 0; col < matrix.cols; col++) {
         const value = pixels[row * matrix.cols + col];
@@ -455,7 +455,7 @@ function redrawMatrix(pixels: any) {
 }
 
 function redrawCanvas(pixels: any) {
-  if (canvas != undefined) {
+  if (canvas) {
     for (let row = 0; row < canvas.rows; row++) {
       for (let col = 0; col < canvas.cols; col++) {
         const value = pixels[row * canvas.cols + col];
@@ -472,7 +472,7 @@ function redrawCanvas(pixels: any) {
 }
 
 function clearMatrix() {
-  if (matrix != undefined) {
+  if (matrix) {
     for (let row = 0; row < matrix.rows; row++) {
       for (let col = 0; col < matrix.cols; col++) {
         const value = 0;
@@ -492,7 +492,7 @@ function clearMatrix() {
 }
 
 function clearCanvas() {
-  if (canvas != undefined) {
+  if (canvas) {
     for (let row = 0; row < canvas.rows; row++) {
       for (let col = 0; col < canvas.cols; col++) {
         const value = 0;
@@ -500,7 +500,7 @@ function clearCanvas() {
         const r = (value >> 8) & 0xff;
         const g = (value >> 16) & 0xff;
 
-        if (canvas != undefined) {
+        if (canvas) {
           // Canvas update
           context.fillStyle = `rgb(${r}, ${g}, ${b})`;
           context.fillRect(col * pixSize, row * pixSize, pixSize, pixSize);
@@ -511,7 +511,7 @@ function clearCanvas() {
 }
 
 function clearLeds() {
-  if (leds != undefined) {
+  if (leds) {
     leds.forEach(function(led: any) {
       const pin = parseInt(led.getAttribute("pin"), 10);
       led.value = false;
@@ -520,9 +520,11 @@ function clearLeds() {
 }
 
 function updateLEDs(value: number, startPin: number) {
-  if (leds != undefined) {
+  if (leds) {
     leds.forEach(function(led: any) {
       const pin = parseInt(led.getAttribute("pin"), 10);
+      const bit = 1 << (pin - startPin);
+
       // Check pin
       if ((pin >= startPin) && (pin <= startPin + 8)) {
         // Checks in portB
@@ -535,8 +537,6 @@ function updateLEDs(value: number, startPin: number) {
           hasLEDsOnPortD = true;
         }
 
-        const bit = 1 << (pin - startPin);
-
         // Set LED
         led.value = value & bit ? true : false;
       }
@@ -545,7 +545,7 @@ function updateLEDs(value: number, startPin: number) {
 }
 
 function updateSegment(value: number) {
-  if (segment != undefined) {
+  if (segment) {
     // Set segment values
     segment.values = [
       value & (1 << 0),
@@ -561,14 +561,14 @@ function updateSegment(value: number) {
 }
 
 function clearSegment() {
-  if (segment != undefined) {
+  if (segment) {
     // Turn off the 7 segment
     segment.values = [0, 0, 0, 0, 0, 0, 0, 0];
   }
 }
 
 function clearLcd() {
-  if (lcd1602 != undefined) {
+  if (lcd1602) {
     // Set backlight off
     lcd1602.characters.fill(32);
     lcd1602.backlight = false;

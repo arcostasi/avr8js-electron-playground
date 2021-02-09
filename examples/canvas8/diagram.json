@@ -11,15 +11,17 @@
       "hide": true
     },
     {
-      "id": "neopixels",
-      "type": "wokwi-neopixel-matrix",
-      "top": 160,
+      "id": "neocanvas",
+      "type": "wokwi-neopixel-canvas",
+      "top": 100,
       "left": 200,
       "attrs": {
-        "rows": "16",
-        "cols": "16",
+        "cols": 8,
+        "rows": 8,
         "pin": "3",
-        "background": "#333"
+        "height": 400,
+        "width": 400,
+        "background": "#111"
       }
     }
   ],

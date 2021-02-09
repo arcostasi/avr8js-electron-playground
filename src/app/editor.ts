@@ -262,8 +262,11 @@ function openDiagram(file: string) {
         div.className += " draggable"
 
         // Add element
-        div.appendChild(element);
-        document.getElementById("elements").appendChild(div);
+        if ((data.hide == undefined) ||
+            ((data.hide != undefined) && (data.hide == false))) {
+          div.appendChild(element);
+          document.getElementById("elements").appendChild(div);
+        }
       });
     });
   });

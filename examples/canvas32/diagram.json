@@ -1,13 +1,17 @@
 {
   "version": 1,
-  "author": "Anderson",
-  "editor": "playground",
+  "author": "arcostasi",
+  "editor": "avr8js-electron-playground",
   "parts": [
     {
       "id": "uno",
       "type": "wokwi-arduino-uno",
-      "top": 550,
-      "left": 260
+      "top": 300,
+      "left": 260,
+      "hide": true,
+      "attrs": {
+        "__fakeRamSize": "32768"
+      }
     },
     {
       "id": "neocanvas",
@@ -15,12 +19,12 @@
       "top": 100,
       "left": 200,
       "attrs": {
-        "cols": 16,
-        "rows": 16,
+        "cols": 32,
+        "rows": 32,
         "pin": "3",
         "height": 400,
         "width": 400,
-        "background": "#000"
+        "background": "#111"
       }
     }
   ],

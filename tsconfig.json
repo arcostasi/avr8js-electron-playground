@@ -8,12 +8,18 @@
     "sourceMap": false,
     "declaration": true,
     "experimentalDecorators": true,
-    "noEmitOnError": true,
-    "strict": true,
     "strictNullChecks": false,
+    "noEmitOnError": true,
+    "esModuleInterop": true,
+    "strict": true,
+    "allowJs": true,
+    "jsx": "react",
     "rootDir": "src",
     "outDir": "dist",
-    "lib": ["es2020", "dom"]
+    "lib": [
+      "dom",
+      "es2020"
+    ]
   },
   "exclude": ["src/**/*.stories.ts"],
   "include": ["src/**/*.ts"]

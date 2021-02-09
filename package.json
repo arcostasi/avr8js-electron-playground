@@ -1,27 +1,43 @@
 {
   "name": "avr8js-electron-playground",
-  "version": "0.11.3",
+  "version": "0.14.10",
   "author": "arcostasi",
   "license": "MIT",
-  "description": "A Electron implementation with Typescript of the AVR 8-bit architecture",
+  "description": "An AVR8js and Wokwi Elements playground implemented with Electron.",
   "scripts": {
     "build": "tsc",
     "watch": "tsc -w",
     "start": "electron ./dist/app/main.js",
-    "dev": "tsc && electron ./dist/app/main.js"
+    "dev": "tsc && electron ./dist/app/main.js",
+    "dev:react": "webpack serve --config webpack.react.config.js --mode development --env development"
   },
   "dependencies": {
     "@panzoom/panzoom": "^4.3.2",
-    "@wokwi/elements": "^0.30.0",
+    "@wokwi/elements": "^0.31.0",
     "avr8js": "^0.14.10",
     "custom-electron-titlebar": "^3.2.6",
-    "interactjs": "^1.10.2",
+    "interactjs": "^1.10.3",
     "lit-html": "^1.3.0",
     "monaco-editor": "^0.22.3",
+    "react": "^17.0.1",
+    "react-dom": "^17.0.1",
     "split.js": "^1.6.2"
   },
   "devDependencies": {
-    "electron": "^9.4.2",
-    "typescript": "^4.1.3"
+    "@babel/core": "^7.12.13",
+    "@babel/plugin-proposal-class-properties": "^7.12.13",
+    "@babel/plugin-proposal-object-rest-spread": "^7.12.13",
+    "@babel/preset-env": "^7.12.13",
+    "@babel/preset-react": "^7.12.13",
+    "@babel/preset-typescript": "^7.12.13",
+    "@types/react": "^17.0.1",
+    "@types/react-dom": "^17.0.0",
+    "babel-loader": "^8.2.2",
+    "electron": "^9.4.3",
+    "html-webpack-plugin": "^5.0.0",
+    "typescript": "^4.1.3",
+    "webpack": "^5.21.2",
+    "webpack-cli": "^4.5.0",
+    "webpack-dev-server": "^3.11.2"
   }
 }

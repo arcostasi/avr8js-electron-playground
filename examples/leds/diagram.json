@@ -1,7 +1,7 @@
 {
   "version": 1,
-  "author": "Anderson",
-  "editor": "playground",
+  "author": "arcostasi",
+  "editor": "avr8js-electron-playground",
   "parts": [
     {
       "id": "uno",

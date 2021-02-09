@@ -1,7 +1,6 @@
 /**
  * Push Buttons
  * Part of Wokwi Playground
- * https://wokwi.com/course/simon/4-buttons
  * Copyright (C) 2019, Uri Shaked
  */
 

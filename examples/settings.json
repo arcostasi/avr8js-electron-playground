@@ -11,21 +11,8 @@
             "board": "uno"
         },
         {
-            "name": "7segment",
-            "path": "./examples/7segment/",
-            "board": "uno"
-        },
-        {
             "name": "lcd",
             "path": "./examples/lcd/",
-            "board": "uno"
-        },
-        {
-            "name": "buzzer",
-            "path": "./examples/buzzer/",
-            "files": [
-                "pitches.h"
-            ],
             "board": "uno"
         },
         {
@@ -34,9 +21,24 @@
             "board": "uno"
         },
         {
-            "name": "neopixel-canvas",
-            "path": "./examples/neopixel-canvas/",
+            "name": "canvas8",
+            "path": "./examples/canvas8/",
             "board": "uno"
+        },
+        {
+            "name": "canvas16",
+            "path": "./examples/canvas16/",
+            "board": "uno"
+        },
+        {
+            "name": "canvas32",
+            "path": "./examples/canvas32/",
+            "board": "fakeuno"
+        },
+        {
+            "name": "canvas64",
+            "path": "./examples/canvas64/",
+            "board": "fakeuno"
         },
         {
             "name": "ssd1306",

@@ -9,14 +9,14 @@
     "watch": "tsc -w",
     "start": "electron ./dist/app/main.js",
     "dev": "tsc && electron ./dist/app/main.js",
-    "dev:react": "webpack serve --config webpack.react.config.js --mode development --env development"
+    "webpack:dev": "webpack --config webpack.electron.config.js --mode development --env development"
   },
   "dependencies": {
     "@panzoom/panzoom": "^4.3.2",
-    "@wokwi/elements": "^0.31.0",
+    "@wokwi/elements": "^0.31.1",
     "avr8js": "^0.15.0",
     "custom-electron-titlebar": "^3.2.6",
-    "interactjs": "^1.10.3",
+    "interactjs": "^1.10.8",
     "lit-html": "^1.3.0",
     "monaco-editor": "^0.22.3",
     "react": "^17.0.1",
@@ -24,19 +24,19 @@
     "split.js": "^1.6.2"
   },
   "devDependencies": {
-    "@babel/core": "^7.13.1",
+    "@babel/core": "^7.13.8",
     "@babel/plugin-proposal-class-properties": "^7.13.0",
-    "@babel/plugin-proposal-object-rest-spread": "^7.13.0",
-    "@babel/preset-env": "^7.13.5",
+    "@babel/plugin-proposal-object-rest-spread": "^7.13.8",
+    "@babel/preset-env": "^7.13.9",
     "@babel/preset-react": "^7.12.13",
     "@babel/preset-typescript": "^7.13.0",
     "@types/react": "^17.0.1",
     "@types/react-dom": "^17.0.0",
     "babel-loader": "^8.2.2",
-    "electron": "^9.4.3",
+    "electron": "^9.4.4",
     "html-webpack-plugin": "^5.2.0",
-    "typescript": "^4.2.2",
-    "webpack": "^5.24.0",
+    "typescript": "^4.2.3",
+    "webpack": "^5.24.3",
     "webpack-cli": "^4.5.0",
     "webpack-dev-server": "^3.11.2"
   }

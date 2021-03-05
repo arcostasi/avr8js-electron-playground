@@ -1,3 +1,6 @@
+import { MonacoGlobal } from '../shared/types';
+import { registerFastLEDContributions } from '../shared/fastled-register';
+
 const fs = require('fs');
 
 declare const window: any;
@@ -17,18 +20,21 @@ let projectFiles: any;
 let projectBoard: string;
 let projectOptions: any;
 
+// Load Editor
 window.editorLoaded = () => {
   window.require.config({
     paths: {
-      vs: "./node_modules/monaco-editor/min/vs"
-    }
+      vs: './node_modules/monaco-editor/min/vs'
+    },
   });
-  window.require(["vs/editor/editor.main"], () => {
+  window.require(['vs/editor/editor.main'], (monaco: MonacoGlobal) => {
+    registerFastLEDContributions(monaco, 'cpp');
     editor = monaco.editor.create(document.getElementById('editor-container'), {
       model: null,
       theme: "vs-dark",
       fontFamily: 'Fira Code',
       fontSize: 18,
+      language: 'cpp',
       renderWhitespace: "all",
       automaticLayout: true,
       minimap: {
@@ -43,7 +49,7 @@ export function getEditor() {
 }
 
 export function setModel(code: string, ext: string) {
-  window.require(['vs/editor/editor.main'], function () {
+  window.require(['vs/editor/editor.main'], function() {
     let model = monaco.editor.createModel(code, ext);
     editor.setModel(model);
   });
@@ -115,13 +121,12 @@ export function getDebug() {
   return debug;
 }
 
-function readTextFile(folder: string, fileName: string, type: string = 'file')
-{
+function readTextFile(folder: string, fileName: string, type: string = 'file') {
   let request = new XMLHttpRequest();
 
   request.open("GET", folder.concat(fileName), true);
 
-  request.onreadystatechange = function () {
+  request.onreadystatechange = function() {
     if (request.readyState === 4) {
       if (request.status === 200 || request.status == 0) {
         if (type == 'file') {
@@ -208,8 +213,8 @@ function openDiagram(file: string) {
           attr.forEach((a: any, x: any) => {
             // Checks the RAM Size
             if ((a[0] == "__fakeRamSize") &&
-                (data.type == "wokwi-arduino-uno")) {
-              setProjectOptions({ramSize: a[1]});
+              (data.type == "wokwi-arduino-uno")) {
+              setProjectOptions({ ramSize: a[1] });
               return;
             }
             // Set attribute and value
@@ -221,9 +226,9 @@ function openDiagram(file: string) {
         let style = "transform:";
 
         if ((data.top != undefined) && (data.left != undefined)) {
-           div.setAttribute("data-x", data.left);
-           div.setAttribute("data-y", data.top);
-           style += "translate(" + data.left + "px," + data.top + "px)";
+          div.setAttribute("data-x", data.left);
+          div.setAttribute("data-y", data.top);
+          style += "translate(" + data.left + "px," + data.top + "px)";
         }
 
         if (data.rotate != undefined) {
@@ -237,7 +242,7 @@ function openDiagram(file: string) {
 
         // Checks background color
         if ((data.attrs != undefined) && (data.attrs.background != undefined)) {
-           style += "background: " + data.attrs.background;
+          style += "background: " + data.attrs.background;
         }
 
         div.setAttribute("style", style);
@@ -263,7 +268,7 @@ function openDiagram(file: string) {
 
         // Add element
         if ((data.hide == undefined) ||
-            ((data.hide != undefined) && (data.hide == false))) {
+          ((data.hide != undefined) && (data.hide == false))) {
           div.appendChild(element);
           document.getElementById("elements").appendChild(div);
         }
@@ -273,12 +278,12 @@ function openDiagram(file: string) {
 }
 
 function removeAllChildren(parent: any) {
-    // Create the Range object
-    var rangeObj = new Range();
+  // Create the Range object
+  var rangeObj = new Range();
 
-    // Select all of the parent's children
-    rangeObj.selectNodeContents(parent);
+  // Select all of the parent's children
+  rangeObj.selectNodeContents(parent);
 
-    // Delete everything that is selected
-    rangeObj.deleteContents();
+  // Delete everything that is selected
+  rangeObj.deleteContents();
 }

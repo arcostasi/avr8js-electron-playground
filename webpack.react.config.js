@@ -21,15 +21,16 @@ module.exports = {
     ],
   },
   devServer: {
-    contentBase: path.join(__dirname, '../dist/renderer'),
+    contentBase: path.join(__dirname, './dist/renderer'),
     historyApiFallback: true,
     compress: true,
     hot: true,
+    host: '0.0.0.0',
     port: 4000,
     publicPath: '/',
   },
   output: {
-    path: path.resolve(__dirname, '../dist/renderer'),
+    path: path.resolve(__dirname, './dist/renderer'),
     filename: 'js/[name].js',
     publicPath: './',
   },

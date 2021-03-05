@@ -16,11 +16,6 @@
             "board": "uno"
         },
         {
-            "name": "neopixel-matrix",
-            "path": "./examples/neopixel-matrix/",
-            "board": "uno"
-        },
-        {
             "name": "canvas8",
             "path": "./examples/canvas8/",
             "board": "uno"

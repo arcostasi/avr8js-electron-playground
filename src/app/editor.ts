@@ -1,5 +1,4 @@
-import { MonacoGlobal } from '../shared/types';
-import { registerFastLEDContributions } from '../shared/fastled-register';
+import { MonacoGlobal, registerFastLEDContributions } from '@wokwi/fastled-monaco';
 
 const fs = require('fs');
 

@@ -24,9 +24,6 @@ import { I2CBus } from "../shared/i2c-bus";
 import * as ed from './editor'
 import * as fs from "fs";
 
-import * as React from 'react';
-import { render } from 'react-dom';
-
 // Add events to the buttons
 const compileButton = document.querySelector("#compile-button");
 compileButton.addEventListener("click", compileAndRun);

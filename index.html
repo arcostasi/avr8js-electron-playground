@@ -9,6 +9,9 @@
     <title>AVR8js Electron PlayGround</title>
   </head>
   <body>
+    <noscript>
+      You need to enable JavaScript to run this app.
+    </noscript>
     <div id="container" class="container">
       <div class="toolbar">
         <div class="zoom-header noselect">
@@ -43,6 +46,7 @@
         <div id="panel-left" class="child grid">
           <div id="project-tab" class="tab noselect"></div>
           <div id="elements" class="elements noselect"></div>
+          <div id="matrix-component"></div>
         </div>
         <div id="panel-right" class="child">
           <div class="code-editor-container">
@@ -66,7 +70,6 @@
     <script>
       require('./node_modules/@wokwi/elements/dist/wokwi-elements.bundle.min.js')
       require('./dist/app/editor.js')
-      require('./dist/react/app.js')
       require('./dist/app/app.js')
       require('./dist/app/preload.js')
     </script>

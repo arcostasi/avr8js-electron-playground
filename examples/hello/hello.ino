@@ -1,10 +1,3 @@
-/**
- * LCD-1602 Arduino Simulation
- * Part of Wokwi Playground
- * https://wokwi.com/playground/lcd1602-i2c
- * Copyright (C) 2019, Uri Shaked
- */
-
 #include <LiquidCrystal_I2C.h>
 
 LiquidCrystal_I2C lcd(0x27, 16, 2);
@@ -24,8 +17,8 @@ void setup() {
   lcd.init();
   lcd.backlight();
   lcd.createChar(3, heart);
-  lcd.setCursor(2, 0);
-  lcd.print("I \x03 Arduino \xaf");
+  lcd.setCursor(3, 0);
+  lcd.print("I \x03 Wokwi \xaf");
   lcd.blink();
 }
 

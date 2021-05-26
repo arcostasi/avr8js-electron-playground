@@ -49,8 +49,9 @@ class Main {
       width: 1600,
       frame: false,
       webPreferences: {
-        enableRemoteModule: true,
         nodeIntegration: true, // Makes it possible to use `require` within our index.html
+        contextIsolation: false,
+        enableRemoteModule: true
       }
     });
 

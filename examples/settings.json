@@ -1,39 +1,24 @@
 {
     "projects": [
         {
-            "name": "leds",
-            "path": "./examples/leds/",
+            "name": "hello",
+            "path": "./examples/hello/",
             "board": "uno"
         },
         {
-            "name": "buttons",
-            "path": "./examples/buttons/",
+            "name": "matrix8x8",
+            "path": "./examples/matrix8x8/",
             "board": "uno"
         },
         {
-            "name": "lcd",
-            "path": "./examples/lcd/",
+            "name": "matrix16x16",
+            "path": "./examples/matrix16x16/",
             "board": "uno"
         },
         {
-            "name": "canvas8",
-            "path": "./examples/canvas8/",
+            "name": "neopixel-matrix",
+            "path": "./examples/neopixel-matrix/",
             "board": "uno"
-        },
-        {
-            "name": "canvas16",
-            "path": "./examples/canvas16/",
-            "board": "uno"
-        },
-        {
-            "name": "canvas32",
-            "path": "./examples/canvas32/",
-            "board": "fakeuno"
-        },
-        {
-            "name": "canvas64",
-            "path": "./examples/canvas64/",
-            "board": "fakeuno"
         },
         {
             "name": "ssd1306",

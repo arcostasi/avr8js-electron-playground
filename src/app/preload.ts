@@ -46,7 +46,7 @@ document.addEventListener('DOMContentLoaded', (event) => {
   }
 
   // Load start
-  ed.loader('./examples/leds/', 'leds', [], 'uno', 'ino');
+  ed.loader('./examples/hello/', 'hello', [], 'uno', 'ino');
 });
 
 // Interact

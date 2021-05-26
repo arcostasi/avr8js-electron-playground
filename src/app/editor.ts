@@ -48,7 +48,7 @@ export function getEditor() {
 }
 
 export function setModel(code: string, ext: string) {
-  window.require(['vs/editor/editor.main'], function() {
+  window.require(['vs/editor/editor.main'], function () {
     let model = monaco.editor.createModel(code, ext);
     editor.setModel(model);
   });
@@ -125,7 +125,7 @@ function readTextFile(folder: string, fileName: string, type: string = 'file') {
 
   request.open("GET", folder.concat(fileName), true);
 
-  request.onreadystatechange = function() {
+  request.onreadystatechange = function () {
     if (request.readyState === 4) {
       if (request.status === 200 || request.status == 0) {
         if (type == 'file') {
@@ -174,7 +174,7 @@ Split(['#panel-left', '#panel-right'], {
   sizes: [50, 50],
   minSize: [800, 600],
   expandToMin: false,
-  onDragEnd: function(sizes: any) {
+  onDragEnd: function (sizes: any) {
     editorLoaded();
   },
 });

@@ -1,8 +1,8 @@
 {
     "projects": [
         {
-            "name": "hello",
-            "path": "./examples/hello/",
+            "name": "hello-world",
+            "path": "./examples/hello-world/",
             "board": "uno"
         },
         {
@@ -23,12 +23,12 @@
         {
             "name": "ssd1306",
             "path": "./examples/ssd1306/",
-            "board": "uno"
+            "board": "nano"
         },
         {
-            "name": "emu6502",
-            "path": "./examples/emu6502/",
-            "board": "fakeuno",
+            "name": "mega-6502",
+            "path": "./examples/mega-6502/",
+            "board": "mega",
             "files": [
                 "cpu.c",
                 "rom.h"

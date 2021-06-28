@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "author": "Anderson Costa",
+  "editor": "avr8js-electron-playground",
+  "parts": [
+    {
+      "id": "mega",
+      "type": "wokwi-arduino-mega",
+      "top": 140,
+      "left": 140
+    }
+  ],
+  "connections": [
+  ]
+}

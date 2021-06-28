@@ -1,3 +1,8 @@
+/*
+  Hello World
+  by Anderson Costa with ❤ for the Wokwi community
+  Visit https://wokwi.com to learn about the Wokwi
+*/
 #include <LiquidCrystal_I2C.h>
 
 LiquidCrystal_I2C lcd(0x27, 16, 2);
@@ -17,13 +22,13 @@ void setup() {
   lcd.init();
   lcd.backlight();
   lcd.createChar(3, heart);
-  lcd.setCursor(3, 0);
-  lcd.print("I \x03 Wokwi \xaf");
+  lcd.setCursor(2, 0);
+  lcd.print("Hello World!");
   lcd.blink();
 }
 
 int i = 0;
-char *msg = "Hello, World!";
+char *msg = "I \x03 Wokwi \xaf";
 
 void loop() {
   if (i < strlen(msg)) {

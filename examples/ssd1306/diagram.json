@@ -6,14 +6,14 @@
     {
       "id": "uno",
       "type": "wokwi-arduino-uno",
-      "top": 300,
-      "left": 260
+      "top": 260,
+      "left": 200
     },
     {
       "id": "display",
       "type": "wokwi-ssd1306",
-      "left": 330,
-      "top": 150,
+      "left": 270,
+      "top": 120,
       "attrs": {
         "digits": "1",
         "common": "anode"

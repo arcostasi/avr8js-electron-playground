@@ -162,7 +162,7 @@ body {
 .code-editor-container {
   width: 100%;
   max-width: 100%;
-  height: 85vh;
+  height: 80vh;
   background-color: #1e1e1e;
   border: 1px solid #202020;
   box-sizing: border-box;
@@ -172,7 +172,7 @@ body {
 .code-editor {
   width: 100%;
   max-width: 100%;
-  height: 60vh;
+  height: 55vh;
   border: 1px solid #202020;
   box-sizing: border-box;
 }
@@ -180,7 +180,7 @@ body {
 .runner-output {
   display: flex;
   flex-direction: column;
-  height: 23vh;
+  height: 28vh;
   width: 0%;
   min-width: 100%;
   padding: 10px 10px;

@@ -6,14 +6,14 @@
     {
       "id": "uno",
       "type": "wokwi-arduino-uno",
-      "top": 300,
-      "left": 260
+      "top": 280,
+      "left": 200
     },
     {
       "id": "lcd",
       "type": "wokwi-lcd1602",
       "top": 120,
-      "left": 250,
+      "left": 190,
       "attrs": {
         "pins": "i2c"
       }

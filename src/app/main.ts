@@ -45,8 +45,8 @@ class Main {
 
     // Create and control browser windows
     this.mainWindow = new BrowserWindow({
-      height: 1024,
-      width: 1600,
+      height: 850,
+      width: 1366,
       frame: false,
       webPreferences: {
         nodeIntegration: true, // Makes it possible to use `require` within our index.html

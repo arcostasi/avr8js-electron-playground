@@ -16,8 +16,10 @@ To run dev:
 
 ## License
 
-AVR8js & Wokwi Elements are released under the [MIT license](https://github.com/wokwi/wokwi-elements/blob/master/LICENSE).
+AVR8js & Wokwi Elements are released under the [MIT license](https://github.com/wokwi/avr8js/blob/master/LICENSE).
 
 Electron are released under the [MIT license](https://github.com/electron/electron/blob/master/LICENSE)
+
+Monaco Editor are released under the [MIT license](https://github.com/microsoft/monaco-editor/blob/main/LICENSE.md)
 
 When using the Electron or other GitHub logos, be sure to follow the [GitHub logo guidelines](https://github.com/logos).

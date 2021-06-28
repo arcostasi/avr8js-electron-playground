@@ -1,20 +1,20 @@
 {
   "version": 1,
-  "author": "arcostasi",
+  "author": "Anderson Costa",
   "editor": "avr8js-electron-playground",
   "parts": [
     {
       "id": "uno",
       "type": "wokwi-arduino-uno",
-      "top": 300,
-      "left": 260,
-      "hide": true
+      "top": 480,
+      "left": 200,
+      "hide": false
     },
     {
       "id": "neocanvas",
       "type": "wokwi-neopixel-canvas",
-      "top": 100,
-      "left": 200,
+      "top": 60,
+      "left": 140,
       "attrs": {
         "cols": 8,
         "rows": 8,

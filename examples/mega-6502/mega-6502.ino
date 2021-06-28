@@ -1,5 +1,7 @@
 /**
- * This is an example for EhBasic based on SSD1306
+ * This is an example for EhBasic
+ * based on the 6502 CPU emulator
+ * by Mike Chambers (miker00lz@gmail.com)
  * https://jeelabs.org/book/1549b/
  */
 
@@ -31,9 +33,10 @@ void setup () {
     uint32_t romSize = reset6502();
 
     // Initializes the serial port
-    Serial.begin(115200);
+    Serial.begin(9600);
 
-    // Prints the number of bytes in the serial output
+    // Prints the number of bytes in
+    // the serial output
     Serial.print("[emu6502] ");
     Serial.print(romSize);
     Serial.println(" bytes");

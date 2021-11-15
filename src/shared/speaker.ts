@@ -4,7 +4,7 @@
  * From https://stackblitz.com/edit/avr8js-simon-game?file=speaker.ts
  * Copyright (C) 2019, Uri Shaked
  */
-import { ICPU } from 'avr8js';
+import { CPU } from 'avr8js';
 
 const CHUNKS_PER_SECOND = 20;
 
@@ -25,7 +25,7 @@ export class Speaker {
   private playedSamples = 0;
   private lastSample = 0;
 
-  constructor(private cpu: ICPU, private mhz: number) {}
+  constructor(private cpu: CPU, private mhz: number) {}
 
   feed(value: number) {
     const currentTime = this.cpu.cycles / this.mhz;

@@ -11,19 +11,19 @@
     "dev": "tsc && electron ./dist/app/main.js"
   },
   "dependencies": {
-    "@panzoom/panzoom": "^4.4.1",
-    "@types/react": "^17.0.19",
-    "@wokwi/elements": "^0.50.0",
+    "@panzoom/panzoom": "^4.4.3",
+    "@types/react": "^17.0.34",
+    "@wokwi/elements": "^0.54.1",
     "@wokwi/fastled-monaco": "git+https://github.com/wokwi/fastled-monaco.git",
-    "avr8js": "^0.17.0",
+    "avr8js": "^0.18.6",
     "custom-electron-titlebar": "^3.2.7",
     "interactjs": "^1.10.11",
-    "lit-html": "^1.4.1",
-    "monaco-editor": "^0.27.0",
+    "lit-html": "^2.0.2",
+    "monaco-editor": "^0.30.0",
     "split.js": "^1.6.4"
   },
   "devDependencies": {
-    "electron": "^12.1.0",
-    "typescript": "^4.4.2"
+    "electron": "^12.2.2",
+    "typescript": "^4.4.4"
   }
 }

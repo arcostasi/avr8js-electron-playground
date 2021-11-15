@@ -4,7 +4,7 @@
  *
  * Copyright (C) 2019, Uri Shaked
  */
-import { ICPU } from 'avr8js';
+import { CPU } from 'avr8js';
 
 export class CPUPerformance {
   private prevTime = 0;
@@ -13,7 +13,7 @@ export class CPUPerformance {
   private sampleIndex = 0;
   private avg = 0
 
-  constructor(private cpu: ICPU, private MHZ: number) {}
+  constructor(private cpu: CPU, private MHZ: number) {}
 
   reset() {
     this.prevTime = 0;

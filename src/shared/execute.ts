@@ -133,7 +133,7 @@ export class AVRRunner {
     const speed = this.performance.update();
 
     // Execution throttling
-    if (speed > 1.02) {
+    if (speed > 1) {
       this.workSyncCycles *= Math.ceil((1 / speed) * 100) / 100;
     } else {
       // Adjust gain to balance cycles

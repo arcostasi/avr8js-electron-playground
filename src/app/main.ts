@@ -2,9 +2,14 @@ import { app, BrowserWindow, ipcMain, nativeTheme } from "electron";
 import { IpcChannelInterface } from "../electron/ipc-channel";
 import { SystemInfoChannel } from "../electron/info-channel";
 
+const { setupTitlebar, attachTitlebarToWindow } = require('custom-electron-titlebar/main');
+
 import * as path from "path";
 
 process.env['ELECTRON_DISABLE_SECURITY_WARNINGS'] = 'true';
+
+// Setup the titlebar main process
+setupTitlebar();
 
 class Main {
 
@@ -51,12 +56,15 @@ class Main {
       webPreferences: {
         nodeIntegration: true, // Makes it possible to use `require` within our index.html
         contextIsolation: false,
-        enableRemoteModule: true
+        // enableRemoteModule: true
       }
     });
 
     // Open the DevTools
     // this.mainWindow.webContents.openDevTools();
+
+    // Attach fullscreen(f11 and not 'maximized') && focus listeners
+    attachTitlebarToWindow(this.mainWindow);
 
     // and load the index.html of the app
     this.mainWindow.loadFile(path.join(__dirname, "../../index.html"));

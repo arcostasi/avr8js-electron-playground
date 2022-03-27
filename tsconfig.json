@@ -13,7 +13,6 @@
     "esModuleInterop": true,
     "strict": true,
     "allowJs": true,
-    "jsx": "react",
     "rootDir": "src",
     "outDir": "dist",
     "lib": [
@@ -22,5 +21,7 @@
     ]
   },
   "exclude": ["src/**/*.stories.ts"],
-  "include": ["src/**/*.ts"]
+  "include": [
+    "src"
+  ]
 }

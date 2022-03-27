@@ -1,4 +1,5 @@
 import { Titlebar, Color } from 'custom-electron-titlebar'
+import { IpcRenderer } from 'electron';
 import * as ed from './editor'
 
 // Using CommonJS modules
@@ -13,7 +14,14 @@ let indexofArr = 4;
 let x = 0;
 let y = 0;
 
+let ipcRenderer: IpcRenderer;
+
 document.addEventListener('DOMContentLoaded', (event) => {
+
+  // Change titlebar color
+  new Titlebar({
+    backgroundColor: Color.fromHex('#444')
+  });
 
   json.projects.forEach((data: any, index: any) => {
 
@@ -140,7 +148,3 @@ document.querySelector('.serial-checkbox').addEventListener('click', (el) => {
   output.style.height = (check.checked) ? '25vh' : '2vh';
 });
 
-// Change titlebar color
-new Titlebar({
-  backgroundColor: Color.fromHex('#444')
-});

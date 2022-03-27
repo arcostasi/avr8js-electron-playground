@@ -313,7 +313,7 @@ function executeProgram(hex: string) {
 
     statusLabelTimer.textContent = `${time}`;
 
-    if ((millis - previousMillis) > 200) {
+    if ((millis - previousMillis) > 200 && (!isNaN(parseFloat(speed)))) {
       // Update status
       previousMillis = millis;
       statusLabelSpeed.textContent = padLeft(speed, '0', 3) + '%';

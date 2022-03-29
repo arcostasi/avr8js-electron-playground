@@ -1,6 +1,6 @@
 {
   "name": "avr8js-electron-playground",
-  "version": "0.15.3",
+  "version": "0.18.10",
   "author": "arcostasi",
   "license": "MIT",
   "description": "An AVR8js and Wokwi Elements playground implemented with Electron.",

@@ -55,7 +55,6 @@ const serialSend = document.querySelector('#serial-send');
 serialSend.addEventListener("click", serialTransmit);
 
 const syncCyclesSlider = document.querySelector<HTMLInputElement>('#sync-cycles');
-syncCyclesSlider.addEventListener('change', changeSyncCycles);
 
 let syncCyclesLabel = document.querySelector<HTMLElement>('#sync-cycles-label');
 
@@ -86,7 +85,6 @@ let syncCycles = 1;
 function executeProgram(hex: string) {
 
   runner = new AVRRunner(hex);
-  runner.setSyncCycles(syncCycles);
 
   const cpuNanos = () => Math.round((runner.cpu.cycles / runner.frequency) * 1000000000);
   const cpuMillis = () => Math.round((runner.cpu.cycles / runner.frequency) * 1000);
@@ -594,15 +592,6 @@ function changeFileInput() {
     runnerOutputText.textContent += "Load HEX: " + file.path + "\n";
   } else {
     runnerOutputText.textContent += "File not supported, .hex files only!\n";
-  }
-}
-
-function changeSyncCycles() {
-  syncCycles = roundFloatNumber(mapFloat(parseInt(syncCyclesSlider.value), 1, 100, 0.01, 1.99), 2);
-  syncCyclesLabel.textContent = "Sync. Cycles: " + syncCycles;
-
-  if (runner) {
-      runner.setSyncCycles(syncCycles);
   }
 }
 

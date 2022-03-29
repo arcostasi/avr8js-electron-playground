@@ -52,14 +52,8 @@ export class AVRRunner {
   readonly taskScheduler = new MicroTaskScheduler();
   readonly performance: CPUPerformance;
 
-  // Serial buffer
   private serialBuffer: any = [];
-
-  // Cycles
-  private cyclesToRun: number;
-  private workSyncCycles: number = 1;
-  private workUnitCycles: number = 100000;
-  private syncCycles: number = 1;
+  private stopped = false;
 
   constructor(hex: string) {
     // Load program
@@ -120,47 +114,26 @@ export class AVRRunner {
     }
   }
 
-  setSyncCycles(factor: number) {
-    this.syncCycles = factor;
-  }
-
-  getSyncCycles() {
-    return this.syncCycles;
-  }
-
   // CPU main loop
   execute(callback: (cpu: CPU) => void) {
-    const speed = this.performance.update();
-
-    // Execution throttling
-    if (speed > 1) {
-      this.workSyncCycles *= Math.ceil((1 / speed) * 100) / 100;
-    } else {
-      // Adjust gain to balance cycles
-      this.workSyncCycles = this.getSyncCycles();
+    if (this.stopped) {
+      return;
     }
 
-    this.cyclesToRun = this.cpu.cycles + this.workUnitCycles * this.workSyncCycles;
+    const { cpu } = this;
+    const deadline = cpu.cycles + this.frequency / 60;
 
-    while (this.cpu.cycles < this.cyclesToRun) {
-      // Instruction timing is currently based on ATmega328p
-      avrInstruction(this.cpu);
-
-      this.cpu.tick();
-
-      // Serial complete interrupt
-      if (this.cpu.interruptsEnabled) {
-        this.rxCompleteInterrupt();
-      }
+    while (cpu.cycles <= deadline) {
+      avrInstruction(cpu);
+      cpu.tick();
     }
 
     callback(this.cpu);
-
-    this.taskScheduler.postTask(() => this.execute(callback));
+    requestAnimationFrame(() => this.execute(callback));
   }
 
   stop() {
-    this.taskScheduler.stop();
+    this.stopped = true;
   }
 
   analogPort() {

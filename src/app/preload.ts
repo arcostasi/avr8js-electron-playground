@@ -1,4 +1,4 @@
-import { Titlebar, Color } from 'custom-electron-titlebar'
+import { Titlebar } from 'custom-electron-titlebar';
 import { IpcRenderer } from 'electron';
 import * as ed from './editor'
 
@@ -7,6 +7,7 @@ const fs = require('fs')
 const interact = require('interactjs')
 const zoomArr = [0.5, 0.75, 0.85, 0.9, 1];
 const element = document.querySelector<HTMLElement>('.elements');
+const backgroundColor = hexToRgb('#444');
 
 let json = require('../../examples/settings.json');
 let value = element.getBoundingClientRect().width / element.offsetWidth;
@@ -19,9 +20,11 @@ let ipcRenderer: IpcRenderer;
 document.addEventListener('DOMContentLoaded', (event) => {
 
   // Change titlebar color
-  new Titlebar({
-    backgroundColor: Color.fromHex('#444')
-  });
+  if (backgroundColor) {
+    new Titlebar({ backgroundColor });
+  } else {
+    console.error('Invalid background color');
+  }
 
   json.projects.forEach((data: any, index: any) => {
 
@@ -148,3 +151,13 @@ document.querySelector('.serial-checkbox').addEventListener('click', (el) => {
   output.style.height = (check.checked) ? '25vh' : '2vh';
 });
 
+function hexToRgb(hex: string) {
+  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+  return result
+    ? {
+        red: parseInt(result[1], 16),
+        green: parseInt(result[2], 16),
+        blue: parseInt(result[3], 16),
+      }
+    : null;
+}

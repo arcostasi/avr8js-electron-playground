@@ -52,7 +52,8 @@ class Main {
     this.mainWindow = new BrowserWindow({
       height: 850,
       width: 1366,
-      frame: false,
+      // frame: false,
+      titleBarStyle: 'hidden',
       webPreferences: {
         nodeIntegration: true, // Makes it possible to use `require` within our index.html
         contextIsolation: false,

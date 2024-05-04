@@ -1,4 +1,4 @@
-import { Titlebar } from 'custom-electron-titlebar';
+import { Titlebar, TitlebarColor as Color} from 'custom-electron-titlebar';
 import { IpcRenderer } from 'electron';
 import * as ed from './editor'
 
@@ -7,7 +7,7 @@ const fs = require('fs')
 const interact = require('interactjs')
 const zoomArr = [0.5, 0.75, 0.85, 0.9, 1];
 const element = document.querySelector<HTMLElement>('.elements');
-const backgroundColor = hexToRgb('#444');
+const backgroundColor = Color.fromHex('#444');
 
 let json = require('../../examples/settings.json');
 let value = element.getBoundingClientRect().width / element.offsetWidth;

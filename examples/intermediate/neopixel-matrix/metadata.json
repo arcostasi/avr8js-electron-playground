@@ -1,0 +1,12 @@
+{
+  "name": "neopixel-matrix",
+  "slug": "neopixel-matrix",
+  "category": "intermediate",
+  "board": "uno",
+  "description": "Example project: neopixel-matrix",
+  "tags": [
+    "fastled",
+    "neopixel",
+    "ws2812"
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "name": "hello-world",
+  "slug": "hello-world",
+  "category": "beginner",
+  "board": "uno",
+  "description": "Example project: hello-world",
+  "tags": [
+    "led",
+    "blink",
+    "basic"
+  ]
+}

@@ -5,25 +5,49 @@
   "license": "MIT",
   "description": "An AVR8js and Wokwi Elements playground implemented with Electron.",
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && vite build",
     "watch": "tsc -w",
-    "start": "electron ./dist/app/main.js",
-    "dev": "tsc && electron ./dist/app/main.js"
+    "start": "electron ./dist/main/main.js",
+    "dev": "vite build && tsc && electron ./dist/main/main.js",
+    "lint": "eslint \"src/**/*.ts\" \"src/**/*.tsx\"",
+    "lint:fix": "eslint \"src/**/*.ts\" \"src/**/*.tsx\" --fix"
   },
   "dependencies": {
-    "@panzoom/panzoom": "^4.5.1",
-    "@types/react": "^17.0.43",
-    "@wokwi/elements": "^1.5.0",
+    "@panzoom/panzoom": "^4.6.1",
+    "@types/react": "^19.2.14",
+    "@wokwi/elements": "^1.9.1",
     "@wokwi/fastled-monaco": "git+https://github.com/wokwi/fastled-monaco.git",
-    "avr8js": "^0.20.1",
+    "avr8js": "^0.21.0",
     "custom-electron-titlebar": "^4.2.8",
-    "interactjs": "^1.10.17",
-    "lit-html": "^2.6.1",
-    "monaco-editor": "^0.36.0",
-    "split.js": "^1.6.5"
+    "interactjs": "^1.10.27",
+    "lit-html": "^3.3.2",
+    "lucide-react": "^0.575.0",
+    "monaco-editor": "^0.55.1",
+    "react": "^19.2.4",
+    "react-dom": "^19.2.4",
+    "split.js": "^1.6.5",
+    "zustand": "^5.0.11"
   },
   "devDependencies": {
-    "electron": "^23.1.0",
-    "typescript": "^4.9.5"
+    "@tailwindcss/postcss": "^4.2.0",
+    "@types/node": "^25.3.0",
+    "@types/react-dom": "^19.2.3",
+    "@typescript-eslint/eslint-plugin": "^8.56.0",
+    "@typescript-eslint/parser": "^8.56.0",
+    "@vitejs/plugin-react": "^5.1.4",
+    "autoprefixer": "^10.4.24",
+    "electron": "^40.6.0",
+    "eslint": "^9.39.3",
+    "eslint-plugin-react": "^7.37.5",
+    "postcss": "^8.5.6",
+    "tailwindcss": "^3.4.19",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.56.0",
+    "vite": "^7.3.1",
+    "vitest": "^4.0.18"
+  },
+  "overrides": {
+    "minimatch": "^10.2.1",
+    "global-agent": "^4.1.2"
   }
 }

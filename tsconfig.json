@@ -3,6 +3,8 @@
     "target": "es2020",
     "module": "commonjs",
     "moduleResolution": "node",
+    "jsx": "react-jsx",
+    "resolveJsonModule": true,
     "noImplicitAny": true,
     "removeComments": false,
     "sourceMap": false,
@@ -16,12 +18,20 @@
     "allowJs": true,
     "rootDir": "src",
     "outDir": "dist",
+    "baseUrl": ".",
+    "paths": {
+      "@/*": [
+        "src/renderer/*"
+      ]
+    },
     "lib": [
       "dom",
       "es2020"
     ]
   },
-  "exclude": ["src/**/*.stories.ts"],
+  "exclude": [
+    "src/**/*.stories.ts"
+  ],
   "include": [
     "src"
   ]

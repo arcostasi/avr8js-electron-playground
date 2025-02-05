@@ -43,8 +43,8 @@ export class EEPROMLocalStorageBackend implements EEPROMBackend {
   clear() {
     const keys = Array.from(localStorage).map((_, index) => localStorage.key(index));
     for (const key of keys) {
-      if (key.startsWith(this.prefix)) {
-        localStorage.removeItem(this.prefix);
+      if (key?.startsWith(this.prefix)) {
+        localStorage.removeItem(key);
       }
     }
   }

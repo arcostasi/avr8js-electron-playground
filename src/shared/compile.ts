@@ -17,14 +17,14 @@ export interface IHexiResult {
  * @param files - array[]
  * @param board - 'nano', 'uno', 'mega'
  */
-export async function buildHex(source: string, files: any,
-  board: string = 'uno', options: any = {}, debug: boolean = false) {
+export async function buildHex(source: string, files: { name: string, content: string }[],
+  board: string = 'uno', options: Record<string, unknown> = {}, debug: boolean = false) {
   // Check FakeRamSize test
-  if (!debug && (board = 'fakeuno')) {
+  if (!debug && board === 'fakeuno') {
     board = 'uno';
   }
 
-  let _url = debug ? 'http://localhost:9090' : url;
+  const _url = debug ? 'http://localhost:9090' : url;
 
   const resp = await fetch(_url + '/build', {
     method: 'POST',

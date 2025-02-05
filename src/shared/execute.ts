@@ -30,6 +30,7 @@ import { loadHex } from './intelhex';
 import { MicroTaskScheduler } from './task-scheduler';
 import { EEPROMLocalStorageBackend } from './eeprom';
 import { CPUPerformance } from '../shared/cpu-performance';
+import { ADCRegistry } from './adc-registry';
 
 // ATmega328p params
 const FLASH = 0x8000;
@@ -48,12 +49,14 @@ export class AVRRunner {
   readonly spi: AVRSPI;
   readonly twi: AVRTWI;
   readonly speaker: Speaker;
+  readonly adcRegistry = new ADCRegistry();
   readonly frequency = 16e6; // 16 MHZ
   readonly taskScheduler = new MicroTaskScheduler();
   readonly performance: CPUPerformance;
 
-  private serialBuffer: any = [];
+  private serialBuffer: number[] = [];
   private stopped = false;
+  private lastTime = 0;
 
   constructor(hex: string) {
     // Load program
@@ -86,6 +89,9 @@ export class AVRRunner {
 
     // this.serialOnLineTransmit();
     this.cpu.readHooks[usart0Config.UDR] = () => this.serialBuffer.shift() || 0;
+
+    // Enable ADC with live registry values
+    this.analogPort();
 
     this.taskScheduler.start();
   }
@@ -121,11 +127,29 @@ export class AVRRunner {
     }
 
     const { cpu } = this;
-    const deadline = cpu.cycles + this.frequency / 60;
+    const now = performance.now();
 
-    while (cpu.cycles <= deadline) {
-      avrInstruction(cpu);
-      cpu.tick();
+    if (this.lastTime === 0) {
+      this.lastTime = now;
+    }
+
+    const deltaMs = now - this.lastTime;
+    // Cap at 100ms in case the browser tab was suspended
+    const runMs = Math.min(deltaMs, 100);
+    const cyclesToRun = Math.floor(runMs * (this.frequency / 1000));
+
+    // Only update last time if we actually run cycles
+    if (cyclesToRun > 0) {
+      this.lastTime = now;
+      const deadline = cpu.cycles + cyclesToRun;
+
+      while (cpu.cycles <= deadline) {
+        avrInstruction(cpu);
+        cpu.tick();
+      }
+
+      // Notify the CPU if there's data waiting in the serial RX buffer
+      this.rxCompleteInterrupt();
     }
 
     callback(this.cpu);
@@ -137,17 +161,21 @@ export class AVRRunner {
   }
 
   analogPort() {
-    // Simulate analog port (so that analogRead() eventually return)
+    // ADC conversion: reads live values from the ADC registry.
+    // When ADSC (bit 6) is set in ADCSRA (0x7A), we read the selected
+    // channel from ADMUX (0x7C) and return the registry value.
     this.cpu.writeHooks[0x7a] = value => {
       if (value & (1 << 6)) {
-        // random value
-        const analogValue = Math.floor(Math.random() * 1024);
+        // Read the selected ADC channel from ADMUX bits 3:0
+        const admux = this.cpu.data[0x7c];
+        const channel = admux & 0x0f;
+        const analogValue = this.adcRegistry.getChannel(channel);
 
-        this.cpu.data[0x7a] = value & ~(1 << 6); // Clear bit - conversion done
-        this.cpu.data[0x78] = analogValue & 0xff;
-        this.cpu.data[0x79] = (analogValue >> 8) & 0x3;
+        this.cpu.data[0x7a] = value & ~(1 << 6); // Clear ADSC - conversion done
+        this.cpu.data[0x78] = analogValue & 0xff;          // ADCL
+        this.cpu.data[0x79] = (analogValue >> 8) & 0x3;    // ADCH
 
-        return true; // Don't update
+        return true; // Don't update register
       }
     };
   }

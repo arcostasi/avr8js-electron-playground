@@ -33,11 +33,11 @@ export class Speaker {
 
     let currentSample = Math.floor(currentTime * sampleRate) - this.playedSamples;
 
-    this.lastSample = currentSample;
-
     if ((currentSample - this.lastSample) > (sampleRate / CHUNKS_PER_SECOND)) {
       currentSample = 0;
     }
+
+    this.lastSample = currentSample;
 
     if (currentSample > this.chunk.length) {
       this.playedSamples += this.chunk.length;

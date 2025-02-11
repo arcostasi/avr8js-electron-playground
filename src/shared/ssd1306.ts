@@ -330,7 +330,6 @@ export class SSD1306Controller implements I2CDevice {
       case CMD_SET_MULTIPLEX:
       case CMD_COM_SCAN_INC:
       case CMD_COM_SCAN_DEC:
-      case CMD_SET_PRECHARGE:
       case CMD_SET_COM_PINS:
       case CMD_SET_VCOM_DESELECT:
       case CMD_SEG_REMAP_OFF:
@@ -426,7 +425,7 @@ export class SSD1306Controller implements I2CDevice {
     this.updated = true;
   }
 
-  i2cDisconnect() {}
+  i2cDisconnect() { }
 
   private scroll() {
     // TODO clock

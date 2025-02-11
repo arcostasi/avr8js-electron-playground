@@ -6,45 +6,30 @@
  * Copyright (C) 2020, Anderson Costa
  */
 import { I2CDevice } from "./i2c-bus";
-import { LCD1602Element } from '@wokwi/elements';
+export const LCD1602_ADDR = 0x27;
 
-export const LCD1602_ADDR          = 0x27;
+const LCD_CMD_CLEAR = 0x01;
+const LCD_CMD_HOME = 0x02;
 
-const LCD_MODE_CMD                 = 0x00;
-const LCD_MODE_DATA                = 0x40;
-
-const LCD_CMD_CLEAR                = 0x01;
-const LCD_CMD_HOME                 = 0x02;
-
-const LCD_CMD_ENTRY_MODE           = 0x04;
+const LCD_CMD_ENTRY_MODE = 0x04;
 const LCD_CMD_ENTRY_MODE_INCREMENT = 0x02;
-const LCD_CMD_ENTRY_MODE_DECREMENT = 0x00;
-const LCD_CMD_ENTRY_MODE_SHIFT     = 0x01;
+const LCD_CMD_ENTRY_MODE_SHIFT = 0x01;
 
-const LCD_CMD_DISPLAY_CONTROL      = 0x08;
-const LCD_CMD_DISPLAY_ENABLE       = 0x04;
-const LCD_CMD_DISPLAY_CURSOR       = 0x02;
+const LCD_CMD_DISPLAY_CONTROL = 0x08;
+const LCD_CMD_DISPLAY_ENABLE = 0x04;
+const LCD_CMD_DISPLAY_CURSOR = 0x02;
 const LCD_CMD_DISPLAY_CURSOR_BLINK = 0x01;
 
-const LCD_CMD_SHIFT                = 0x10;
-const LCD_CMD_SHIFT_CURSOR         = 0x00;
-const LCD_CMD_SHIFT_DISPLAY        = 0x08;
-const LCD_CMD_SHIFT_LEFT           = 0x00;
-const LCD_CMD_SHIFT_RIGHT          = 0x04;
+const LCD_CMD_SHIFT = 0x10;
+const LCD_CMD_SHIFT_DISPLAY = 0x08;
+const LCD_CMD_SHIFT_RIGHT = 0x04;
 
-const LCD_CMD_FUNCTION             = 0x20;
-const LCD_CMD_FUNCTION_LCD_1LINE   = 0x00;
-const LCD_CMD_FUNCTION_LCD_2LINE   = 0x08;
-const LCD_CMD_FUNCTION_5x10_DOTS   = 0x04;
+const LCD_CMD_FUNCTION = 0x20;
 
-const LCD_CMD_SET_CGRAM_ADDR       = 0x40;
-const LCD_CMD_SET_DRAM_ADDR        = 0x80;
+const LCD_CMD_SET_CGRAM_ADDR = 0x40;
+const LCD_CMD_SET_DRAM_ADDR = 0x80;
 
 // Extra
-const LCD_CMD_SET_CONTRAST         = 0x81;
-
-// Oscillator frequency defined in datasheet is 270 kHz
-const fOsc = 270000;
 
 export class LCD1602Controller implements I2CDevice {
   // RAM settings
@@ -88,27 +73,27 @@ export class LCD1602Controller implements I2CDevice {
   }
 
   render() {
-    let characters = new Uint8Array(32);
+    const characters = new Uint8Array(32);
 
     if (this.displayOn) {
-        const r1 = this.shift % 64;
-        const r2 = 64 + this.shift % 64;
-        // Set characters
-        characters.set(this.ddram.slice(r1, r1 + 16));
-        characters.set(this.ddram.slice(r2, r2 + 16), 16);
+      const r1 = this.shift % 64;
+      const r2 = 64 + this.shift % 64;
+      // Set characters
+      characters.set(this.ddram.slice(r1, r1 + 16));
+      characters.set(this.ddram.slice(r2, r2 + 16), 16);
     } else {
       characters.fill(32);
     }
 
     const result = ({
-        blink: this.blinkOn,
-        cursor: this.cursorOn,
-        cursorX: this.addr % 64,
-        cursorY: Math.floor(this.addr / 64),
-        characters: characters,
-        backlight: this.backlight,
-        cgram: this.cgram,
-        cgramUpdated: this.cgramUpdated,
+      blink: this.blinkOn,
+      cursor: this.cursorOn,
+      cursorX: this.addr % 64,
+      cursorY: Math.floor(this.addr / 64),
+      characters: characters,
+      backlight: this.backlight,
+      cgram: this.cgram,
+      cgramUpdated: this.cgramUpdated,
     });
 
     this.cgramUpdated = false;
@@ -126,7 +111,7 @@ export class LCD1602Controller implements I2CDevice {
     return true;
   }
 
-  i2cDisconnect() {}
+  i2cDisconnect() { }
 
   i2cReadByte(): number {
     return 0xff;
@@ -142,7 +127,7 @@ export class LCD1602Controller implements I2CDevice {
 
     // Check data write
     if ((value & 0x04) && !(value & 0x02)) {
-     this.writeData(data, rs);
+      this.writeData(data, rs);
     }
 
     return this.updated = true;
@@ -221,18 +206,21 @@ export class LCD1602Controller implements I2CDevice {
     // Check RAM type
     if (this.cgramMode) {
       // CGRAM
-     const data = (value & 0x01) << 4 | (value & 0x02) << 2 | (value & 0x04) | (value & 0x08) >> 2 | (value & 0x10) >> 4;
+      // eslint-disable-next-line max-len
+      const data = (value & 0x01) << 4 | (value & 0x02) << 2 | (value & 0x04) | (value & 0x08) >> 2 | (value & 0x10) >> 4;
 
-     this.cgram[this.addr] = data;
-     this.addr = (this.addr + 1) % 64;
-     this.cgramUpdated = true;
+      this.cgram[this.addr] = data;
+      this.addr = (this.addr + 1) % 64;
+      this.cgramUpdated = true;
     } else {
       // DRAM
       const mode = this.incrementMode ? 1 : -1;
 
       this.ddram[this.addr] = value;
-      this.addr = (this.addr + mode) % 128,
-      this.shiftMode && (this.shift = (this.shift + mode) % 40);
+      this.addr = (this.addr + mode) % 128;
+      if (this.shiftMode) {
+        this.shift = (this.shift + mode) % 40;
+      }
     }
   }
 }

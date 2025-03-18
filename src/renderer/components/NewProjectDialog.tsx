@@ -29,10 +29,10 @@ const BOARDS = [
 const CATEGORIES = ['beginner', 'intermediate', 'advanced'];
 
 function slugify(s: string) {
-    return s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+    return s.toLowerCase().split(/[^a-z0-9]+/).filter(Boolean).join('-');
 }
 
-export default function NewProjectDialog({ onConfirm, onClose }: NewProjectDialogProps) {
+export default function NewProjectDialog({ onConfirm, onClose }: Readonly<NewProjectDialogProps>) {
     const [name, setName]         = useState('');
     const [board, setBoard]       = useState('uno');
     const [category, setCategory] = useState('beginner');
@@ -44,7 +44,7 @@ export default function NewProjectDialog({ onConfirm, onClose }: NewProjectDialo
         inputRef.current?.focus();
     }, []);
 
-    const handleSubmit = (e: React.FormEvent) => {
+    const handleSubmit = (e: React.SyntheticEvent<HTMLFormElement>) => {
         e.preventDefault();
         const trimmed = name.trim();
         if (!trimmed) { setError('Please enter a project name.'); return; }
@@ -62,19 +62,19 @@ export default function NewProjectDialog({ onConfirm, onClose }: NewProjectDialo
         <div
             className="fixed inset-0 z-[900] flex items-center justify-center"
             style={{ background: 'rgba(0,0,0,0.6)' }}
-            onClick={onClose}
+            onPointerDown={onClose}
         >
             <div
-                className="bg-[#1e1e1e] rounded-xl shadow-2xl border border-[#333]
+                className="bg-vscode-bg rounded-xl shadow-2xl border border-vscode-border
                     w-full max-w-md overflow-hidden"
-                onClick={e => e.stopPropagation()}
+                onPointerDown={e => e.stopPropagation()}
             >
                 {/* Header */}
-                <div className="flex items-center gap-3 px-5 py-3 border-b border-[#2a2a2a]">
+                <div className="flex items-center gap-3 px-5 py-3 border-b border-vscode-border bg-vscode-surface">
                     <FolderPlus size={18} className="text-blue-400" />
-                    <h2 className="text-[15px] font-semibold text-gray-100">New Project</h2>
+                    <h2 className="text-[15px] font-semibold text-vscode-textActive">New Project</h2>
                     <div className="flex-1" />
-                    <button onClick={onClose} className="text-gray-500 hover:text-gray-300">
+                    <button onClick={onClose} className="text-vscode-text opacity-60 hover:opacity-100">
                         <X size={18} />
                     </button>
                 </div>
@@ -82,37 +82,39 @@ export default function NewProjectDialog({ onConfirm, onClose }: NewProjectDialo
                 <form onSubmit={handleSubmit} className="px-5 py-4 space-y-4">
                     {/* Project name */}
                     <div>
-                        <label className="block text-[12px] text-gray-400 mb-1">
+                        <label htmlFor="project-name" className="block text-[12px] text-vscode-text opacity-80 mb-1">
                             Project name *
                         </label>
                         <input
+                            id="project-name"
                             ref={inputRef}
                             value={name}
                             onChange={e => { setName(e.target.value); setError(''); }}
                             placeholder="My LED Project"
                             className={[
-                                'w-full bg-[#252525] border rounded px-3 py-2',
-                                'text-[13px] text-gray-100 outline-none',
-                                error ? 'border-red-500' : 'border-[#444]',
+                                'w-full bg-vscode-input border rounded px-3 py-2',
+                                'text-[13px] text-vscode-textActive outline-none',
+                                error ? 'border-red-500' : 'border-vscode-border',
                                 'focus:border-blue-500',
                             ].join(' ')}
                         />
                         {error && <p className="text-[11px] text-red-400 mt-1">{error}</p>}
                         {name && (
-                            <p className="text-[11px] text-gray-600 mt-1">
-                                Folder: <code className="text-gray-400">examples/{category}/{slug}/</code>
+                            <p className="text-[11px] text-vscode-text opacity-60 mt-1">
+                                Folder: <code className="text-vscode-text opacity-80">examples/{category}/{slug}/</code>
                             </p>
                         )}
                     </div>
 
                     {/* Board */}
                     <div>
-                        <label className="block text-[12px] text-gray-400 mb-1">Board</label>
+                        <label htmlFor="project-board" className="block text-[12px] text-vscode-text opacity-80 mb-1">Board</label>
                         <select
+                            id="project-board"
                             value={board}
                             onChange={e => setBoard(e.target.value)}
-                            className="w-full bg-[#252525] border border-[#444] rounded px-3 py-2
-                                text-[13px] text-gray-200 outline-none focus:border-blue-500
+                            className="w-full bg-vscode-input border border-vscode-border rounded px-3 py-2
+                                text-[13px] text-vscode-text outline-none focus:border-blue-500
                                 cursor-pointer"
                         >
                             {BOARDS.map(b => (
@@ -123,12 +125,13 @@ export default function NewProjectDialog({ onConfirm, onClose }: NewProjectDialo
 
                     {/* Category */}
                     <div>
-                        <label className="block text-[12px] text-gray-400 mb-1">Category</label>
+                        <label htmlFor="project-category" className="block text-[12px] text-vscode-text opacity-80 mb-1">Category</label>
                         <select
+                            id="project-category"
                             value={category}
                             onChange={e => setCategory(e.target.value)}
-                            className="w-full bg-[#252525] border border-[#444] rounded px-3 py-2
-                                text-[13px] text-gray-200 outline-none focus:border-blue-500
+                            className="w-full bg-vscode-input border border-vscode-border rounded px-3 py-2
+                                text-[13px] text-vscode-text outline-none focus:border-blue-500
                                 cursor-pointer"
                         >
                             {CATEGORIES.map(c => (
@@ -139,9 +142,9 @@ export default function NewProjectDialog({ onConfirm, onClose }: NewProjectDialo
 
                     {/* Template */}
                     <div>
-                        <label className="block text-[12px] text-gray-400 mb-1.5">
+                        <p className="block text-[12px] text-vscode-text opacity-80 mb-1.5">
                             Starting template
-                        </label>
+                        </p>
                         <div className="flex gap-3">
                             {(['blank', 'blink'] as const).map(t => (
                                 <label
@@ -152,7 +155,7 @@ export default function NewProjectDialog({ onConfirm, onClose }: NewProjectDialo
                                         'transition-colors text-[13px]',
                                         template === t
                                             ? 'border-blue-500 bg-blue-600/10 text-blue-300'
-                                            : 'border-[#333] text-gray-400 hover:border-[#555]',
+                                            : 'border-vscode-border text-vscode-text opacity-80 hover:bg-vscode-hover hover:opacity-100',
                                     ].join(' ')}
                                 >
                                     <input
@@ -174,8 +177,8 @@ export default function NewProjectDialog({ onConfirm, onClose }: NewProjectDialo
                         <button
                             type="button"
                             onClick={onClose}
-                            className="px-4 py-2 text-[13px] text-gray-400
-                                hover:text-gray-200 transition-colors"
+                            className="px-4 py-2 text-[13px] text-vscode-text opacity-80
+                                hover:opacity-100 transition-colors"
                         >
                             Cancel
                         </button>
@@ -187,7 +190,7 @@ export default function NewProjectDialog({ onConfirm, onClose }: NewProjectDialo
                                 'transition-colors',
                                 name.trim()
                                     ? 'bg-blue-600 text-white hover:bg-blue-500'
-                                    : 'bg-[#333] text-gray-600 cursor-not-allowed',
+                                    : 'bg-vscode-input text-vscode-text opacity-50 cursor-not-allowed',
                             ].join(' ')}
                         >
                             Create Project

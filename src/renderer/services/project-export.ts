@@ -1,33 +1,12 @@
 /**
  * Project Export / Import Service
  * Saves and loads project archives as `.avr8js` JSON bundles.
- * Uses Electron dialog for file picker and Node.js fs for I/O.
- *
- * Archive format:
- * {
- *   "format": "avr8js-project",
- *   "version": 1,
- *   "name": "my-project",
- *   "board": "uno",
- *   "files": [{ name, content, language }],
- *   "exportedAt": "2026-03-01T..."
- * }
+ * Delegates dialogs and disk I/O to the Electron main process.
  */
 /* eslint-disable @typescript-eslint/no-require-imports */
 import type { ProjectFile } from './project-loader';
 
-const fs = require('node:fs') as typeof import('node:fs');
-const path = require('node:path') as typeof import('node:path');
 const { ipcRenderer } = require('electron') as typeof import('electron');
-
-interface ProjectArchive {
-    format: 'avr8js-project';
-    version: 1;
-    name: string;
-    board: string;
-    files: ProjectFile[];
-    exportedAt: string;
-}
 
 /**
  * Export the current project to a user-chosen .avr8js file.
@@ -38,27 +17,27 @@ export async function exportProject(
     board: string,
     files: ProjectFile[],
 ): Promise<string | null> {
-    const result = await ipcRenderer.invoke('dialog-save', {
-        title: 'Export Project',
-        defaultPath: `${name}.avr8js`,
-        filters: [
-            { name: 'AVR8js Project', extensions: ['avr8js'] },
-            { name: 'All Files', extensions: ['*'] },
-        ],
-    });
-
-    if (!result || result.canceled || !result.filePath) return null;
-
-    const archive: ProjectArchive = {
-        format: 'avr8js-project',
-        version: 1,
+    const result = await ipcRenderer.invoke('project:export', {
         name,
         board,
         files,
-        exportedAt: new Date().toISOString(),
+    }) as {
+        ok?: boolean;
+        success: boolean;
+        canceled?: boolean;
+        filePath?: string | null;
+        error?: string;
     };
 
-    fs.writeFileSync(result.filePath, JSON.stringify(archive, null, 2), 'utf-8');
+    if (!(result.ok ?? result.success)) {
+        if (result.error) console.error('Failed to export project:', result.error);
+        return null;
+    }
+
+    if (result.canceled || !result.filePath) {
+        return null;
+    }
+
     return result.filePath;
 }
 
@@ -71,33 +50,26 @@ export async function importProject(): Promise<{
     board: string;
     files: ProjectFile[];
 } | null> {
-    const result = await ipcRenderer.invoke('dialog-open', {
-        title: 'Import Project',
-        filters: [
-            { name: 'AVR8js Project', extensions: ['avr8js'] },
-            { name: 'JSON Files', extensions: ['json'] },
-            { name: 'All Files', extensions: ['*'] },
-        ],
-        properties: ['openFile'],
-    });
+    const result = await ipcRenderer.invoke('project:import') as {
+        ok?: boolean;
+        success: boolean;
+        canceled?: boolean;
+        project?: {
+            name: string;
+            board: string;
+            files: ProjectFile[];
+        } | null;
+        error?: string;
+    };
 
-    if (!result || result.canceled || !result.filePaths?.length) return null;
-
-    try {
-        const raw = fs.readFileSync(result.filePaths[0], 'utf-8');
-        const data = JSON.parse(raw) as ProjectArchive;
-
-        if (data.format !== 'avr8js-project' || !data.files?.length) {
-            throw new Error('Invalid project archive format');
-        }
-
-        return {
-            name: data.name || path.basename(result.filePaths[0], '.avr8js'),
-            board: data.board || 'uno',
-            files: data.files,
-        };
-    } catch (err) {
-        console.error('Failed to import project:', err);
+    if (!(result.ok ?? result.success)) {
+        if (result.error) console.error('Failed to import project:', result.error);
         return null;
     }
+
+    if (result.canceled || !result.project) {
+        return null;
+    }
+
+    return result.project;
 }

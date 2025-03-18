@@ -120,23 +120,23 @@ export default function CommandPalette({ commands, onClose }: CommandPaletteProp
             style={{ background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(2px)' }}
         >
             <div
-                className="w-full max-w-lg bg-[#1e1e1e] rounded-xl shadow-2xl
-                    border border-[#333] overflow-hidden"
+                className="w-full max-w-lg bg-vscode-bg rounded-xl shadow-2xl
+                    border border-vscode-border overflow-hidden"
                 onClick={e => e.stopPropagation()}
             >
                 {/* Search input */}
-                <div className="flex items-center gap-2 px-4 py-3 border-b border-[#333]">
-                    <Search size={16} className="text-gray-500 shrink-0" />
+                <div className="flex items-center gap-2 px-4 py-3 border-b border-vscode-border bg-vscode-surface">
+                    <Search size={16} className="text-vscode-text opacity-60 shrink-0" />
                     <input
                         ref={inputRef}
                         value={query}
                         onChange={e => setQuery(e.target.value)}
                         onKeyDown={handleKeyDown}
                         placeholder="Type a command…"
-                        className="flex-1 bg-transparent text-[14px] text-gray-100
-                            outline-none placeholder:text-gray-600"
+                        className="flex-1 bg-transparent text-[14px] text-vscode-textActive
+                            outline-none placeholder:text-vscode-text placeholder:opacity-50"
                     />
-                    <span className="text-[11px] text-gray-600 px-1.5 py-0.5 bg-[#333] rounded">
+                    <span className="text-[11px] text-vscode-text opacity-60 px-1.5 py-0.5 bg-vscode-input rounded border border-vscode-border">
                         ESC
                     </span>
                 </div>
@@ -144,7 +144,7 @@ export default function CommandPalette({ commands, onClose }: CommandPaletteProp
                 {/* Results */}
                 <div ref={listRef} className="overflow-y-auto" style={{ maxHeight: 320 }}>
                     {filtered.length === 0 ? (
-                        <p className="px-4 py-6 text-center text-gray-500 text-[13px] italic">
+                        <p className="px-4 py-6 text-center text-vscode-text opacity-60 text-[13px] italic">
                             No commands match "{query}"
                         </p>
                     ) : (
@@ -157,18 +157,18 @@ export default function CommandPalette({ commands, onClose }: CommandPaletteProp
                                     'w-full flex items-center gap-3 px-4 py-2.5 text-left',
                                     'transition-colors',
                                     i === selectedIdx
-                                        ? 'bg-[#094771] text-white'
-                                        : 'text-gray-300 hover:bg-[#2a2a2a]',
+                                        ? 'bg-vscode-hover text-vscode-textActive'
+                                        : 'text-vscode-text hover:bg-vscode-hover',
                                 ].join(' ')}
                             >
                                 {cmd.icon && (
-                                    <span className="text-gray-500 shrink-0">{cmd.icon}</span>
+                                    <span className="text-vscode-text opacity-55 shrink-0">{cmd.icon}</span>
                                 )}
                                 <span className="flex-1 text-[13px]">
                                     <HighlightLabel label={cmd.label} indices={indices} />
                                 </span>
                                 {cmd.description && (
-                                    <span className="text-[11px] text-gray-600 shrink-0">
+                                    <span className="text-[11px] text-vscode-text opacity-60 shrink-0">
                                         {cmd.description}
                                     </span>
                                 )}
@@ -177,8 +177,8 @@ export default function CommandPalette({ commands, onClose }: CommandPaletteProp
                                         {cmd.shortcut.split('+').map(k => (
                                             <span
                                                 key={k}
-                                                className="text-[10px] text-gray-500
-                                                    px-1.5 py-0.5 bg-[#333] rounded"
+                                                className="text-[10px]
+                                                    px-1.5 py-0.5 bg-vscode-input border border-vscode-border text-vscode-text opacity-70 rounded"
                                             >
                                                 {k}
                                             </span>
@@ -191,8 +191,8 @@ export default function CommandPalette({ commands, onClose }: CommandPaletteProp
                 </div>
 
                 {/* Footer */}
-                <div className="flex items-center gap-3 px-4 py-2 border-t border-[#2a2a2a]
-                    text-[11px] text-gray-600"
+                <div className="flex items-center gap-3 px-4 py-2 border-t border-vscode-border
+                    text-[11px] text-vscode-text opacity-65 bg-vscode-surface"
                 >
                     <Keyboard size={12} />
                     <span>↑↓ navigate</span>

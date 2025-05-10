@@ -1,0 +1,68 @@
+{
+  "version": 2,
+  "author": "avr8js-electron",
+  "editor": "avr8js-electron-playground",
+  "parts": [
+    {
+      "id": "uno",
+      "type": "wokwi-arduino-uno",
+      "top": 220,
+      "left": 180,
+      "rotate": 0
+    },
+    {
+      "id": "chip1",
+      "type": "chip-custom-chip-time",
+      "top": 119,
+      "left": 411,
+      "rotate": 0,
+      "attrs": {}
+    },
+    {
+      "id": "r1",
+      "type": "wokwi-resistor",
+      "top": 189,
+      "left": 344,
+      "rotate": 270,
+      "attrs": {
+        "value": "220"
+      }
+    },
+    {
+      "id": "led1",
+      "type": "wokwi-led",
+      "top": 74,
+      "left": 304,
+      "rotate": 0,
+      "attrs": {
+        "color": "orange"
+      }
+    }
+  ],
+  "connections": [
+    {
+      "id": "conn-0",
+      "from": "chip1:TICK",
+      "to": "uno:8",
+      "color": "orange"
+    },
+    {
+      "id": "conn-1",
+      "from": "uno:9",
+      "to": "r1:1",
+      "color": "orange"
+    },
+    {
+      "id": "conn-2",
+      "from": "r1:2",
+      "to": "led1:A",
+      "color": "orange"
+    },
+    {
+      "id": "conn-3",
+      "from": "led1:C",
+      "to": "uno:GND.1",
+      "color": "black"
+    }
+  ]
+}

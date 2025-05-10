@@ -1,0 +1,8 @@
+{
+  "name": "Custom Chip UART",
+  "slug": "custom-chip-uart",
+  "category": "advanced",
+  "board": "uno",
+  "description": "Demonstrates UART API bridge where custom chip writes data to MCU serial.",
+  "tags": ["custom-chip", "uart", "api", "serial"]
+}

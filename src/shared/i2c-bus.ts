@@ -15,6 +15,7 @@ export interface I2CDevice {
 
 export class I2CBus implements TWIEventHandler {
   readonly devices: { [key: number]: I2CDevice } = {};
+  private wildcardDevice: I2CDevice | null = null;
   private activeDevice: I2CDevice | null = null;
   private writeMode = false;
 
@@ -24,6 +25,10 @@ export class I2CBus implements TWIEventHandler {
 
   registerDevice(addr: number, device: I2CDevice) {
     this.devices[addr] = device;
+  }
+
+  registerWildcardDevice(device: I2CDevice) {
+    this.wildcardDevice = device;
   }
 
   start(): void {
@@ -40,7 +45,7 @@ export class I2CBus implements TWIEventHandler {
 
   connectToSlave(addr: number, write: boolean): void {
     let result = false;
-    const device = this.devices[addr];
+    const device = this.devices[addr] ?? this.wildcardDevice;
     if (device) {
       result = device.i2cConnect(addr, write);
       if (result) {

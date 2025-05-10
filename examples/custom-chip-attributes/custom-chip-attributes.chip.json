@@ -1,0 +1,27 @@
+{
+  "name": "Custom Chip Attributes",
+  "author": "avr8js-electron",
+  "pins": ["OUT"],
+  "controls": [
+    {
+      "id": "blinkMs",
+      "label": "Blink Period",
+      "type": "range",
+      "min": 50,
+      "max": 2000,
+      "step": 10,
+      "defaultValue": 500,
+      "unit": "ms"
+    },
+    {
+      "id": "dutyPercent",
+      "label": "Duty Cycle",
+      "type": "range",
+      "min": 5,
+      "max": 95,
+      "step": 1,
+      "defaultValue": 50,
+      "unit": "%"
+    }
+  ]
+}

@@ -1,0 +1,39 @@
+{
+  "version": 2,
+  "author": "avr8js-electron",
+  "editor": "avr8js-electron-playground",
+  "parts": [
+    {
+      "id": "uno",
+      "type": "wokwi-arduino-uno",
+      "top": 328,
+      "left": 328,
+      "hide": false,
+      "rotate": 0
+    },
+    {
+      "id": "screen",
+      "type": "chip-custom-chip-framebuffer",
+      "top": 200,
+      "left": 192,
+      "rotate": 0,
+      "attrs": {
+        "framebufferScale": "2"
+      }
+    }
+  ],
+  "connections": [
+    {
+      "id": "conn-0",
+      "from": "uno:5V",
+      "to": "screen:VCC",
+      "color": "red"
+    },
+    {
+      "id": "conn-1",
+      "from": "uno:GND.1",
+      "to": "screen:GND",
+      "color": "black"
+    }
+  ]
+}

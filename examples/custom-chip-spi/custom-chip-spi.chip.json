@@ -1,0 +1,37 @@
+{
+  "name": "Custom Chip SPI",
+  "author": "avr8js-electron",
+  "pins": ["SCK", "MOSI", "MISO", "SS"],
+  "controls": [
+    {
+      "id": "seedByte",
+      "label": "Seed Byte",
+      "type": "range",
+      "min": 0,
+      "max": 255,
+      "step": 1,
+      "defaultValue": 16,
+      "unit": "byte"
+    },
+    {
+      "id": "stepByte",
+      "label": "Step Byte",
+      "type": "range",
+      "min": 0,
+      "max": 32,
+      "step": 1,
+      "defaultValue": 1,
+      "unit": "byte"
+    },
+    {
+      "id": "transferIntervalMs",
+      "label": "Transfer Interval",
+      "type": "range",
+      "min": 20,
+      "max": 2000,
+      "step": 10,
+      "defaultValue": 300,
+      "unit": "ms"
+    }
+  ]
+}

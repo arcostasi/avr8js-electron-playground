@@ -1,0 +1,17 @@
+{
+  "name": "Demo GPIO Latch",
+  "author": "avr8js-electron",
+  "pins": ["IN", "OUT"],
+  "controls": [
+    {
+      "id": "debounceMs",
+      "label": "Debounce (ms)",
+      "type": "range",
+      "min": 10,
+      "max": 1000,
+      "step": 10,
+      "defaultValue": 200,
+      "unit": "ms"
+    }
+  ]
+}

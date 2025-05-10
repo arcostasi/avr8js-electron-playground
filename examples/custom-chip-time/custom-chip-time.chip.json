@@ -1,0 +1,27 @@
+{
+  "name": "Custom Chip Time",
+  "author": "avr8js-electron",
+  "pins": ["TICK"],
+  "controls": [
+    {
+      "id": "intervalMs",
+      "label": "Flip Interval",
+      "type": "range",
+      "min": 50,
+      "max": 2000,
+      "step": 10,
+      "defaultValue": 500,
+      "unit": "ms"
+    },
+    {
+      "id": "startHigh",
+      "label": "Start High",
+      "type": "range",
+      "min": 0,
+      "max": 1,
+      "step": 1,
+      "defaultValue": 0,
+      "unit": "bit"
+    }
+  ]
+}

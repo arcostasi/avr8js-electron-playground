@@ -1,0 +1,27 @@
+{
+  "name": "Custom Chip I2C",
+  "author": "avr8js-electron",
+  "pins": ["SDA", "SCL"],
+  "controls": [
+    {
+      "id": "startValue",
+      "label": "Start Value",
+      "type": "range",
+      "min": 0,
+      "max": 255,
+      "step": 1,
+      "defaultValue": 0,
+      "unit": "byte"
+    },
+    {
+      "id": "stepValue",
+      "label": "Read Step",
+      "type": "range",
+      "min": 0,
+      "max": 32,
+      "step": 1,
+      "defaultValue": 1,
+      "unit": "byte"
+    }
+  ]
+}

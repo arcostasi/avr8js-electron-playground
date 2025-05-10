@@ -1,0 +1,8 @@
+{
+  "name": "Custom Chip I2C",
+  "slug": "custom-chip-i2c",
+  "category": "advanced",
+  "board": "uno",
+  "description": "Demonstrates custom chip acting as an I2C device using chip_i2c_* exports.",
+  "tags": ["custom-chip", "i2c", "api"]
+}

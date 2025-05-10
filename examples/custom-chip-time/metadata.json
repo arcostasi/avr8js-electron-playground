@@ -1,0 +1,8 @@
+{
+  "name": "Custom Chip Time",
+  "slug": "custom-chip-time",
+  "category": "advanced",
+  "board": "uno",
+  "description": "Demonstrates millis/micros time APIs inside a custom chip.",
+  "tags": ["custom-chip", "time", "api"]
+}

@@ -1,0 +1,8 @@
+{
+  "name": "Custom Chip Framebuffer",
+  "slug": "custom-chip-framebuffer",
+  "category": "advanced",
+  "board": "uno",
+  "description": "Custom chip framebuffer display with colorful scrolling text: Welcome to AVR8js Electron Playground.",
+  "tags": ["custom-chip", "framebuffer", "text", "animation", "screen"]
+}

@@ -162,8 +162,8 @@ function PropertySlider({
     return (
         <div className="flex flex-col gap-1 px-2 py-1">
             <div className="flex justify-between text-[11px]">
-                <span className="text-gray-400">{def.label}</span>
-                <span className="text-gray-300 font-mono">
+                <span className="text-vscode-text opacity-80">{def.label}</span>
+                <span className="text-vscode-textActive font-mono">
                     {def.step < 1 ? value.toFixed(1) : value}
                     {def.unit ? ` ${def.unit}` : ''}
                 </span>
@@ -213,19 +213,19 @@ function ComponentGroup({
     }, [comp]);
 
     return (
-        <div className="border-b border-[#333]">
+        <div className="border-b border-vscode-border">
             <button
                 onClick={() => setOpen(o => !o)}
                 className="flex items-center gap-1.5 w-full px-2 py-1.5
-                    text-[12px] font-medium text-gray-300
-                    hover:bg-[#2a2a2a] transition-colors"
+                    text-[12px] font-medium text-vscode-text
+                    hover:bg-vscode-hover transition-colors"
             >
                 {open
                     ? <ChevronDown size={12} />
                     : <ChevronRight size={12} />
                 }
                 <span>{comp.label}</span>
-                <span className="text-[10px] text-gray-600 ml-auto font-mono">
+                <span className="text-[10px] text-vscode-text opacity-55 ml-auto font-mono">
                     {comp.partId}
                 </span>
             </button>
@@ -256,8 +256,8 @@ export default function ComponentPropertyEditor({
 
     return (
         <div
-            className="absolute top-12 right-2 z-40 bg-[#1e1e1e]
-                border border-[#333] rounded-lg shadow-xl
+            className="absolute top-12 right-2 z-40 bg-vscode-bg
+                border border-vscode-border rounded-lg shadow-xl
                 overflow-hidden select-none"
             style={{ width: collapsed ? 'auto' : 220 }}
         >
@@ -265,12 +265,12 @@ export default function ComponentPropertyEditor({
             <button
                 onClick={() => setCollapsed(c => !c)}
                 className="flex items-center gap-1.5 w-full px-2.5 py-1.5
-                    bg-[#252525] text-[12px] font-semibold text-gray-300
-                    hover:bg-[#2a2a2a] transition-colors uppercase tracking-wide"
+                    bg-vscode-surface text-[12px] font-semibold text-vscode-text
+                    hover:bg-vscode-hover transition-colors uppercase tracking-wide"
             >
                 <Sliders size={13} className="text-blue-400" />
                 {!collapsed && <span>Properties</span>}
-                <span className="ml-auto text-[10px] text-gray-600 font-mono">
+                <span className="ml-auto text-[10px] text-vscode-text opacity-60 font-mono">
                     {components.length}
                 </span>
             </button>

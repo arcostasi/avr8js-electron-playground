@@ -133,9 +133,25 @@ export interface HardwareController {
 export interface WokwiSimulatorProps {
     diagram?: WokwiDiagram;
     hex?: string | null;
+    customChipArtifacts?: Record<string, string>;
+    customChipManifests?: Record<string, {
+        chipName: string;
+        title: string;
+        pins: string[];
+        controls: Array<{
+            key: string;
+            label: string;
+            min: number;
+            max: number;
+            step: number;
+            unit: string;
+            defaultValue: number;
+        }>;
+    }>;
     isCompiling: boolean;
     onCompile: () => void;
     onSerialOutput: (text: string) => void;
+    onChipOutput?: (text: string) => void;
     onAddComponent?: (part: WokwiPart) => void;
     onDiagramChange?: (newDiagram: WokwiDiagram) => void;
     serialWriteRef?: { current: ((text: string) => void) | null };

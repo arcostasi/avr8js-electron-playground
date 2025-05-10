@@ -1,0 +1,8 @@
+{
+  "name": "Custom Chip Analog",
+  "slug": "custom-chip-analog",
+  "category": "advanced",
+  "board": "uno",
+  "description": "Demonstrates Analog API usage (pin_dac_write / analog-style output) in a custom chip.",
+  "tags": ["custom-chip", "analog", "api"]
+}

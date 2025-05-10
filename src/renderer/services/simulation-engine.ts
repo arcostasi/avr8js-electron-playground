@@ -5,7 +5,7 @@
  *          Speaker/Buzzer audio, DHT22, HC-SR04, IR Receiver/Remote.
  * Pure TypeScript — no React dependency.
  */
-import type { WokwiDiagram, WokwiConnection, HardwareController } from '../types/wokwi.types';
+import type { WokwiDiagram, HardwareController } from '../types/wokwi.types';
 import type { AVRRunner } from '../../shared/execute';
 import { I2CBus } from '../../shared/i2c-bus';
 import { LCD1602Controller } from '../../shared/lcd1602';
@@ -16,9 +16,14 @@ import { DHT22Controller } from '../../shared/dht22';
 import { HCSR04Controller } from '../../shared/hc-sr04';
 import { IRController } from '../../shared/ir';
 import { DS1307Controller } from '../../shared/ds1307';
+import { MPU6050Controller, MPU6050_ADDR } from '../../shared/mpu6050';
 import { ILI9341Controller } from '../../shared/ili9341';
 import { getPortAndBit } from '../utils/pin-mapping';
 import type { AVRIOPort } from 'avr8js';
+import { attachCustomChipControllers } from './custom-chips';
+import type { CustomChipArtifacts, CustomChipControl, CustomChipManifests } from './custom-chips';
+import { buildNetlist } from './netlist-builder';
+import type { NetlistEntry } from './netlist-builder';
 
 /** Port set shorthand used throughout the engine */
 interface PortSet {
@@ -34,26 +39,11 @@ interface ResolvedPin {
     componentPin: string;
 }
 
-/**
- * Find all connections between the Arduino and a specific component.
- */
-function resolveComponentPins(
-    conns: WokwiConnection[],
-    arduinoId: string,
-    componentId: string,
-): ResolvedPin[] {
-    const result: ResolvedPin[] = [];
-    for (const c of conns) {
-        const [fromPart, fromPin] = c.from.split(':');
-        const [toPart, toPin] = c.to.split(':');
-
-        if (fromPart === arduinoId && toPart === componentId) {
-            result.push({ arduinoPin: fromPin, componentPin: toPin });
-        } else if (toPart === arduinoId && fromPart === componentId) {
-            result.push({ arduinoPin: toPin, componentPin: fromPin });
-        }
-    }
-    return result;
+export interface CompiledSimulationSetup {
+    arduinoId: string;
+    netlist: NetlistEntry[];
+    componentPinsById: Map<string, ResolvedPin[]>;
+    structuralHash: string;
 }
 
 /**
@@ -62,6 +52,47 @@ function resolveComponentPins(
 function findArduinoPin(pins: ResolvedPin[], componentPin: string): string | null {
     const match = pins.find(p => p.componentPin === componentPin);
     return match?.arduinoPin ?? null;
+}
+
+export function compileSimulationSetup(diagram: WokwiDiagram): CompiledSimulationSetup {
+    const arduinoPart = diagram.parts.find(p =>
+        p.type === 'wokwi-arduino-uno' ||
+        p.type === 'wokwi-arduino-mega' ||
+        p.type === 'wokwi-arduino-nano'
+    );
+    const netlist = buildNetlist(diagram);
+    const componentPinsById = new Map<string, ResolvedPin[]>();
+
+    for (const entry of netlist) {
+        const pins = componentPinsById.get(entry.componentId) ?? [];
+        pins.push({ arduinoPin: entry.arduinoPin, componentPin: entry.componentPin });
+        componentPinsById.set(entry.componentId, pins);
+    }
+
+    const structuralHash = JSON.stringify({
+        parts: diagram.parts.map((part) => ({
+            id: part.id,
+            type: part.type,
+            rotate: part.rotate,
+            attrs: part.attrs ?? {},
+            hide: part.hide ?? false,
+        })),
+        connections: diagram.connections.map((connection) => ({
+            id: connection.id,
+            from: connection.from,
+            to: connection.to,
+            color: connection.color,
+            waypoints: connection.waypoints ?? [],
+            routeHints: connection.routeHints ?? [],
+        })),
+    });
+
+    return {
+        arduinoId: arduinoPart?.id ?? '',
+        netlist,
+        componentPinsById,
+        structuralHash,
+    };
 }
 
 // ── NeoPixel helpers ──
@@ -104,6 +135,8 @@ interface LcdState {
 export interface AdjustableDevice {
     partId: string;
     partType: string;
+    label?: string;
+    properties?: CustomChipControl[];
     /** Get a property value. Keys depend on device type. */
     get: (key: string) => number;
     /** Set a property value. */
@@ -120,10 +153,14 @@ const NEOPIXEL_TYPES = new Set(['wokwi-neopixel', 'wokwi-led-ring', 'wokwi-neopi
  * a list of adjustable devices for the property editor,
  * plus a cleanup function for event listeners.
  */
-export function createHardwareControllers(
+export function createHardwareControllers( // NOSONAR: central hardware factory kept flat for device registration clarity
     diagram: WokwiDiagram,
     runner: AVRRunner,
     i2cBus: I2CBus,
+    customChipArtifacts: CustomChipArtifacts = {},
+    customChipManifests: CustomChipManifests = {},
+    onChipLog?: (text: string) => void,
+    compiledSetup?: CompiledSimulationSetup,
 ): {
     controllers: HardwareController[];
     adjustable: AdjustableDevice[];
@@ -134,21 +171,21 @@ export function createHardwareControllers(
     const cleanups: Array<() => void> = [];
     const cpuMillis = () => (runner.cpu.cycles / runner.frequency) * 1000;
     const ports = { portB: runner.portB, portC: runner.portC, portD: runner.portD };
-
-    // Find the Arduino MCU part
-    const arduinoPart = diagram.parts.find(p =>
-        p.type === 'wokwi-arduino-uno' ||
-        p.type === 'wokwi-arduino-mega' ||
-        p.type === 'wokwi-arduino-nano'
-    );
-    const arduinoId = arduinoPart?.id ?? '';
-    const connections = diagram.connections ?? [];
+    const resolvedSetup = compiledSetup ?? compileSimulationSetup(diagram);
+    const elementById = new Map<string, HTMLElement>();
+    for (const part of diagram.parts) {
+        const element = document.getElementById(part.id);
+        if (element) {
+            elementById.set(part.id, element);
+        }
+    }
+    const componentPinsFor = (partId: string) => resolvedSetup.componentPinsById.get(partId) ?? [];
 
     // Collect IR controllers so IR remotes can link to them
     const irControllers: IRController[] = [];
 
     for (const part of diagram.parts) {
-        const el = document.getElementById(part.id);
+        const el = elementById.get(part.id);
         if (!el) continue;
 
         // ── I2C displays ──
@@ -159,22 +196,22 @@ export function createHardwareControllers(
         } else if (part.type === 'wokwi-ssd1306') {
             setupSSD1306(el, cpuMillis, i2cBus, controllers);
         } else if (part.type === 'wokwi-ili9341') {
-            setupILI9341(part, el, connections, arduinoId, runner, ports, controllers);
+            setupILI9341(part, el, componentPinsFor(part.id), runner, ports, controllers);
         }
 
         // ── NeoPixel (single, ring, matrix) ──
         else if (NEOPIXEL_TYPES.has(part.type)) {
-            setupNeopixel(part, el, connections, arduinoId, runner, ports, controllers);
+            setupNeopixel(part, el, componentPinsFor(part.id), runner, ports, controllers);
         }
 
         // ── Speaker / Buzzer audio ──
         else if (part.type === 'wokwi-buzzer') {
-            setupSpeaker(part, el, connections, arduinoId, runner, ports);
+            setupSpeaker(part, el, componentPinsFor(part.id), runner, ports);
         }
 
         // ── DHT22 sensor ──
         else if (part.type === 'wokwi-dht22') {
-            const dht = setupDHT22(part, connections, arduinoId, runner, ports);
+            const dht = setupDHT22(part, componentPinsFor(part.id), runner, ports);
             if (dht) {
                 adjustable.push({
                     partId: part.id, partType: part.type,
@@ -189,7 +226,7 @@ export function createHardwareControllers(
 
         // ── HC-SR04 ultrasonic ──
         else if (part.type === 'wokwi-hc-sr04') {
-            const sr = setupHCSR04(part, connections, arduinoId, runner, ports);
+            const sr = setupHCSR04(part, componentPinsFor(part.id), runner, ports);
             if (sr) {
                 adjustable.push({
                     partId: part.id, partType: part.type,
@@ -201,7 +238,7 @@ export function createHardwareControllers(
 
         // ── IR Receiver ──
         else if (part.type === 'wokwi-ir-receiver') {
-            const ctrl = setupIRReceiver(part, connections, arduinoId, runner, ports);
+            const ctrl = setupIRReceiver(part, componentPinsFor(part.id), runner, ports);
             if (ctrl) irControllers.push(ctrl);
         }
 
@@ -209,13 +246,75 @@ export function createHardwareControllers(
         else if (part.type === 'wokwi-ds1307') {
             const rtc = new DS1307Controller();
             i2cBus.registerDevice(0x68, rtc);
+        } else if (part.type === 'wokwi-mpu6050') {
+            const mpu6050 = new MPU6050Controller(cpuMillis);
+            i2cBus.registerDevice(MPU6050_ADDR, mpu6050);
+            adjustable.push({
+                partId: part.id,
+                partType: part.type,
+                label: 'MPU6050 IMU',
+                properties: [
+                    { key: 'accelX', label: 'Accel X', min: -8, max: 8, step: 0.1, unit: 'g', defaultValue: 0 },
+                    { key: 'accelY', label: 'Accel Y', min: -8, max: 8, step: 0.1, unit: 'g', defaultValue: 0 },
+                    { key: 'accelZ', label: 'Accel Z', min: -8, max: 8, step: 0.1, unit: 'g', defaultValue: 1 },
+                    { key: 'gyroX', label: 'Gyro X', min: -500, max: 500, step: 1, unit: 'dps', defaultValue: 0 },
+                    { key: 'gyroY', label: 'Gyro Y', min: -500, max: 500, step: 1, unit: 'dps', defaultValue: 0 },
+                    { key: 'gyroZ', label: 'Gyro Z', min: -500, max: 500, step: 1, unit: 'dps', defaultValue: 0 },
+                    { key: 'temperature', label: 'Temperature', min: -40, max: 85, step: 0.1, unit: 'C', defaultValue: 24 },
+                ],
+                get: (key) => {
+                    switch (key) {
+                        case 'accelX':
+                            return mpu6050.getAccel('x');
+                        case 'accelY':
+                            return mpu6050.getAccel('y');
+                        case 'accelZ':
+                            return mpu6050.getAccel('z');
+                        case 'gyroX':
+                            return mpu6050.getGyro('x');
+                        case 'gyroY':
+                            return mpu6050.getGyro('y');
+                        case 'gyroZ':
+                            return mpu6050.getGyro('z');
+                        default:
+                            return mpu6050.getTemperatureC();
+                    }
+                },
+                set: (key, value) => {
+                    switch (key) {
+                        case 'accelX':
+                            mpu6050.setAccel('x', value);
+                            break;
+                        case 'accelY':
+                            mpu6050.setAccel('y', value);
+                            break;
+                        case 'accelZ':
+                            mpu6050.setAccel('z', value);
+                            break;
+                        case 'gyroX':
+                            mpu6050.setGyro('x', value);
+                            break;
+                        case 'gyroY':
+                            mpu6050.setGyro('y', value);
+                            break;
+                        case 'gyroZ':
+                            mpu6050.setGyro('z', value);
+                            break;
+                        case 'temperature':
+                            mpu6050.setTemperatureC(value);
+                            break;
+                        default:
+                            break;
+                    }
+                },
+            });
         }
     }
 
     // ── IR Remote → all IR Receivers ──
     for (const part of diagram.parts) {
         if (part.type !== 'wokwi-ir-remote') continue;
-        const el = document.getElementById(part.id);
+        const el = elementById.get(part.id);
         if (!el) continue;
         setupIRRemote(el, irControllers, cleanups);
     }
@@ -238,9 +337,7 @@ export function createHardwareControllers(
     for (const part of diagram.parts) {
         if (ANALOG_SENSOR_TYPES.has(part.type)) {
             // Find which ADC channel this sensor's OUT/AO pin is connected to
-            const compPins = resolveComponentPins(
-                connections, arduinoId, part.id,
-            );
+            const compPins = componentPinsFor(part.id);
             let adcCh: number | null = null;
             for (const cp of compPins) {
                 const pin = cp.componentPin.toUpperCase();
@@ -263,9 +360,7 @@ export function createHardwareControllers(
             }
         } else if (DIGITAL_SENSOR_TYPES.has(part.type)) {
             // Digital sensors: find the OUT/SIG pin
-            const compPins = resolveComponentPins(
-                connections, arduinoId, part.id,
-            );
+            const compPins = componentPinsFor(part.id);
             for (const cp of compPins) {
                 const pin = cp.componentPin.toUpperCase();
                 if (pin === 'OUT' || pin === 'SIG') {
@@ -283,10 +378,28 @@ export function createHardwareControllers(
         }
     }
 
+    // ── Custom chip WASM runtime (MVP) ──
+    attachCustomChipControllers(
+        diagram,
+        runner,
+        i2cBus,
+        controllers,
+        adjustable,
+        cleanups,
+        customChipArtifacts,
+        customChipManifests,
+        onChipLog,
+    );
+
     return {
         controllers,
         adjustable,
-        cleanup: () => { for (const fn of cleanups) fn(); cleanups.length = 0; },
+        cleanup: () => {
+            for (const fn of cleanups) {
+                fn();
+            }
+            cleanups.length = 0;
+        },
     };
 }
 
@@ -330,14 +443,12 @@ function setupSSD1306(
 function setupILI9341(
     part: { id: string },
     el: HTMLElement,
-    connections: WokwiConnection[],
-    arduinoId: string,
+    compPins: ResolvedPin[],
     runner: AVRRunner,
     ports: PortSet,
     controllers: HardwareController[],
 ): void {
     // Resolve D/C pin (Data/Command select)
-    const compPins  = resolveComponentPins(connections, arduinoId, part.id);
     const dcArduino = findArduinoPin(compPins, 'D/C');
     if (!dcArduino) {
         console.warn('[ILI9341] D/C pin not connected — display disabled');
@@ -381,8 +492,7 @@ function setupILI9341(
 function setupNeopixel(
     part: { id: string; type: string; attrs?: Record<string, string> },
     el: HTMLElement,
-    connections: WokwiConnection[],
-    arduinoId: string,
+    compPins: ResolvedPin[],
     runner: AVRRunner,
     ports: PortSet,
     controllers: HardwareController[],
@@ -391,7 +501,6 @@ function setupNeopixel(
     if (numPixels === 0) return;
 
     const ws = new WS2812Controller(numPixels);
-    const compPins = resolveComponentPins(connections, arduinoId, part.id);
     const dinArduino = findArduinoPin(compPins, 'DIN');
 
     if (dinArduino) {
@@ -405,24 +514,27 @@ function setupNeopixel(
         }
     }
 
+    let controllerType: HardwareController['type'] = 'neopixel-matrix';
+    if (part.type === 'wokwi-neopixel') {
+        controllerType = 'neopixel-single';
+    } else if (part.type === 'wokwi-led-ring') {
+        controllerType = 'neopixel-ring';
+    }
+
     controllers.push({
         element: el,
         update: () => ws.update(runner.cpu.cycles * (1e9 / runner.frequency)),
-        type: part.type === 'wokwi-neopixel' ? 'neopixel-single'
-            : part.type === 'wokwi-led-ring' ? 'neopixel-ring'
-            : 'neopixel-matrix',
+        type: controllerType,
     });
 }
 
 function setupSpeaker(
     part: { id: string },
     _el: HTMLElement,
-    connections: WokwiConnection[],
-    arduinoId: string,
+    compPins: ResolvedPin[],
     runner: AVRRunner,
     ports: PortSet,
 ): void {
-    const compPins = resolveComponentPins(connections, arduinoId, part.id);
     // Buzzer has pin "1" (signal) and "2" (GND)
     const sigArduino = findArduinoPin(compPins, '1') ?? findArduinoPin(compPins, 'SIG');
     if (!sigArduino) return;
@@ -439,12 +551,10 @@ function setupSpeaker(
 
 function setupDHT22(
     part: { id: string },
-    connections: WokwiConnection[],
-    arduinoId: string,
+    compPins: ResolvedPin[],
     runner: AVRRunner,
     ports: PortSet,
 ): DHT22Controller | null {
-    const compPins = resolveComponentPins(connections, arduinoId, part.id);
     const sdaArduino = findArduinoPin(compPins, 'SDA');
     if (!sdaArduino) return null;
 
@@ -457,12 +567,10 @@ function setupDHT22(
 
 function setupHCSR04(
     part: { id: string },
-    connections: WokwiConnection[],
-    arduinoId: string,
+    compPins: ResolvedPin[],
     runner: AVRRunner,
     ports: PortSet,
 ): HCSR04Controller | null {
-    const compPins = resolveComponentPins(connections, arduinoId, part.id);
     const trigArduino = findArduinoPin(compPins, 'TRIG');
     const echoArduino = findArduinoPin(compPins, 'ECHO');
     if (!trigArduino || !echoArduino) return null;
@@ -479,12 +587,10 @@ function setupHCSR04(
 
 function setupIRReceiver(
     part: { id: string },
-    connections: WokwiConnection[],
-    arduinoId: string,
+    compPins: ResolvedPin[],
     runner: AVRRunner,
     ports: PortSet,
 ): IRController | null {
-    const compPins = resolveComponentPins(connections, arduinoId, part.id);
     const datArduino = findArduinoPin(compPins, 'DAT');
     if (!datArduino) return null;
 

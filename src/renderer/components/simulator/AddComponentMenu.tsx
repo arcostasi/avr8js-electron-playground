@@ -7,15 +7,17 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Plus, Search } from 'lucide-react';
 import { COMMON_COMPONENTS } from '../../constants/wokwi-components';
 import type { WokwiPart, WokwiDiagram } from '../../types/wokwi.types';
+import type { WokwiComponentDef } from '../../types/wokwi.types';
 
 interface AddComponentMenuProps {
     diagram?: WokwiDiagram;
+    customChipManifests?: Record<string, { title: string }>;
     pan: { x: number; y: number };
     zoom: number;
     onAddComponent?: (part: WokwiPart) => void;
 }
 
-export default function AddComponentMenu({ diagram, pan, zoom, onAddComponent }: AddComponentMenuProps) {
+export default function AddComponentMenu({ diagram, customChipManifests, pan, zoom, onAddComponent }: AddComponentMenuProps) {
     const [showMenu, setShowMenu] = useState(false);
     const [query, setQuery] = useState('');
     const searchRef = useRef<HTMLInputElement>(null);
@@ -38,12 +40,20 @@ export default function AddComponentMenu({ diagram, pan, zoom, onAddComponent }:
         return () => window.removeEventListener('keydown', handler);
     }, [showMenu]);
 
+    const customChipComponents: WokwiComponentDef[] = Object.entries(customChipManifests ?? {}).map(([chipName, manifest]) => ({
+        type: `chip-${chipName}`,
+        label: `Chip: ${manifest.title || chipName}`,
+        attrs: {},
+    }));
+
+    const allComponents = [...COMMON_COMPONENTS, ...customChipComponents];
+
     const q = query.trim().toLowerCase();
     const filtered = q
-        ? COMMON_COMPONENTS.filter(c => c.label.toLowerCase().includes(q) || c.type.toLowerCase().includes(q))
-        : COMMON_COMPONENTS;
+        ? allComponents.filter(c => c.label.toLowerCase().includes(q) || c.type.toLowerCase().includes(q))
+        : allComponents;
 
-    const handleAdd = (comp: typeof COMMON_COMPONENTS[0]) => {
+    const handleAdd = (comp: WokwiComponentDef) => {
         if (onAddComponent) {
             const shortName = comp.type.replace('wokwi-', '').replace(/-/g, '');
             const existingCount = (diagram?.parts ?? []).filter(p => p.type === comp.type).length;
@@ -74,9 +84,9 @@ export default function AddComponentMenu({ diagram, pan, zoom, onAddComponent }:
                 className={[
                     'flex items-center justify-center',
                     'w-7 h-7 rounded-full',
-                    'bg-[#333] hover:bg-blue-600',
-                    'text-gray-400 hover:text-white',
-                    'transition-all border border-[#555]',
+                    'bg-vscode-input hover:bg-blue-600',
+                    'text-vscode-text opacity-80 hover:text-vscode-textActive hover:opacity-100',
+                    'transition-all border border-vscode-border',
                     'hover:border-blue-500',
                     showMenu ? 'bg-blue-600 text-white border-blue-500' : '',
                 ].join(' ')}
@@ -89,16 +99,16 @@ export default function AddComponentMenu({ diagram, pan, zoom, onAddComponent }:
                 <div
                     className={[
                         'absolute left-0 top-8 mt-1 w-64',
-                        'bg-[#2a2a2a]',
-                        'border border-[#444] shadow-2xl',
+                        'bg-vscode-bg',
+                        'border border-vscode-border shadow-2xl',
                         'rounded-lg z-50',
                         'flex flex-col',
                     ].join(' ')}
                     style={{ maxHeight: 320 }}
                 >
                     {/* Search input */}
-                    <div className="flex items-center gap-1.5 px-2.5 py-2 border-b border-[#3a3a3a]">
-                        <Search size={12} className="text-gray-500 shrink-0" />
+                    <div className="flex items-center gap-1.5 px-2.5 py-2 border-b border-vscode-border bg-vscode-surface">
+                        <Search size={12} className="text-vscode-text opacity-60 shrink-0" />
                         <input
                             ref={searchRef}
                             value={query}
@@ -106,14 +116,14 @@ export default function AddComponentMenu({ diagram, pan, zoom, onAddComponent }:
                             placeholder="Search components…"
                             className={[
                                 'flex-1 bg-transparent text-[12px]',
-                                'text-gray-200 outline-none',
-                                'placeholder:text-gray-600',
+                                'text-vscode-text outline-none',
+                                'placeholder:text-vscode-text placeholder:opacity-55',
                             ].join(' ')}
                         />
                         {query && (
                             <button
                                 onClick={() => setQuery('')}
-                                className="text-gray-600 hover:text-gray-400 text-[10px]"
+                                className="text-vscode-text opacity-55 hover:opacity-100 text-[10px]"
                             >✕</button>
                         )}
                     </div>
@@ -121,7 +131,7 @@ export default function AddComponentMenu({ diagram, pan, zoom, onAddComponent }:
                     {/* Scrollable list */}
                     <div className="overflow-y-auto flex-1 py-1">
                         {filtered.length === 0 ? (
-                            <p className="px-3 py-4 text-[12px] text-gray-500 text-center">
+                            <p className="px-3 py-4 text-[12px] text-vscode-text opacity-60 text-center">
                                 No components match "{query}"
                             </p>
                         ) : (
@@ -130,8 +140,8 @@ export default function AddComponentMenu({ diagram, pan, zoom, onAddComponent }:
                                     key={comp.type}
                                     className={
                                         'w-full text-left px-3 py-1.5 '
-                                        + 'text-xs text-gray-400 '
-                                        + 'hover:bg-[#333] hover:text-white '
+                                        + 'text-xs text-vscode-text '
+                                        + 'hover:bg-vscode-hover hover:text-vscode-textActive '
                                         + 'transition-colors'
                                     }
                                     onClick={() => handleAdd(comp)}
@@ -143,8 +153,8 @@ export default function AddComponentMenu({ diagram, pan, zoom, onAddComponent }:
                     </div>
 
                     {/* Footer count */}
-                    <div className="px-3 py-1.5 border-t border-[#3a3a3a] text-[11px] text-gray-600">
-                        {filtered.length} / {COMMON_COMPONENTS.length} components
+                    <div className="px-3 py-1.5 border-t border-vscode-border text-[11px] text-vscode-text opacity-60 bg-vscode-surface">
+                        {filtered.length} / {allComponents.length} components
                     </div>
                 </div>
             )}

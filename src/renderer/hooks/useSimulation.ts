@@ -2,11 +2,13 @@ import { useRef, useState, useEffect, useCallback } from 'react';
 import type { WokwiDiagram } from '../types/wokwi.types';
 import type { AVRRunner } from '../../shared/execute';
 import {
-    createHardwareControllers, updateControllerStates,
+    compileSimulationSetup, createHardwareControllers, updateControllerStates,
 } from '../services/simulation-engine';
-import type { AdjustableDevice } from '../services/simulation-engine';
+import type { AdjustableDevice, CompiledSimulationSetup } from '../services/simulation-engine';
+import type { CustomChipArtifacts, CustomChipManifests } from '../services/custom-chips';
 import { setupGPIORouting } from '../services/gpio-router';
 import type { GPIOCleanup } from '../services/gpio-router';
+import { markPerf, measureAsync, measureSync } from '../utils/perf';
 
 /** Snapshot of AVR CPU state for the inspector panel */
 export interface CpuSnapshot {
@@ -29,7 +31,10 @@ export interface CpuSnapshot {
 interface UseSimulationParams {
     diagram?: WokwiDiagram;
     hex?: string | null;
+    customChipArtifacts?: CustomChipArtifacts;
+    customChipManifests?: CustomChipManifests;
     onSerialOutput: (text: string) => void;
+    onChipOutput?: (text: string) => void;
     setIsEditMode: (edit: boolean) => void;
 }
 
@@ -52,28 +57,54 @@ interface UseSimulationReturn {
 export function useSimulation({
     diagram,
     hex,
+    customChipArtifacts = {},
+    customChipManifests = {},
     onSerialOutput,
+    onChipOutput,
     setIsEditMode,
 }: UseSimulationParams): UseSimulationReturn {
     const [isPlaying, setIsPlaying] = useState(false);
     const [simTime, setSimTime] = useState('00:00.000');
     const [simSpeed, setSimSpeed] = useState('0%');
     const [adjustableDevices, setAdjustableDevices] = useState<AdjustableDevice[]>([]);
-    const [speedMultiplier, setSpeedMultiplierState] = useState(1.0);
+    const [speedMultiplier, setSpeedMultiplier] = useState(1);
     const runnerRef = useRef<AVRRunner | null>(null);
     const gpioCleanupRef = useRef<GPIOCleanup | null>(null);
+    const compiledSetupRef = useRef<CompiledSimulationSetup | null>(null);
+    const lastDiagramShapeRef = useRef<string | null>(null);
+    const lastDiagramLayoutRef = useRef<string | null>(null);
+
+    const getDiagramLayoutHash = useCallback((currentDiagram: WokwiDiagram): string => {
+        return JSON.stringify(currentDiagram.parts.map((part) => ({
+            id: part.id,
+            top: part.top,
+            left: part.left,
+            rotate: part.rotate,
+        })));
+    }, []);
+
+    const getCompiledSetup = useCallback((currentDiagram: WokwiDiagram): CompiledSimulationSetup => {
+        const nextSetup = compileSimulationSetup(currentDiagram);
+        if (compiledSetupRef.current?.structuralHash === nextSetup.structuralHash) {
+            return compiledSetupRef.current;
+        }
+        compiledSetupRef.current = nextSetup;
+        return nextSetup;
+    }, []);
 
     const stopSimulation = useCallback(() => {
-        if (gpioCleanupRef.current) {
-            gpioCleanupRef.current();
-            gpioCleanupRef.current = null;
-        }
-        if (runnerRef.current) {
-            runnerRef.current.stop();
-            runnerRef.current = null;
-        }
-        setAdjustableDevices([]);
-        setIsPlaying(false);
+        measureSync('simulation-stop', () => {
+            if (gpioCleanupRef.current) {
+                gpioCleanupRef.current();
+                gpioCleanupRef.current = null;
+            }
+            if (runnerRef.current) {
+                runnerRef.current.stop();
+                runnerRef.current = null;
+            }
+            setAdjustableDevices([]);
+            setIsPlaying(false);
+        });
     }, []);
 
     // Cleanup on unmount
@@ -82,6 +113,7 @@ export function useSimulation({
     }, [stopSimulation]);
 
     const handlePlay = useCallback(async () => {
+        await measureAsync('simulation-start', async () => {
         if (!hex) {
             alert('Please compile the code first.');
             return;
@@ -107,8 +139,43 @@ export function useSimulation({
 
         // Initialize hardware
         const i2cBus = new I2CBus(runner.twi);
+        const compiledSetup = diagram ? measureSync(
+            'simulation-compile-setup',
+            () => getCompiledSetup(diagram),
+            `parts=${diagram.parts.length},conns=${diagram.connections.length}`,
+        ) : null;
+
+        if (diagram && compiledSetup) {
+            const nextLayoutHash = getDiagramLayoutHash(diagram);
+            const previousShapeHash = lastDiagramShapeRef.current;
+            const previousLayoutHash = lastDiagramLayoutRef.current;
+            const dirtyFlags = {
+                structure: previousShapeHash !== compiledSetup.structuralHash,
+                layout: previousLayoutHash !== nextLayoutHash,
+                visualsOnly: previousShapeHash === compiledSetup.structuralHash && previousLayoutHash !== nextLayoutHash,
+            };
+            markPerf(
+                'simulation-dirty-flags',
+                `structure=${dirtyFlags.structure},layout=${dirtyFlags.layout},visualsOnly=${dirtyFlags.visualsOnly}`,
+            );
+            lastDiagramShapeRef.current = compiledSetup.structuralHash;
+            lastDiagramLayoutRef.current = nextLayoutHash;
+        }
+
         const { controllers, adjustable, cleanup: hwCleanup } = diagram
-            ? createHardwareControllers(diagram, runner, i2cBus)
+            ? measureSync(
+                'simulation-create-hardware-controllers',
+                () => createHardwareControllers(
+                    diagram,
+                    runner,
+                    i2cBus,
+                    customChipArtifacts,
+                    customChipManifests,
+                    onChipOutput,
+                    compiledSetup ?? undefined,
+                ),
+                `parts=${diagram.parts.length},conns=${diagram.connections.length}`,
+            )
             : { controllers: [], adjustable: [], cleanup: () => {} };
 
         setAdjustableDevices(adjustable);
@@ -146,7 +213,9 @@ export function useSimulation({
                 previousMillis = millis;
             }
         });
-    }, [hex, diagram, onSerialOutput, setIsEditMode, speedMultiplier]);
+        markPerf('simulation-loop-started');
+        });
+    }, [hex, diagram, customChipArtifacts, customChipManifests, onSerialOutput, onChipOutput, setIsEditMode, speedMultiplier]);
 
     const handleStop = useCallback(() => {
         stopSimulation();
@@ -157,9 +226,9 @@ export function useSimulation({
     }, []);
 
     /** Apply speed multiplier to the running AVRRunner (or remember for next run) */
-    const setSpeedMultiplier = useCallback((v: number) => {
+    const updateSpeedMultiplier = useCallback((v: number) => {
         const clamped = Math.max(0.05, Math.min(8, v));
-        setSpeedMultiplierState(clamped);
+        setSpeedMultiplier(clamped);
         if (runnerRef.current) {
             runnerRef.current.speedMultiplier = clamped;
         }
@@ -188,7 +257,7 @@ export function useSimulation({
 
     return {
         isPlaying, simTime, simSpeed,
-        speedMultiplier, setSpeedMultiplier,
+        speedMultiplier, setSpeedMultiplier: updateSpeedMultiplier,
         handlePlay, handleStop, serialWrite,
         adjustableDevices,
         getCpuSnapshot,

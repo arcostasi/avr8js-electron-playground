@@ -1,0 +1,8 @@
+{
+  "name": "Custom Chip GPIO",
+  "slug": "custom-chip-gpio",
+  "category": "advanced",
+  "board": "uno",
+  "description": "Minimal custom chip example using GPIO bridge between Arduino and a WASM chip.",
+  "tags": ["custom-chip", "wasm", "gpio", "mvp"]
+}

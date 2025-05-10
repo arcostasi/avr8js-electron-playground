@@ -1,0 +1,8 @@
+{
+  "name": "Custom Chip SPI",
+  "slug": "custom-chip-spi",
+  "category": "advanced",
+  "board": "uno",
+  "description": "Demonstrates SPI transfer bridge with custom chip response bytes.",
+  "tags": ["custom-chip", "spi", "api"]
+}

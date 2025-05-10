@@ -1,0 +1,27 @@
+{
+  "name": "Custom Chip UART",
+  "author": "avr8js-electron",
+  "pins": ["RX", "TX"],
+  "controls": [
+    {
+      "id": "sendIntervalMs",
+      "label": "Send Interval",
+      "type": "range",
+      "min": 100,
+      "max": 5000,
+      "step": 50,
+      "defaultValue": 1000,
+      "unit": "ms"
+    },
+    {
+      "id": "tagDigit",
+      "label": "Tag Digit",
+      "type": "range",
+      "min": 0,
+      "max": 9,
+      "step": 1,
+      "defaultValue": 0,
+      "unit": "id"
+    }
+  ]
+}

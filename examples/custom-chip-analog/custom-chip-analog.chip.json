@@ -1,0 +1,37 @@
+{
+  "name": "Custom Chip Analog",
+  "author": "avr8js-electron",
+  "pins": ["AOUT", "DOUT"],
+  "controls": [
+    {
+      "id": "periodMs",
+      "label": "Wave Period",
+      "type": "range",
+      "min": 100,
+      "max": 4000,
+      "step": 50,
+      "defaultValue": 400,
+      "unit": "ms"
+    },
+    {
+      "id": "maxVoltageMv",
+      "label": "Max Voltage",
+      "type": "range",
+      "min": 500,
+      "max": 5000,
+      "step": 100,
+      "defaultValue": 5000,
+      "unit": "mV"
+    },
+    {
+      "id": "thresholdPercent",
+      "label": "DOUT Threshold",
+      "type": "range",
+      "min": 5,
+      "max": 95,
+      "step": 1,
+      "defaultValue": 50,
+      "unit": "%"
+    }
+  ]
+}

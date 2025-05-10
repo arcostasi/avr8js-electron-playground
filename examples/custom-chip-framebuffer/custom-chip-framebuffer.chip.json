@@ -1,0 +1,41 @@
+{
+  "name": "Scroll Text Screen",
+  "author": "avr8js-electron",
+  "pins": ["VCC", "GND"],
+  "display": {
+    "width": 128,
+    "height": 32
+  },
+  "controls": [
+    {
+      "id": "scrollDelayMs",
+      "label": "Scroll Delay",
+      "type": "range",
+      "min": 10,
+      "max": 200,
+      "step": 5,
+      "defaultValue": 50,
+      "unit": "ms"
+    },
+    {
+      "id": "hueDivisor",
+      "label": "Hue Drift",
+      "type": "range",
+      "min": 1,
+      "max": 40,
+      "step": 1,
+      "defaultValue": 12,
+      "unit": "div"
+    },
+    {
+      "id": "sparkleCount",
+      "label": "Sparkles",
+      "type": "range",
+      "min": 0,
+      "max": 40,
+      "step": 1,
+      "defaultValue": 18,
+      "unit": "px"
+    }
+  ]
+}

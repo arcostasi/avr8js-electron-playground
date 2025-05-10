@@ -1,0 +1,82 @@
+{
+  "version": 2,
+  "author": "avr8js-electron",
+  "editor": "avr8js-electron-playground",
+  "parts": [
+    {
+      "id": "uno",
+      "type": "wokwi-arduino-uno",
+      "top": 220,
+      "left": 160,
+      "rotate": 0
+    },
+    {
+      "id": "chip1",
+      "type": "chip-custom-chip-spi",
+      "top": 92,
+      "left": 243,
+      "rotate": 0,
+      "attrs": {}
+    },
+    {
+      "id": "stepper1",
+      "type": "wokwi-stepper-motor",
+      "top": 57,
+      "left": 437,
+      "rotate": 0,
+      "attrs": {
+        "stepsPerRev": "64"
+      }
+    }
+  ],
+  "connections": [
+    {
+      "id": "conn-0",
+      "from": "uno:13",
+      "to": "chip1:SCK",
+      "color": "green"
+    },
+    {
+      "id": "conn-1",
+      "from": "uno:11",
+      "to": "chip1:MOSI",
+      "color": "blue"
+    },
+    {
+      "id": "conn-2",
+      "from": "chip1:MISO",
+      "to": "uno:12",
+      "color": "orange"
+    },
+    {
+      "id": "conn-3",
+      "from": "uno:10",
+      "to": "chip1:SS",
+      "color": "purple"
+    },
+    {
+      "id": "conn-4",
+      "from": "stepper1:A+",
+      "to": "uno:4",
+      "color": "green"
+    },
+    {
+      "id": "conn-5",
+      "from": "stepper1:A-",
+      "to": "uno:5",
+      "color": "green"
+    },
+    {
+      "id": "conn-6",
+      "from": "stepper1:B+",
+      "to": "uno:6",
+      "color": "green"
+    },
+    {
+      "id": "conn-7",
+      "from": "stepper1:B-",
+      "to": "uno:7",
+      "color": "green"
+    }
+  ]
+}

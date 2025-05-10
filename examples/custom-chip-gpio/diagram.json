@@ -1,0 +1,112 @@
+{
+  "version": 2,
+  "author": "avr8js-electron",
+  "editor": "avr8js-electron-playground",
+  "parts": [
+    {
+      "id": "uno",
+      "type": "wokwi-arduino-uno",
+      "top": 220,
+      "left": 180,
+      "rotate": 0
+    },
+    {
+      "id": "chip1",
+      "type": "chip-demo-gpio",
+      "top": 62,
+      "left": 345,
+      "rotate": 0,
+      "attrs": {}
+    },
+    {
+      "id": "r1",
+      "type": "wokwi-resistor",
+      "top": 163,
+      "left": 282,
+      "rotate": 270,
+      "attrs": {
+        "value": "220"
+      }
+    },
+    {
+      "id": "led1",
+      "type": "wokwi-led",
+      "top": 46,
+      "left": 244,
+      "rotate": 0,
+      "attrs": {
+        "color": "blue"
+      }
+    },
+    {
+      "id": "r2",
+      "type": "wokwi-resistor",
+      "top": 313,
+      "left": 506,
+      "rotate": 270,
+      "attrs": {
+        "value": "220"
+      }
+    },
+    {
+      "id": "led2",
+      "type": "wokwi-led",
+      "top": 178,
+      "left": 478,
+      "rotate": 0,
+      "attrs": {
+        "color": "green"
+      }
+    }
+  ],
+  "connections": [
+    {
+      "id": "conn-0-1772750458611",
+      "from": "uno:2",
+      "to": "chip1:IN",
+      "color": "purple"
+    },
+    {
+      "id": "conn-1-1772750465602",
+      "from": "chip1:OUT",
+      "to": "uno:8",
+      "color": "orange"
+    },
+    {
+      "id": "conn-2",
+      "from": "uno:2",
+      "to": "r1:1",
+      "color": "blue"
+    },
+    {
+      "id": "conn-3",
+      "from": "r1:2",
+      "to": "led1:A",
+      "color": "blue"
+    },
+    {
+      "id": "conn-4",
+      "from": "led1:C",
+      "to": "uno:GND.1",
+      "color": "black"
+    },
+    {
+      "id": "conn-5",
+      "from": "uno:9",
+      "to": "r2:1",
+      "color": "green"
+    },
+    {
+      "id": "conn-6",
+      "from": "r2:2",
+      "to": "led2:A",
+      "color": "green"
+    },
+    {
+      "id": "conn-7",
+      "from": "led2:C",
+      "to": "uno:GND.2",
+      "color": "black"
+    }
+  ]
+}

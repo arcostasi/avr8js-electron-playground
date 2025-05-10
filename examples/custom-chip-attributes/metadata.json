@@ -1,0 +1,8 @@
+{
+  "name": "Custom Chip Attributes",
+  "slug": "custom-chip-attributes",
+  "category": "advanced",
+  "board": "uno",
+  "description": "Demonstrates attribute initialization and reads via attr_init/attr_read.",
+  "tags": ["custom-chip", "attributes", "api"]
+}

@@ -26,14 +26,25 @@ import PinTooltip from './PinTooltip';
 import WireColorPopup from './WireColorPopup';
 import ComponentPropertyEditor, { PROPERTY_CATALOG } from './ComponentPropertyEditor';
 import type { ComponentProperties } from './ComponentPropertyEditor';
+import { startPerfMeasure } from '../../utils/perf';
 
 export default function WokwiSimulator({
-    diagram, hex, isCompiling, onCompile,
-    onSerialOutput, onAddComponent, onDiagramChange, serialWriteRef,
+    diagram, hex, customChipArtifacts, customChipManifests, isCompiling, onCompile,
+    onSerialOutput, onChipOutput, onAddComponent, onDiagramChange, serialWriteRef,
     onUndo, onRedo, canUndo, canRedo,
     defaultWireColor = 'green',
     showPinTooltips = true,
-}: WokwiSimulatorProps) {
+}: Readonly<WokwiSimulatorProps>) {
+    const mountMeasureRef = useRef<null | (() => number)>(null);
+    if (!mountMeasureRef.current) {
+        const partCount = diagram?.parts.length ?? 0;
+        const connectionCount = diagram?.connections.length ?? 0;
+        mountMeasureRef.current = startPerfMeasure(
+            'simulator-component-mount',
+            `parts=${partCount},conns=${connectionCount}`,
+        );
+    }
+
     // ── Local UI State ──
     const [isEditMode, setIsEditMode] = useState(true);
     const wireColor = defaultWireColor;
@@ -57,10 +68,30 @@ export default function WokwiSimulator({
         diagramRef.current = diagram;
     }, [diagram]);
 
+    useEffect(() => {
+        mountMeasureRef.current?.();
+        mountMeasureRef.current = null;
+    }, []);
+
     // ── Hooks ──
     const canvas = useCanvasInteraction(diagramRef, onDiagramChange);
     const pinPositions = usePinPositions(diagram);
-    const sim = useSimulation({ diagram, hex, onSerialOutput, setIsEditMode });
+    const sim = useSimulation({
+        diagram,
+        hex,
+        customChipArtifacts,
+        customChipManifests,
+        onSerialOutput,
+        onChipOutput,
+        setIsEditMode,
+    });
+
+    let canvasCursor = 'default';
+    if (canvas.isPanning) {
+        canvasCursor = 'grabbing';
+    } else if (wiringStart) {
+        canvasCursor = 'crosshair';
+    }
 
 
     // Expose serialWrite to parent via ref
@@ -72,18 +103,24 @@ export default function WokwiSimulator({
     // Build property editor data from adjustable devices
     const editableComponents = useMemo<ComponentProperties[]>(() => {
         return sim.adjustableDevices
-            .filter(d => PROPERTY_CATALOG[d.partType])
+            .filter((d) => {
+                const hasCustomProps = Boolean(d.properties?.length);
+                const hasCatalogProps = Boolean(PROPERTY_CATALOG[d.partType]?.props?.length);
+                return hasCustomProps || hasCatalogProps;
+            })
             .map(d => {
                 const cat = PROPERTY_CATALOG[d.partType];
+                const properties = d.properties ?? cat?.props ?? [];
                 return {
                     partId: d.partId,
                     partType: d.partType,
-                    label: cat.label,
-                    properties: cat.props,
+                    label: d.label ?? cat?.label ?? d.partType,
+                    properties,
                     get: d.get,
                     set: d.set,
                 };
-            });
+            })
+            .filter((c) => c.properties.length > 0);
     }, [sim.adjustableDevices]);
 
     const handleWireClick = (e: React.MouseEvent, connId: string) => {
@@ -173,7 +210,9 @@ export default function WokwiSimulator({
     const handleLabelTextChange = (partId: string, newText: string) => {
         if (!diagramRef.current || !onDiagramChange) return;
         const newParts = diagramRef.current.parts.map(p =>
-            p.id === partId ? { ...p, attrs: { ...(p.attrs ?? {}), text: newText } } : p
+            p.id === partId
+                ? { ...p, attrs: p.attrs ? { ...p.attrs, text: newText } : { text: newText } }
+                : p
         );
         onDiagramChange({ ...diagramRef.current, parts: newParts });
     };
@@ -247,6 +286,7 @@ export default function WokwiSimulator({
                 renderAddMenu={
                     <AddComponentMenu
                         diagram={diagram}
+                        customChipManifests={customChipManifests}
                         pan={canvas.pan}
                         zoom={canvas.zoom}
                         onAddComponent={onAddComponent}
@@ -297,6 +337,7 @@ export default function WokwiSimulator({
                         <div
                             ref={canvas.containerRef}
                             className="flex-1 relative overflow-hidden outline-none"
+                            role="application"
                             style={{
                                 backgroundColor: 'var(--vsc-surface)',
                                 backgroundImage: isEditMode
@@ -304,7 +345,7 @@ export default function WokwiSimulator({
                                     : 'none',
                                 backgroundSize: `${20 * canvas.zoom}px ${20 * canvas.zoom}px`,
                                 backgroundPosition: `${canvas.pan.x}px ${canvas.pan.y}px`,
-                                cursor: canvas.isPanning ? 'grabbing' : (wiringStart ? 'crosshair' : 'default'),
+                                cursor: canvasCursor,
                             }}
                             onWheel={canvas.handleWheel}
                             onPointerDown={handleCanvasPointerDown}
@@ -325,6 +366,11 @@ export default function WokwiSimulator({
                                     <PartRenderer
                                         key={part.id}
                                         part={part}
+                                        customChipManifest={
+                                            part.type.startsWith('chip-')
+                                                ? customChipManifests?.[part.type.slice('chip-'.length)]
+                                                : undefined
+                                        }
                                         isEditMode={isEditMode}
                                         isDragging={canvas.draggingPart === part.id}
                                         isSelected={selectedPartId === part.id}
@@ -382,7 +428,7 @@ export default function WokwiSimulator({
 
                         {/* ── Oscilloscope ── */}
                         {showOscilloscope && (
-                            <div style={{ height: 220 }} className="border-t border-[#222] shrink-0">
+                            <div style={{ height: 220 }} className="border-t border-vscode-border shrink-0">
                                 <Oscilloscope
                                     isPlaying={sim.isPlaying}
                                     getCpuSnapshot={sim.getCpuSnapshot}

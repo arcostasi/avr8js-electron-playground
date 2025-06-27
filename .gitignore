@@ -8,5 +8,3 @@ dist
 sketch
 *.log
 *.hex
-rewrite-history.sh
-cleanup-commits.sh

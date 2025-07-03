@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import type { DiscoveredProject, ProjectFile } from '../services/project-loader';
+import { markPerf } from '../utils/perf';
 
 export interface CompileHistoryEntry {
     id: string;
@@ -30,7 +31,7 @@ interface ProjectState {
     // Build / Terminal Data
     hex: string | null;
     isCompiling: boolean;
-    terminalOutput: string;
+    terminalChunks: string[];
 
     /** Last N compilation results (newest first) */
     compileHistory: CompileHistoryEntry[];
@@ -52,9 +53,36 @@ interface ProjectState {
 
     appendTerminalOutput: (text: string) => void;
     clearTerminalOutput: () => void;
+    setTerminalChunks: (chunks: string[]) => void;
 
     addCompileHistory: (entry: CompileHistoryEntry) => void;
     clearCompileHistory: () => void;
+    setCompileHistory: (entries: CompileHistoryEntry[]) => void;
+}
+
+const MAX_TERMINAL_CHUNKS = 400;
+const MAX_TERMINAL_CHARS = 256 * 1024;
+let terminalTrimWarningIssued = false;
+
+function trimTerminalChunks(chunks: string[]): { chunks: string[]; droppedCount: number } {
+    if (chunks.length === 0) return { chunks, droppedCount: 0 };
+
+    let totalChars = 0;
+    const kept: string[] = [];
+    for (let index = chunks.length - 1; index >= 0; index--) {
+        const chunk = chunks[index];
+        totalChars += chunk.length;
+        kept.push(chunk);
+        if (kept.length >= MAX_TERMINAL_CHUNKS || totalChars >= MAX_TERMINAL_CHARS) {
+            break;
+        }
+    }
+
+    kept.reverse();
+    return {
+        chunks: kept,
+        droppedCount: Math.max(0, chunks.length - kept.length),
+    };
 }
 
 export const useProjectStore = create<ProjectState>((set) => ({
@@ -68,7 +96,7 @@ export const useProjectStore = create<ProjectState>((set) => ({
 
     hex: null,
     isCompiling: false,
-    terminalOutput: '',
+    terminalChunks: [],
     compileHistory: [],
 
     setProjects: (projects) => set({ projects }),
@@ -95,11 +123,29 @@ export const useProjectStore = create<ProjectState>((set) => ({
 
     setIsCompiling: (isCompiling) => set({ isCompiling }),
 
-    appendTerminalOutput: (text) => set((state) => ({
-        terminalOutput: state.terminalOutput + text
-    })),
+    appendTerminalOutput: (text) => set((state) => {
+        const trimmed = trimTerminalChunks([...state.terminalChunks, text]);
+        if (trimmed.droppedCount > 0 && !terminalTrimWarningIssued) {
+            terminalTrimWarningIssued = true;
+            const detail = `dropped=${trimmed.droppedCount},limitChunks=${MAX_TERMINAL_CHUNKS},limitChars=${MAX_TERMINAL_CHARS}`;
+            console.warn(`[terminal] output buffer trimmed (${detail})`);
+            markPerf('warning:terminal-buffer-limit', detail);
+        }
 
-    clearTerminalOutput: () => set({ terminalOutput: '' }),
+        return {
+            terminalChunks: trimmed.chunks,
+        };
+    }),
+
+    clearTerminalOutput: () => {
+        terminalTrimWarningIssued = false;
+        set({ terminalChunks: [] });
+    },
+
+    setTerminalChunks: (chunks) => {
+        terminalTrimWarningIssued = false;
+        set({ terminalChunks: trimTerminalChunks(chunks).chunks });
+    },
 
     addCompileHistory: (entry) => set((state) => ({
         // Keep last 50 entries, newest first
@@ -107,4 +153,6 @@ export const useProjectStore = create<ProjectState>((set) => ({
     })),
 
     clearCompileHistory: () => set({ compileHistory: [] }),
+
+    setCompileHistory: (entries) => set({ compileHistory: entries.slice(0, 50) }),
 }));

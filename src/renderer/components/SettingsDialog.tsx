@@ -11,7 +11,7 @@ import {
     useSettingsStore,
     DEFAULT_SETTINGS,
 } from '../store/settingsStore';
-import type { AppSettings, BuildBackend, FQBNMap } from '../store/settingsStore';
+import type { AppSettings, BuildBackend, ChipBuildBackend, FQBNMap } from '../store/settingsStore';
 import { WIRE_COLORS } from '../constants/wokwi-components';
 
 // ── Tab definition ──────────────────────────────────────────────────────────
@@ -33,27 +33,27 @@ const TABS: TabDef[] = [
 
 // ── Shared UI atoms ─────────────────────────────────────────────────────────
 
-function Label({ children }: { children: React.ReactNode }) {
+function Label({ children }: Readonly<{ children: React.ReactNode }>) {
     return (
-        <label className="text-[12px] font-semibold text-gray-400 uppercase tracking-wider block mb-1">
+        <label className="text-[12px] font-semibold text-vscode-text opacity-80 uppercase tracking-wider block mb-1">
             {children}
         </label>
     );
 }
 
-function HelpText({ children }: { children: React.ReactNode }) {
-    return <p className="text-[11px] text-gray-500 mt-0.5">{children}</p>;
+function HelpText({ children }: Readonly<{ children: React.ReactNode }>) {
+    return <p className="text-[11px] text-vscode-text opacity-65 mt-0.5">{children}</p>;
 }
 
 function TextInput({
     value, onChange, placeholder, disabled, monospace,
-}: {
+}: Readonly<{
     value: string;
     onChange: (v: string) => void;
     placeholder?: string;
     disabled?: boolean;
     monospace?: boolean;
-}) {
+}>) {
     return (
         <input
             type="text"
@@ -63,8 +63,8 @@ function TextInput({
             disabled={disabled}
             className={[
                 'w-full px-3 py-1.5 rounded-md text-[13px]',
-                'bg-[#1e1e1e] border border-[#3a3a3a]',
-                'text-gray-100 placeholder-gray-600',
+                'bg-vscode-input border border-vscode-border',
+                'text-vscode-textActive placeholder:text-vscode-text placeholder:opacity-55',
                 'focus:outline-none focus:border-blue-500/60',
                 'disabled:opacity-40 disabled:cursor-not-allowed',
                 monospace ? 'font-mono' : '',
@@ -73,16 +73,42 @@ function TextInput({
     );
 }
 
+function TextArea({
+    value, onChange, placeholder, rows = 6, monospace,
+}: Readonly<{
+    value: string;
+    onChange: (v: string) => void;
+    placeholder?: string;
+    rows?: number;
+    monospace?: boolean;
+}>) {
+    return (
+        <textarea
+            value={value}
+            rows={rows}
+            onChange={(e) => onChange(e.target.value)}
+            placeholder={placeholder}
+            className={[
+                'w-full px-3 py-2 rounded-md text-[12px] resize-y',
+                'bg-vscode-input border border-vscode-border',
+                'text-vscode-textActive placeholder:text-vscode-text placeholder:opacity-55',
+                'focus:outline-none focus:border-blue-500/60',
+                monospace ? 'font-mono' : '',
+            ].join(' ')}
+        />
+    );
+}
+
 function NumberInput({
     value, onChange, min, max, step, disabled,
-}: {
+}: Readonly<{
     value: number;
     onChange: (v: number) => void;
     min?: number;
     max?: number;
     step?: number;
     disabled?: boolean;
-}) {
+}>) {
     return (
         <input
             type="number"
@@ -97,8 +123,8 @@ function NumberInput({
             }}
             className={[
                 'w-28 px-3 py-1.5 rounded-md text-[13px]',
-                'bg-[#1e1e1e] border border-[#3a3a3a]',
-                'text-gray-100',
+                'bg-vscode-input border border-vscode-border',
+                'text-vscode-textActive',
                 'focus:outline-none focus:border-blue-500/60',
                 'disabled:opacity-40 disabled:cursor-not-allowed',
             ].join(' ')}
@@ -108,11 +134,11 @@ function NumberInput({
 
 function Toggle({
     checked, onChange, label,
-}: {
+}: Readonly<{
     checked: boolean;
     onChange: (v: boolean) => void;
     label: string;
-}) {
+}>) {
     return (
         <button
             type="button"
@@ -122,7 +148,7 @@ function Toggle({
             <div
                 className={[
                     'relative w-10 h-5 rounded-full transition-colors duration-200',
-                    checked ? 'bg-blue-600' : 'bg-[#3a3a3a]',
+                    checked ? 'bg-blue-600' : 'bg-vscode-input',
                 ].join(' ')}
             >
                 <div
@@ -133,18 +159,18 @@ function Toggle({
                     ].join(' ')}
                 />
             </div>
-            <span className="text-[13px] text-gray-300 group-hover:text-white transition-colors">
+            <span className="text-[13px] text-vscode-text group-hover:text-vscode-textActive transition-colors">
                 {label}
             </span>
         </button>
     );
 }
 
-function SectionDivider({ title }: { title: string }) {
+function SectionDivider({ title }: Readonly<{ title: string }>) {
     return (
         <div className="flex items-center gap-2 my-4">
-            <span className="text-[11px] font-semibold text-gray-500 uppercase tracking-wider">{title}</span>
-            <div className="flex-1 h-px bg-[#333]" />
+            <span className="text-[11px] font-semibold text-vscode-text opacity-65 uppercase tracking-wider">{title}</span>
+            <div className="flex-1 h-px bg-vscode-border" />
         </div>
     );
 }
@@ -153,10 +179,10 @@ function SectionDivider({ title }: { title: string }) {
 
 function BuildTab({
     draft, update,
-}: {
+}: Readonly<{
     draft: AppSettings;
     update: (patch: Partial<AppSettings>) => void;
-}) {
+}>) {
     const iCloud = draft.buildBackend === 'cloud';
     const iLocal = draft.buildBackend === 'local';
 
@@ -176,28 +202,29 @@ function BuildTab({
                 {([ ['cloud', 'Wokwi Cloud (Hexi)', 'Fast cloud compilation, no local tools required.'],
                     ['local', 'Local arduino-cli',   'Use an arduino-cli installation on this machine.'],
                 ] as [BuildBackend, string, string][]).map(([val, lbl, help]) => (
-                    <label
+                    <div
                         key={val}
                         className={[
                             'flex items-start gap-3 p-3 rounded-lg cursor-pointer border transition-colors',
                             draft.buildBackend === val
                                 ? 'border-blue-500/60 bg-blue-500/10'
-                                : 'border-[#333] hover:border-[#444] hover:bg-[#2a2a2a]',
+                                : 'border-vscode-border hover:bg-vscode-hover',
                         ].join(' ')}
                     >
                         <input
                             type="radio"
                             name="buildBackend"
+                            aria-label={lbl}
                             value={val}
                             checked={draft.buildBackend === val}
                             onChange={() => update({ buildBackend: val })}
                             className="mt-0.5 accent-blue-500"
                         />
                         <div>
-                            <div className="text-[13px] font-medium text-gray-200">{lbl}</div>
-                            <div className="text-[11px] text-gray-500 mt-0.5">{help}</div>
+                            <div className="text-[13px] font-medium text-vscode-textActive">{lbl}</div>
+                            <div className="text-[11px] text-vscode-text opacity-65 mt-0.5">{help}</div>
                         </div>
-                    </label>
+                    </div>
                 ))}
             </div>
 
@@ -233,7 +260,7 @@ function BuildTab({
                             />
                             <HelpText>
                                 The directory that contains the arduino-cli executable.
-                                Example: <code className="text-gray-400">C:\Arduino</code>
+                                Example: <code className="text-vscode-text opacity-80">C:\Arduino</code>
                             </HelpText>
                         </div>
 
@@ -247,8 +274,8 @@ function BuildTab({
                             />
                             <HelpText>
                                 File name of the executable inside the folder above.
-                                Usually <code className="text-gray-400">arduino-cli</code> or{' '}
-                                <code className="text-gray-400">arduino-cli.exe</code>.
+                                Usually <code className="text-vscode-text opacity-80">arduino-cli</code> or{' '}
+                                <code className="text-vscode-text opacity-80">arduino-cli.exe</code>.
                             </HelpText>
                         </div>
 
@@ -261,7 +288,7 @@ function BuildTab({
                                 monospace
                             />
                             <HelpText>
-                                Flags appended to every <code className="text-gray-400">arduino-cli compile</code> call.
+                                Flags appended to every <code className="text-vscode-text opacity-80">arduino-cli compile</code> call.
                             </HelpText>
                         </div>
                     </div>
@@ -270,7 +297,7 @@ function BuildTab({
                     <div className="space-y-2">
                         {fqbnBoards.map(({ key, label }) => (
                             <div key={key} className="flex items-center gap-3">
-                                <span className="text-[12px] text-gray-400 w-28 shrink-0">{label}</span>
+                                <span className="text-[12px] text-vscode-text opacity-75 w-28 shrink-0">{label}</span>
                                 <TextInput
                                     value={draft.fqbnMap[key] ?? ''}
                                     onChange={(v) =>
@@ -284,16 +311,78 @@ function BuildTab({
                     </div>
                 </div>
             )}
+
+            <SectionDivider title="Custom Chips (WASM)" />
+            <div className="space-y-3">
+                <Label>Chip compiler backend</Label>
+                {([
+                    ['external', 'External toolchain (IPC)', 'Uses configured command template in Electron main process.'],
+                    ['embedded-experimental', 'Embedded experimental (Worker)', 'Runs an in-app experimental builder pipeline.'],
+                ] as [ChipBuildBackend, string, string][]).map(([val, lbl, help]) => (
+                    <div
+                        key={val}
+                        className={[
+                            'flex items-start gap-3 p-3 rounded-lg cursor-pointer border transition-colors',
+                            draft.chipBuildBackend === val
+                                ? 'border-blue-500/60 bg-blue-500/10'
+                                : 'border-vscode-border hover:bg-vscode-hover',
+                        ].join(' ')}
+                    >
+                        <input
+                            type="radio"
+                            name="chipBuildBackend"
+                            aria-label={lbl}
+                            value={val}
+                            checked={draft.chipBuildBackend === val}
+                            onChange={() => update({ chipBuildBackend: val })}
+                            className="mt-0.5 accent-blue-500"
+                        />
+                        <div>
+                            <div className="text-[13px] font-medium text-vscode-textActive">{lbl}</div>
+                            <div className="text-[11px] text-vscode-text opacity-65 mt-0.5">{help}</div>
+                        </div>
+                    </div>
+                ))}
+
+                {draft.chipBuildBackend === 'external' && (
+                    <div>
+                        <Label>Chip build command</Label>
+                        <TextInput
+                            value={draft.chipBuildCommand}
+                            onChange={(v) => update({ chipBuildCommand: v })}
+                            placeholder='clang --target=wasm32 -O2 -nostdlib -Wl,--no-entry -Wl,--export-all -Wl,--allow-undefined -o "{{OUTPUT}}" "{{SOURCE}}"'
+                            monospace
+                        />
+                        <HelpText>
+                            Executed by the app for each <code className="text-vscode-text opacity-80">*.chip.c</code> file. Supported placeholders:{' '}
+                            <code className="text-vscode-text opacity-80">{'{{SOURCE}}'}</code>,{' '}
+                            <code className="text-vscode-text opacity-80">{'{{OUTPUT}}'}</code>,{' '}
+                            <code className="text-vscode-text opacity-80">{'{{CHIP_NAME}}'}</code>,{' '}
+                            <code className="text-vscode-text opacity-80">{'{{PROJECT_DIR}}'}</code>.
+                        </HelpText>
+                    </div>
+                )}
+
+                {draft.chipBuildBackend === 'embedded-experimental' && (
+                    <HelpText>
+                        Experimental embedded pipeline. Supports{' '}
+                        <code className="text-vscode-text opacity-80">{'// @wasm-base64 <...>'}</code>{' '}
+                        and can reuse an existing{' '}
+                        <code className="text-vscode-text opacity-80">{'<name>.chip.wasm'}</code>{' '}
+                        artifact from project files with WASM validation before runtime.
+                    </HelpText>
+                )}
+            </div>
         </div>
     );
 }
 
 function EditorTab({
     draft, update,
-}: {
+}: Readonly<{
     draft: AppSettings;
     update: (patch: Partial<AppSettings>) => void;
-}) {
+}>) {
     return (
         <div className="space-y-5">
             <SectionDivider title="Appearance" />
@@ -340,7 +429,7 @@ function EditorTab({
                         max={30000}
                         step={500}
                     />
-                    <span className="text-[12px] text-gray-500">
+                    <span className="text-[12px] text-vscode-text opacity-65">
                         {draft.autoSaveDelay === 0
                             ? 'disabled'
                             : `saves ${(draft.autoSaveDelay / 1000).toFixed(1)} s after last change`}
@@ -350,16 +439,41 @@ function EditorTab({
                     Set to 0 to disable auto-save. Changes are always saved when switching projects.
                 </HelpText>
             </div>
+
+            <SectionDivider title="Performance" />
+            <div>
+                <Toggle
+                    checked={draft.performanceMode}
+                    onChange={(v) => update({ performanceMode: v })}
+                    label="Enable performance logs and measurements"
+                />
+                <HelpText>
+                    Records startup, project load, Monaco boot and simulation timings, streams them to the terminal, and shows a visual metrics panel.
+                </HelpText>
+            </div>
+
+            <div>
+                <Label>Performance thresholds JSON</Label>
+                <TextArea
+                    value={draft.performanceThresholdsJson}
+                    onChange={(v) => update({ performanceThresholdsJson: v })}
+                    rows={8}
+                    monospace
+                />
+                <HelpText>
+                    Maps operation names to thresholds in milliseconds. Use exact keys or prefix wildcards such as <code className="text-vscode-text opacity-80">project-load*</code>.
+                </HelpText>
+            </div>
         </div>
     );
 }
 
 function SimulatorTab({
     draft, update,
-}: {
+}: Readonly<{
     draft: AppSettings;
     update: (patch: Partial<AppSettings>) => void;
-}) {
+}>) {
     return (
         <div className="space-y-5">
             <SectionDivider title="Wiring" />
@@ -374,8 +488,8 @@ function SimulatorTab({
                             className={[
                                 'w-7 h-7 rounded-full border-2 transition-all',
                                 draft.defaultWireColor === c
-                                    ? 'border-white scale-110 shadow-md shadow-white/20'
-                                    : 'border-[#444] opacity-70 hover:opacity-100 hover:scale-110',
+                                    ? 'border-vscode-textActive scale-110 shadow-md shadow-white/20'
+                                    : 'border-vscode-border opacity-70 hover:opacity-100 hover:scale-110',
                             ].join(' ')}
                             style={{ backgroundColor: c }}
                         />
@@ -402,26 +516,26 @@ function SimulatorTab({
 function AboutTab() {
     return (
         <div className="space-y-5">
-            <div className="flex items-center gap-4 p-4 bg-[#1e1e1e] rounded-lg border border-[#333]">
+            <div className="flex items-center gap-4 p-4 bg-vscode-surface rounded-lg border border-vscode-border">
                 <div className="text-4xl">⚡</div>
                 <div>
-                    <div className="text-[16px] font-bold text-gray-100">AVR8js Electron Playground</div>
-                    <div className="text-[12px] text-gray-500 mt-0.5">
-                        v0.18 · Electron + React + Vite + Wokwi Elements
+                    <div className="text-[16px] font-bold text-vscode-textActive">AVR8js Electron Playground</div>
+                    <div className="text-[12px] text-vscode-text opacity-65 mt-0.5">
+                        v0.21.0 · Electron + React + Vite + Wokwi Elements
                     </div>
                 </div>
             </div>
 
-            <div className="space-y-2 text-[13px] text-gray-400">
+            <div className="space-y-2 text-[13px] text-vscode-text opacity-80">
                 <p>
                     An Arduino/AVR simulator powered by{' '}
-                    <strong className="text-gray-300">avr8js</strong> and the{' '}
-                    <strong className="text-gray-300">Wokwi Elements</strong> component library.
+                    <strong className="text-vscode-textActive">avr8js</strong> and the{' '}
+                    <strong className="text-vscode-textActive">Wokwi Elements</strong> component library.
                 </p>
                 <p>
                     Cloud compilation via{' '}
-                    <strong className="text-gray-300">Hexi / Wokwi</strong>. Local compilation
-                    requires a working <strong className="text-gray-300">arduino-cli</strong> installation.
+                    <strong className="text-vscode-textActive">Hexi / Wokwi</strong>. Local compilation
+                    requires a working <strong className="text-vscode-textActive">arduino-cli</strong> installation.
                 </p>
             </div>
 
@@ -438,10 +552,10 @@ function AboutTab() {
                     ['Double-click wire', 'Delete wire (quick)'],
                 ] as [string, string][]).map(([key, desc]) => (
                     <React.Fragment key={key}>
-                        <kbd className="bg-[#2a2a2a] border border-[#444] px-2 py-0.5 rounded font-mono text-gray-300 text-[11px] w-fit">
+                        <kbd className="bg-vscode-input border border-vscode-border px-2 py-0.5 rounded font-mono text-vscode-text text-[11px] w-fit">
                             {key}
                         </kbd>
-                        <span className="text-gray-400">{desc}</span>
+                        <span className="text-vscode-text opacity-80">{desc}</span>
                     </React.Fragment>
                 ))}
             </div>
@@ -455,8 +569,8 @@ interface SettingsDialogProps {
     onClose: () => void;
 }
 
-export default function SettingsDialog({ onClose }: SettingsDialogProps) {
-    const { updateSettings, resetSettings, ...storedSettings } = useSettingsStore();
+export default function SettingsDialog({ onClose }: Readonly<SettingsDialogProps>) {
+    const { updateSettings, ...storedSettings } = useSettingsStore();
 
     // Local draft — only committed on Save
     const [draft, setDraft] = useState<AppSettings>({ ...storedSettings } as AppSettings);
@@ -493,17 +607,17 @@ export default function SettingsDialog({ onClose }: SettingsDialogProps) {
         >
             {/* ── Dialog card ── */}
             <div
-                className="flex flex-col w-[780px] max-h-[85vh] bg-[#252526] border border-[#3a3a3a] rounded-xl shadow-2xl shadow-black/70 overflow-hidden"
+                className="flex flex-col w-[780px] max-h-[85vh] bg-vscode-bg border border-vscode-border rounded-xl shadow-2xl shadow-black/70 overflow-hidden"
                 onPointerDown={(e) => e.stopPropagation()}
             >
                 {/* Header */}
-                <div className="flex items-center justify-between px-5 py-3.5 border-b border-[#333] shrink-0">
+                <div className="flex items-center justify-between px-5 py-3.5 border-b border-vscode-border shrink-0 bg-vscode-surface">
                     <div className="flex items-center gap-2">
-                        <span className="text-gray-300 font-semibold text-[15px]">⚙ Settings</span>
+                        <span className="text-vscode-textActive font-semibold text-[15px]">⚙ Settings</span>
                     </div>
                     <button
                         onClick={onClose}
-                        className="text-gray-500 hover:text-gray-200 transition-colors p-1 rounded"
+                        className="text-vscode-text opacity-60 hover:opacity-100 transition-colors p-1 rounded"
                     >
                         <X size={16} />
                     </button>
@@ -512,7 +626,7 @@ export default function SettingsDialog({ onClose }: SettingsDialogProps) {
                 {/* Body: sidebar tabs + content */}
                 <div className="flex flex-1 overflow-hidden">
                     {/* Sidebar */}
-                    <nav className="flex flex-col w-40 border-r border-[#333] py-2 shrink-0 bg-[#1e1e1e]">
+                    <nav className="flex flex-col w-40 border-r border-vscode-border py-2 shrink-0 bg-vscode-surface">
                         {TABS.map((tab) => (
                             <button
                                 key={tab.id}
@@ -521,8 +635,8 @@ export default function SettingsDialog({ onClose }: SettingsDialogProps) {
                                     'flex items-center gap-2.5 px-4 py-2.5 text-[13px] text-left',
                                     'transition-colors font-medium',
                                     activeTab === tab.id
-                                        ? 'text-white bg-[#2a2a2a] border-l-2 border-blue-500'
-                                        : 'text-gray-400 hover:text-gray-200 hover:bg-[#252525] border-l-2 border-transparent',
+                                        ? 'text-vscode-textActive bg-vscode-hover border-l-2 border-blue-500'
+                                        : 'text-vscode-text opacity-80 hover:text-vscode-textActive hover:bg-vscode-hover border-l-2 border-transparent',
                                 ].join(' ')}
                             >
                                 {tab.icon}
@@ -541,10 +655,10 @@ export default function SettingsDialog({ onClose }: SettingsDialogProps) {
                 </div>
 
                 {/* Footer */}
-                <div className="flex items-center justify-between px-5 py-3 border-t border-[#333] shrink-0 bg-[#1e1e1e]">
+                <div className="flex items-center justify-between px-5 py-3 border-t border-vscode-border shrink-0 bg-vscode-surface">
                     <button
                         onClick={handleReset}
-                        className="flex items-center gap-1.5 text-[12px] text-gray-500 hover:text-gray-300 transition-colors"
+                        className="flex items-center gap-1.5 text-[12px] text-vscode-text opacity-70 hover:opacity-100 transition-colors"
                     >
                         <RotateCcw size={13} />
                         Reset to defaults
@@ -552,7 +666,7 @@ export default function SettingsDialog({ onClose }: SettingsDialogProps) {
                     <div className="flex items-center gap-2">
                         <button
                             onClick={onClose}
-                            className="px-4 py-1.5 text-[13px] text-gray-400 hover:text-gray-200 hover:bg-[#333] rounded transition-colors"
+                            className="px-4 py-1.5 text-[13px] text-vscode-text opacity-80 hover:opacity-100 hover:bg-vscode-hover rounded transition-colors"
                         >
                             Cancel
                         </button>

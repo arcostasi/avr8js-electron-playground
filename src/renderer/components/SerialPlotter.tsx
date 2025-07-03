@@ -55,6 +55,25 @@ function parseSeriesData(output: string): number[][] {
 
 function PlotCanvas({ series }: { series: number[][] }) {
     const canvasRef = useRef<HTMLCanvasElement>(null);
+    const [size, setSize] = useState({ width: 0, height: 0 });
+
+    useEffect(() => {
+        const canvas = canvasRef.current;
+        if (!canvas) return;
+
+        const update = () => {
+            const rect = canvas.getBoundingClientRect();
+            setSize({
+                width: Math.max(1, Math.floor(rect.width)),
+                height: Math.max(1, Math.floor(rect.height)),
+            });
+        };
+
+        update();
+        const observer = new ResizeObserver(update);
+        observer.observe(canvas);
+        return () => observer.disconnect();
+    }, []);
 
     useEffect(() => {
         const canvas = canvasRef.current;
@@ -62,27 +81,40 @@ function PlotCanvas({ series }: { series: number[][] }) {
         const ctx = canvas.getContext('2d');
         if (!ctx) return;
 
-        const { width, height } = canvas;
+        const dpr = globalThis.devicePixelRatio || 1;
+        const width = Math.max(1, Math.floor(size.width * dpr));
+        const height = Math.max(1, Math.floor(size.height * dpr));
+        if (canvas.width !== width || canvas.height !== height) {
+            canvas.width = width;
+            canvas.height = height;
+        }
+
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.scale(dpr, dpr);
+
+        const drawW = size.width;
+        const drawH = size.height;
         const padL = 48, padR = 12, padT = 12, padB = 24;
-        const plotW = width - padL - padR;
-        const plotH = height - padT - padB;
+        const plotW = Math.max(1, drawW - padL - padR);
+        const plotH = Math.max(1, drawH - padT - padB);
 
         // Background
-        ctx.clearRect(0, 0, width, height);
-        const isLight = !!canvas.closest('.theme-light');
-        const bgColor   = isLight ? '#ebebeb' : '#1a1a1a';
-        const gridColor = isLight ? '#d8d8d8' : '#2a2a2a';
-        const axisColor = isLight ? '#b0b0b0' : '#444444';
-        const labelColor= isLight ? '#666666' : '#666666';
-        const noDataTxt = isLight ? '#888888' : '#555555';
+        ctx.clearRect(0, 0, drawW, drawH);
+        const css = getComputedStyle(canvas);
+        const bgColor = css.getPropertyValue('--vsc-sidebar').trim() || '#252526';
+        const gridColor = css.getPropertyValue('--vsc-surface').trim() || '#1a1a1a';
+        const axisColor = css.getPropertyValue('--vsc-border').trim() || '#3c3c3c';
+        const labelColor = css.getPropertyValue('--vsc-text-2').trim() || '#6a6a6a';
+        const noDataTxt = css.getPropertyValue('--vsc-text-2').trim() || '#6a6a6a';
         ctx.fillStyle = bgColor;
-        ctx.fillRect(0, 0, width, height);
+        ctx.fillRect(0, 0, drawW, drawH);
 
         if (series.length === 0) {
             ctx.fillStyle = noDataTxt;
             ctx.font = '13px monospace';
             ctx.textAlign = 'center';
-            ctx.fillText('No numeric data yet…', width / 2, height / 2);
+            ctx.textBaseline = 'middle';
+            ctx.fillText('No numeric data yet...', drawW / 2, drawH / 2);
             return;
         }
 
@@ -114,7 +146,8 @@ function PlotCanvas({ series }: { series: number[][] }) {
             ctx.fillStyle = labelColor;
             ctx.font = '10px monospace';
             ctx.textAlign = 'right';
-            ctx.fillText(val.toFixed(1), padL - 4, y + 3);
+            ctx.textBaseline = 'middle';
+            ctx.fillText(val.toFixed(1), padL - 4, y);
         }
 
         // Axes
@@ -144,13 +177,11 @@ function PlotCanvas({ series }: { series: number[][] }) {
             }
             ctx.stroke();
         }
-    }, [series]);
+    }, [series, size.width, size.height]);
 
     return (
         <canvas
             ref={canvasRef}
-            width={800}
-            height={300}
             className="w-full h-full"
             style={{ display: 'block' }}
         />
@@ -166,9 +197,9 @@ export default function SerialPlotter({ output }: SerialPlotterProps) {
     const handleClear = () => setCleared(output);
 
     return (
-        <div className="flex flex-col h-full bg-vscode-panel">
+        <div className="flex flex-col h-full bg-vscode-sidebar">
             {/* Toolbar */}
-            <div className="flex items-center gap-2 px-3 py-1.5 bg-vscode-surface border-b border-vscode-border shrink-0">
+            <div className="flex items-center gap-2 px-3 py-1.5 bg-vscode-sidebar border-b border-vscode-border shrink-0">
                 <span className="text-[12px] font-semibold text-vscode-text opacity-60 uppercase tracking-wide">
                     Serial Plotter
                 </span>
@@ -197,7 +228,7 @@ export default function SerialPlotter({ output }: SerialPlotterProps) {
             </div>
 
             {/* Canvas */}
-            <div className="flex-1 relative overflow-hidden p-2">
+            <div className="flex-1 relative overflow-hidden p-0">
                 <PlotCanvas series={series} />
             </div>
 

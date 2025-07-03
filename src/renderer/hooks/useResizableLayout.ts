@@ -7,6 +7,7 @@ interface ResizableLayoutOptions {
     direction?: 'horizontal' | 'vertical';
     gutterSize?: number;
     enabled: boolean;
+    onSizesChange?: (sizes: number[]) => void;
 }
 
 /**
@@ -40,6 +41,7 @@ export function useResizableLayout(
                 direction: options.direction || 'horizontal',
                 gutterSize: options.gutterSize || 4,
                 cursor: options.direction === 'vertical' ? 'row-resize' : 'col-resize',
+                onDragEnd: (sizes) => options.onSizesChange?.([...sizes]),
             });
         }, 0);
 
@@ -50,5 +52,12 @@ export function useResizableLayout(
                 splitRef.current = null;
             }
         };
-    }, [options.enabled, ...selectors]); // Re-run if enabled status or selectors change
+    }, [
+        options.direction,
+        options.enabled,
+        options.gutterSize,
+        options.minSize.join(','),
+        options.sizes.join(','),
+        ...selectors,
+    ]);
 }

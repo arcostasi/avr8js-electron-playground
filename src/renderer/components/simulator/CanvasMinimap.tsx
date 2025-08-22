@@ -69,9 +69,13 @@ export default function CanvasMinimap({
 
         ctx.clearRect(0, 0, MINI_W, MINI_H);
 
-        // Background — respect theme
-        const isLight = !!canvas.closest('.theme-light');
-        ctx.fillStyle = isLight ? 'rgba(220,220,220,0.92)' : 'rgba(10,10,10,0.85)';
+        const css = getComputedStyle(canvas);
+        const minimapBg = css.getPropertyValue('--vsc-surface').trim() || '#2a2a2a';
+        const minimapBorder = css.getPropertyValue('--vsc-border').trim() || '#333';
+        const viewportStroke = css.getPropertyValue('--vsc-text').trim() || 'rgba(250,250,250,0.5)';
+
+        // Background — uses current theme tokens (light/dark)
+        ctx.fillStyle = minimapBg;
         ctx.fillRect(0, 0, MINI_W, MINI_H);
 
         // Draw parts
@@ -96,14 +100,14 @@ export default function CanvasMinimap({
         const vpMiniW = (vpWorldW / worldW) * MINI_W;
         const vpMiniH = (vpWorldH / worldH) * MINI_H;
 
-        ctx.strokeStyle = 'rgba(250,250,250,0.5)';
+        ctx.strokeStyle = viewportStroke;
         ctx.lineWidth = 1;
         ctx.strokeRect(vpMx, vpMy, vpMiniW, vpMiniH);
         ctx.fillStyle = VIEWPORT_COLOR;
         ctx.fillRect(vpMx, vpMy, vpMiniW, vpMiniH);
 
         // Border
-        ctx.strokeStyle = '#333';
+        ctx.strokeStyle = minimapBorder;
         ctx.lineWidth = 1;
         ctx.strokeRect(0, 0, MINI_W, MINI_H);
     }, [parts, pan, zoom, viewportW, viewportH, bounds, worldW, worldH]);
@@ -125,7 +129,7 @@ export default function CanvasMinimap({
             height={MINI_H}
             onClick={handleClick}
             title="Circuit minimap — click to navigate"
-            className="rounded border border-[#333] cursor-crosshair"
+            className="rounded border border-vscode-border cursor-crosshair"
             style={{
                 position: 'absolute',
                 bottom: 12,

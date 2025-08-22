@@ -35,8 +35,8 @@ export default function WireColorPopup({ x, y, currentColor, onSelectColor, onCl
         <div
             ref={popupRef}
             className={[
-                'absolute z-50 bg-[#2a2a2a]',
-                'border border-[#444] rounded-lg',
+                'absolute z-50 bg-vscode-surface',
+                'border border-vscode-border rounded-lg',
                 'shadow-xl shadow-black/50 p-2',
                 'flex flex-wrap gap-1.5 w-[140px]',
             ].join(' ')}
@@ -59,10 +59,12 @@ export default function WireColorPopup({ x, y, currentColor, onSelectColor, onCl
                 + 'border-l-[8px] border-r-[8px] '
                 + 'border-t-[8px] border-l-transparent '
                 + 'border-r-transparent '
-                + 'border-t-[#2a2a2a] drop-shadow-sm'
-            } />
+                + 'drop-shadow-sm'
+            }
+            style={{ borderTopColor: 'var(--vsc-surface, #2a2a2a)' }}
+            />
 
-            <div className="w-full text-center text-[10px] text-gray-400 font-medium mb-1 uppercase tracking-wider">
+            <div className="w-full text-center text-[10px] text-vscode-text opacity-80 font-medium mb-1 uppercase tracking-wider">
                 Wire Color
             </div>
 
@@ -76,8 +78,8 @@ export default function WireColorPopup({ x, y, currentColor, onSelectColor, onCl
                         }}
                         title={c}
                         className={`w-5 h-5 rounded-full transition-all border ${currentColor === c
-                                ? 'border-white scale-110 shadow-sm shadow-white/30'
-                                : 'border-[#555] opacity-70 hover:opacity-100 hover:scale-110'
+                                ? 'border-vscode-textActive scale-110 shadow-sm shadow-white/30'
+                                : 'border-vscode-border opacity-70 hover:opacity-100 hover:scale-110'
                             }`}
                         style={{ backgroundColor: c }}
                     />

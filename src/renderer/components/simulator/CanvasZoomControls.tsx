@@ -16,14 +16,15 @@ export default function CanvasZoomControls({
     zoom, onZoomIn, onZoomOut, onReset,
 }: CanvasZoomControlsProps) {
     const btnCls = [
-        'p-1.5 text-gray-500 hover:text-white',
+        'p-1.5 text-vscode-text hover:text-vscode-textActive',
+        'hover:bg-vscode-hover',
         'transition-colors',
     ].join(' ');
     return (
         <div className={[
             'absolute right-3 bottom-3 flex',
-            'bg-[#2a2a2a]/90 backdrop-blur-sm',
-            'border border-[#444] rounded-lg shadow-xl z-20',
+            'bg-vscode-surface/95 backdrop-blur-sm',
+            'border border-vscode-border rounded-lg shadow-xl z-20',
         ].join(' ')}>
             <button
                 onClick={onZoomOut}
@@ -34,7 +35,7 @@ export default function CanvasZoomControls({
             </button>
             <span className={[
                 'px-2 py-1.5 text-[10px] font-mono',
-                'text-gray-500 border-x border-[#444]',
+                'text-vscode-text border-x border-vscode-border',
             ].join(' ')}>
                 {Math.round(zoom * 100)}%
             </span>

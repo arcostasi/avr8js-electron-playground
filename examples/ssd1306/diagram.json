@@ -6,15 +6,15 @@
     {
       "id": "uno",
       "type": "wokwi-arduino-uno",
-      "top": 280,
-      "left": 200,
+      "top": 23,
+      "left": 145,
       "rotate": 0
     },
     {
       "id": "display",
       "type": "wokwi-ssd1306",
-      "left": 270,
-      "top": 120,
+      "left": 380,
+      "top": 270,
       "rotate": 0
     }
   ],

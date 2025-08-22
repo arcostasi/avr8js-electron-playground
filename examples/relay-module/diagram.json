@@ -23,7 +23,9 @@
       "top": 100,
       "left": 360,
       "rotate": 0,
-      "attrs": { "value": "220" }
+      "attrs": {
+        "value": "220"
+      }
     },
     {
       "id": "led1",
@@ -31,7 +33,9 @@
       "top": 40,
       "left": 360,
       "rotate": 0,
-      "attrs": { "color": "red" }
+      "attrs": {
+        "color": "red"
+      }
     }
   ],
   "connections": [

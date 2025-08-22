@@ -6,22 +6,22 @@
     {
       "id": "uno",
       "type": "wokwi-arduino-uno",
-      "top": 340,
-      "left": 200,
+      "top": 219,
+      "left": 194,
       "rotate": 0
     },
     {
       "id": "servo1",
       "type": "wokwi-servo",
-      "top": 80,
-      "left": 280,
+      "top": 84,
+      "left": 239,
       "rotate": 0
     },
     {
       "id": "pot1",
       "type": "wokwi-potentiometer",
-      "top": 160,
-      "left": 100,
+      "top": 295,
+      "left": 499,
       "rotate": 0
     }
   ],

@@ -136,7 +136,6 @@ export default function Oscilloscope({ isPlaying, getCpuSnapshot }: Oscilloscope
                         enabledChannels.map(ch => (
                             <WaveformRow
                                 key={ch.label}
-                                label={ch.label}
                                 color={ch.color}
                                 samples={ch.samples}
                             />
@@ -154,8 +153,8 @@ export default function Oscilloscope({ isPlaying, getCpuSnapshot }: Oscilloscope
     );
 }
 
-function WaveformRow({ label, color, samples }: {
-    label: string; color: string; samples: boolean[];
+function WaveformRow({ color, samples }: {
+    color: string; samples: boolean[];
 }) {
     const canvasRef = useRef<HTMLCanvasElement>(null);
 

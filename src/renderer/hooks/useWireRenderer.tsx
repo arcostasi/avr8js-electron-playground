@@ -2,7 +2,7 @@
  * useWireRenderer
  * Builds SVG wire elements from diagram connections using catenary physics or waypoints.
  */
-import React, { useMemo } from 'react';
+import React, { useMemo, useRef } from 'react';
 import type { WokwiDiagram, PinPosition } from '../types/wokwi.types';
 import { buildCatenaryPath, buildTempCatenaryPath } from '../utils/catenary';
 
@@ -22,6 +22,30 @@ interface UseWireRendererParams {
     onWireClick?: (e: React.MouseEvent, connId: string) => void;
 }
 
+function buildWirePath(
+    start: PinPosition,
+    end: PinPosition,
+    waypoints?: Array<{ x: number; y: number }>,
+): string {
+    if (!waypoints || waypoints.length === 0) {
+        return buildCatenaryPath(start, end);
+    }
+
+    let path = `M ${start.x} ${start.y}`;
+    for (const waypoint of waypoints) {
+        path += ` L ${waypoint.x} ${waypoint.y}`;
+    }
+    path += ` L ${end.x} ${end.y}`;
+    return path;
+}
+
+function removeWire(diagram: WokwiDiagram, wireId: string): WokwiDiagram {
+    return {
+        ...diagram,
+        connections: diagram.connections.filter((connection) => connection.id !== wireId),
+    };
+}
+
 export function useWireRenderer({
     diagram,
     pinPositions,
@@ -36,8 +60,11 @@ export function useWireRenderer({
     onDiagramChange,
     onWireClick,
 }: UseWireRendererParams): React.ReactNode[] {
+    const pathCacheRef = useRef<Record<string, { signature: string; path: string }>>({});
+
     return useMemo(() => {
         if (!diagram) return [];
+        const nextCache: Record<string, { signature: string; path: string }> = {};
 
         const drawnWires = diagram.connections.map((conn) => {
             const { id, from, to, color, waypoints } = conn;
@@ -46,24 +73,25 @@ export function useWireRenderer({
 
             if (!start || !end) return null;
 
-            let path = '';
-            if (waypoints && waypoints.length > 0) {
-                path = `M ${start.x} ${start.y}`;
-                waypoints.forEach(wp => {
-                    path += ` L ${wp.x} ${wp.y}`;
-                });
-                path += ` L ${end.x} ${end.y}`;
-            } else {
-                path = buildCatenaryPath(start, end);
-            }
+            const signature = JSON.stringify({
+                startX: start.x,
+                startY: start.y,
+                endX: end.x,
+                endY: end.y,
+                waypoints: waypoints ?? [],
+            });
+            const cached = pathCacheRef.current[id];
+            const path = cached?.signature === signature
+                ? cached.path
+                : buildWirePath(start, end, waypoints);
+            nextCache[id] = { signature, path };
 
             const isSelected = id === selectedWireId;
 
             const handleDeleteWire = (e: React.MouseEvent) => {
                 e.stopPropagation();
                 if (isEditMode && onDiagramChange && diagramRef.current) {
-                    const newConnections = diagramRef.current.connections.filter(c => c.id !== id);
-                    onDiagramChange({ ...diagramRef.current, connections: newConnections });
+                    onDiagramChange(removeWire(diagramRef.current, id));
                 }
             };
 
@@ -164,6 +192,8 @@ export function useWireRenderer({
                 </g>
             );
         }
+
+        pathCacheRef.current = nextCache;
 
         return drawnWires;
     }, [diagram, pinPositions, wiringStart, mousePos, pan, zoom, isEditMode, onDiagramChange, wireColor, selectedWireId, diagramRef]);

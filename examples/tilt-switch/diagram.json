@@ -13,16 +13,16 @@
     {
       "id": "tilt1",
       "type": "wokwi-tilt-switch",
-      "top": 140,
-      "left": 120,
-      "rotate": 0
+      "top": 160,
+      "left": 460,
+      "rotate": 90
     },
     {
       "id": "r1",
       "type": "wokwi-resistor",
-      "top": 160,
+      "top": 274,
       "left": 360,
-      "rotate": 0,
+      "rotate": 270,
       "attrs": {
         "value": "220"
       }
@@ -30,8 +30,8 @@
     {
       "id": "led1",
       "type": "wokwi-led",
-      "top": 80,
-      "left": 360,
+      "top": 137,
+      "left": 329,
       "rotate": 0,
       "attrs": {
         "color": "yellow"
@@ -73,7 +73,7 @@
       "id": "conn-4-1772494884004",
       "from": "led1:C",
       "to": "uno:GND.2",
-      "color": "green"
+      "color": "black"
     }
   ]
 }

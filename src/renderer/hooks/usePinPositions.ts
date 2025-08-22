@@ -30,6 +30,45 @@ interface CachedPinData {
     height: number;
 }
 
+function clonePins(pins: PinInfo[]): PinInfo[] {
+    return pins.map((pin) => ({ ...pin }));
+}
+
+function samePins(a: PinInfo[], b: PinInfo[]): boolean {
+    if (a.length !== b.length) return false;
+    for (let i = 0; i < a.length; i++) {
+        if (a[i].name !== b[i].name || a[i].x !== b[i].x || a[i].y !== b[i].y) {
+            return false;
+        }
+    }
+    return true;
+}
+
+function sameCachedPinData(a: CachedPinData | undefined, b: CachedPinData): boolean {
+    if (!a) return false;
+    return a.width === b.width && a.height === b.height && samePins(a.pins, b.pins);
+}
+
+function readElementPinData(el: HTMLElement & { pinInfo?: PinInfo[] }): CachedPinData | null {
+    if (!el?.pinInfo || !Array.isArray(el.pinInfo)) return null;
+    return {
+        pins: clonePins(el.pinInfo),
+        width: el.offsetWidth,
+        height: el.offsetHeight,
+    };
+}
+
+function collectPartElements(diagram: WokwiDiagram): Record<string, HTMLElement & { pinInfo?: PinInfo[] }> {
+    const elements: Record<string, HTMLElement & { pinInfo?: PinInfo[] }> = {};
+    for (const part of diagram.parts) {
+        const element = document.getElementById(part.id) as (HTMLElement & { pinInfo?: PinInfo[] }) | null;
+        if (element) {
+            elements[part.id] = element;
+        }
+    }
+    return elements;
+}
+
 /**
  * Reads pin info from the DOM (Wokwi custom elements expose `.pinInfo`),
  * caches it per part, and returns a memoized map of pinId → canvas position.
@@ -45,7 +84,7 @@ export function usePinPositions(diagram?: WokwiDiagram): Record<string, PinPosit
      * recomputes after the effect fires, which is the true root cause of the
      * "need to click twice to see wires" bug.
      */
-    const [pinTick, setPinPositionTrigger] = useState(0);
+    const [pinTick, setPinTick] = useState(0);
 
     // Cache keyed by "partId:partType" — stores pins AND unrotated element dimensions.
     // Rotation changes don't need to bust the cache because we always re-apply rotation
@@ -63,7 +102,6 @@ export function usePinPositions(diagram?: WokwiDiagram): Record<string, PinPosit
             diagram?.parts
                 .map(p => `${p.id}:${p.type}:${p.rotate ?? 0}`)
                 .join(',') ?? '',
-        // eslint-disable-next-line react-hooks/exhaustive-deps
         [diagram?.parts],
     );
 
@@ -73,21 +111,27 @@ export function usePinPositions(diagram?: WokwiDiagram): Record<string, PinPosit
     const pinPositions = useMemo(() => {
         const positions: Record<string, PinPosition> = {};
         if (!diagram) return positions;
+        const elementsById = collectPartElements(diagram);
 
         diagram.parts.forEach(part => {
             const cacheKey = `${part.id}:${part.type}`;
             let cached = pinInfoCache.current[cacheKey];
+            const element = elementsById[part.id];
 
-            if (!cached) {
+            if (cached) {
+                // Custom chip pin layouts can change even when the diagram shape doesn't,
+                // for example after manifest edits or delayed pinInfo registration.
+                const fresh = element ? readElementPinData(element) : null;
+                if (fresh && !sameCachedPinData(cached, fresh)) {
+                    cached = fresh;
+                    pinInfoCache.current[cacheKey] = cached;
+                }
+            } else {
                 // Elements from the PREVIOUS render are already in the DOM —
                 // try to read pinInfo synchronously before the commit.
-                const el = document.getElementById(part.id) as HTMLElement & { pinInfo?: PinInfo[] };
-                if (el?.pinInfo && Array.isArray(el.pinInfo)) {
-                    cached = {
-                        pins: el.pinInfo,
-                        width: el.offsetWidth,
-                        height: el.offsetHeight,
-                    };
+                const fresh = element ? readElementPinData(element) : null;
+                if (fresh) {
+                    cached = fresh;
                     pinInfoCache.current[cacheKey] = cached;
                 }
             }
@@ -124,7 +168,6 @@ export function usePinPositions(diagram?: WokwiDiagram): Record<string, PinPosit
             });
         });
         return positions;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [diagram, partsKey, pinTick]);
 
     /**
@@ -137,6 +180,7 @@ export function usePinPositions(diagram?: WokwiDiagram): Record<string, PinPosit
      */
     useEffect(() => {
         if (!diagram) return;
+        const elementsById = collectPartElements(diagram);
 
         // Evict cache entries that are no longer valid:
         //   - parts removed from the diagram
@@ -148,31 +192,28 @@ export function usePinPositions(diagram?: WokwiDiagram): Record<string, PinPosit
             }
         }
 
-        // After commit, the new DOM elements are available — populate the cache
-        // for any part whose pinInfo we didn't get synchronously during render.
+        // After commit, refresh cache entries from the live DOM. This must run even
+        // when the diagram object is unchanged, because custom chip manifests and
+        // attrs can change the exposed pin layout independently from diagram parts.
         const timer = setTimeout(() => {
             let changed = false;
             diagram.parts.forEach(part => {
                 const cacheKey = `${part.id}:${part.type}`;
-                if (!pinInfoCache.current[cacheKey]) {
-                    const el = document.getElementById(part.id) as HTMLElement & { pinInfo?: PinInfo[] };
-                    if (el?.pinInfo && Array.isArray(el.pinInfo)) {
-                        pinInfoCache.current[cacheKey] = {
-                            pins: el.pinInfo,
-                            width: el.offsetWidth,
-                            height: el.offsetHeight,
-                        };
-                        changed = true;
-                    }
+                const fresh = elementsById[part.id] ? readElementPinData(elementsById[part.id]) : null;
+                if (!fresh) return;
+
+                if (!sameCachedPinData(pinInfoCache.current[cacheKey], fresh)) {
+                    pinInfoCache.current[cacheKey] = fresh;
+                    changed = true;
                 }
             });
             // Force a re-render so pinPositions is recomputed with the full cache
             if (changed) {
-                setPinPositionTrigger(n => n + 1);
+                setPinTick(n => n + 1);
             }
         }, 150);
         return () => clearTimeout(timer);
-    }, [partsKey]); // Re-run whenever the identity of parts changes, not just the count
+    });
 
     return pinPositions;
 }

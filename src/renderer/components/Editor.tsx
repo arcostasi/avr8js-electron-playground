@@ -1,14 +1,20 @@
 import React, { useRef, useEffect } from 'react';
 import * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
-import 'monaco-editor/esm/vs/basic-languages/cpp/cpp.contribution';
-import 'monaco-editor/esm/vs/language/json/monaco.contribution';
+import type { EditorDiagnostic } from '../types/editor-diagnostics';
+import { measureAsync, measureSync, startPerfMeasure } from '../utils/perf';
 import 'monaco-editor/esm/vs/editor/contrib/clipboard/browser/clipboard';
 import 'monaco-editor/esm/vs/editor/contrib/find/browser/findController';
 import 'monaco-editor/esm/vs/editor/contrib/contextmenu/browser/contextmenu';
 import 'monaco-editor/esm/vs/editor/contrib/suggest/browser/suggestController';
 import editorWorker from 'monaco-editor/esm/vs/editor/editor.worker?worker';
 
-globalThis.MonacoEnvironment = {
+const monacoGlobal = globalThis as typeof globalThis & {
+    MonacoEnvironment: {
+        getWorker(workerId: string, label: string): Worker;
+    };
+};
+
+monacoGlobal.MonacoEnvironment = {
     getWorker() {
         return new editorWorker();
     }
@@ -165,18 +171,126 @@ function ensureTheme() {
 }
 
 interface EditorProps {
+    fileKey: string;
     code: string;
     onChange?: (val: string) => void;
     language?: string;
     fontSize?: number;
     wordWrap?: 'on' | 'off';
+    diagnostics?: EditorDiagnostic[];
+    revealPosition?: {
+        lineNumber: number;
+        column: number;
+        token: number;
+    };
+}
+
+const MAX_EDITOR_MODELS = 24;
+const modelCache = new Map<string, monaco.editor.ITextModel>();
+const modelLastUsedAt = new Map<string, number>();
+const modelViewStates = new Map<string, monaco.editor.ICodeEditorViewState | null>();
+const loadedLanguageContributions = new Set<string>();
+const languageContributionLoads = new Map<string, Promise<void>>();
+
+async function loadCppContribution(): Promise<void> {
+    await import('monaco-editor/esm/vs/basic-languages/cpp/cpp.contribution');
+    loadedLanguageContributions.add('cpp');
+    loadedLanguageContributions.add('c');
+    loadedLanguageContributions.add('h');
+}
+
+async function loadJsonContribution(): Promise<void> {
+    await import('monaco-editor/esm/vs/language/json/monaco.contribution');
+    loadedLanguageContributions.add('json');
+}
+
+function resolveLanguageContributionLoader(language: string): (() => Promise<void>) | null {
+    if (language === 'cpp' || language === 'c' || language === 'h') return loadCppContribution;
+    if (language === 'json') return loadJsonContribution;
+    return null;
+}
+
+async function ensureLanguageContribution(language: string): Promise<void> {
+    if (loadedLanguageContributions.has(language)) return;
+
+    const loader = resolveLanguageContributionLoader(language);
+    if (!loader) {
+        loadedLanguageContributions.add(language);
+        return;
+    }
+
+    const existing = languageContributionLoads.get(language);
+    if (existing !== undefined) {
+        await existing;
+        return;
+    }
+
+    const loadPromise = measureAsync('monaco-language-load', loader, language)
+        .finally(() => {
+            languageContributionLoads.delete(language);
+        });
+    languageContributionLoads.set(language, loadPromise);
+    await loadPromise;
+}
+
+function toModelUri(fileKey: string): monaco.Uri {
+    return monaco.Uri.parse(`inmemory://avr8js/${encodeURIComponent(fileKey)}`);
+}
+
+function touchModel(fileKey: string): void {
+    modelLastUsedAt.set(fileKey, Date.now());
+}
+
+function evictLeastRecentlyUsedModel(activeFileKey: string): void {
+    if (modelCache.size <= MAX_EDITOR_MODELS) return;
+
+    const candidates = [...modelLastUsedAt.entries()]
+        .filter(([fileKey]) => fileKey !== activeFileKey)
+        .sort((left, right) => left[1] - right[1]);
+    const target = candidates[0]?.[0];
+    if (!target) return;
+
+    const model = modelCache.get(target);
+    model?.dispose();
+    modelCache.delete(target);
+    modelLastUsedAt.delete(target);
+    modelViewStates.delete(target);
+}
+
+function getOrCreateModel(fileKey: string, code: string, language: string): monaco.editor.ITextModel {
+    const existing = modelCache.get(fileKey);
+    if (existing) {
+        touchModel(fileKey);
+        if (existing.getLanguageId() !== language) {
+            monaco.editor.setModelLanguage(existing, language);
+        }
+        return existing;
+    }
+
+    const model = monaco.editor.createModel(code, language, toModelUri(fileKey));
+    modelCache.set(fileKey, model);
+    touchModel(fileKey);
+    evictLeastRecentlyUsedModel(fileKey);
+    return model;
 }
 
 const Editor = React.memo((
-    { code, onChange, language = 'cpp', fontSize = 15, wordWrap = 'off' }: EditorProps,
+    {
+        fileKey,
+        code,
+        onChange,
+        language = 'cpp',
+        fontSize = 15,
+        wordWrap = 'off',
+        diagnostics = [],
+        revealPosition,
+    }: EditorProps,
 ) => {
     const containerRef = useRef<HTMLDivElement>(null);
     const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
+    const activeFileKeyRef = useRef<string | null>(null);
+    const bootMeasureRef = useRef<null | (() => number)>(null);
+    const [languageReady, setLanguageReady] = React.useState(false);
     // Always holds the latest onChange so the Monaco event handler never goes stale
     const onChangeRef = useRef(onChange);
     useEffect(() => { onChangeRef.current = onChange; }, [onChange]);
@@ -184,12 +298,34 @@ const Editor = React.memo((
     const settingValueRef = useRef(false);
 
     useEffect(() => {
-        if (containerRef.current && !editorRef.current) {
-            ensureTheme();
+        let cancelled = false;
+        setLanguageReady(false);
 
-            editorRef.current = monaco.editor.create(containerRef.current, {
-                value: code,
-                language: language,
+        void ensureLanguageContribution(language)
+            .then(() => {
+                if (!cancelled) {
+                    setLanguageReady(true);
+                }
+            })
+            .catch(() => {
+                if (!cancelled) {
+                    setLanguageReady(true);
+                }
+            });
+
+        return () => {
+            cancelled = true;
+        };
+    }, [language]);
+
+    useEffect(() => {
+        if (languageReady && containerRef.current && !editorRef.current) {
+            ensureTheme();
+            bootMeasureRef.current = startPerfMeasure('monaco-editor-boot', language);
+            const initialModel = getOrCreateModel(fileKey, code, language);
+
+            editorRef.current = measureSync('monaco-editor-create', () => monaco.editor.create(containerRef.current, {
+                model: initialModel,
                 theme: getThemeName(),
                 automaticLayout: true,
                 minimap: { enabled: false },
@@ -201,20 +337,49 @@ const Editor = React.memo((
                 padding: { top: 10 },
                 contextmenu: true,
                 copyWithSyntaxHighlighting: true,
+                renderWhitespace: 'all',
+                renderControlCharacters: false,
                 renderLineHighlight: 'line',
                 cursorBlinking: 'smooth',
                 cursorSmoothCaretAnimation: 'on',
                 smoothScrolling: true,
-            });
+            }), language);
+            activeFileKeyRef.current = fileKey;
+            bootMeasureRef.current?.();
+            bootMeasureRef.current = null;
 
             editorRef.current.onDidChangeModelContent(() => {
                 if (!settingValueRef.current) {
                     onChangeRef.current?.(editorRef.current?.getValue() || '');
                 }
             });
+
+            const runAction = (id: string) => {
+                void editorRef.current?.getAction(id)?.run();
+            };
+
+            // Keep common clipboard/edit shortcuts reliable inside Electron + Monaco.
+            editorRef.current.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyC, () => {
+                runAction('editor.action.clipboardCopyAction');
+            });
+            editorRef.current.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyV, () => {
+                runAction('editor.action.clipboardPasteAction');
+            });
+            editorRef.current.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyX, () => {
+                runAction('editor.action.clipboardCutAction');
+            });
+            editorRef.current.addCommand(monaco.KeyMod.CtrlCmd | monaco.KeyCode.KeyA, () => {
+                runAction('editor.action.selectAll');
+            });
         }
 
+        return undefined;
+    }, [languageReady, fileKey, code, language, fontSize]);
+
+    useEffect(() => {
         return () => {
+            bootMeasureRef.current?.();
+            bootMeasureRef.current = null;
             editorRef.current?.dispose();
             editorRef.current = null;
         };
@@ -237,18 +402,88 @@ const Editor = React.memo((
 
     // Handle code/language changes (tab switching)
     useEffect(() => {
-        if (editorRef.current) {
-            if (editorRef.current.getValue() !== code) {
-                settingValueRef.current = true;
-                editorRef.current.setValue(code);
-                settingValueRef.current = false;
-            }
-            const model = editorRef.current.getModel();
-            if (model) {
-                monaco.editor.setModelLanguage(model, language);
-            }
+        if (!languageReady) return;
+        const editor = editorRef.current;
+        if (!editor) return;
+
+        const nextModel = getOrCreateModel(fileKey, code, language);
+        const previousFileKey = activeFileKeyRef.current;
+        const currentModel = editor.getModel();
+
+        if (previousFileKey && currentModel && previousFileKey !== fileKey) {
+            modelViewStates.set(previousFileKey, editor.saveViewState());
         }
-    }, [code, language]);
+
+        if (currentModel !== nextModel) {
+            editor.setModel(nextModel);
+        }
+
+        touchModel(fileKey);
+        activeFileKeyRef.current = fileKey;
+
+        if (nextModel.getValue() !== code) {
+            settingValueRef.current = true;
+            nextModel.pushEditOperations([], [{
+                range: nextModel.getFullModelRange(),
+                text: code,
+            }], () => null);
+            settingValueRef.current = false;
+        }
+
+        if (nextModel.getLanguageId() !== language) {
+            monaco.editor.setModelLanguage(nextModel, language);
+        }
+
+        const savedViewState = modelViewStates.get(fileKey);
+        if (savedViewState) {
+            editor.restoreViewState(savedViewState);
+        } else {
+            editor.setScrollTop(0);
+            editor.setScrollLeft(0);
+        }
+        editor.focus();
+    }, [fileKey, code, language, languageReady]);
+
+    // Apply diagnostics markers to the active Monaco model
+    useEffect(() => {
+        const model = editorRef.current?.getModel();
+        if (!model) return;
+
+        const toMarkerSeverity = (severity: EditorDiagnostic['severity']) => {
+            switch (severity) {
+                case 'error':
+                    return monaco.MarkerSeverity.Error;
+                case 'warning':
+                    return monaco.MarkerSeverity.Warning;
+                case 'info':
+                    return monaco.MarkerSeverity.Info;
+                default:
+                    return monaco.MarkerSeverity.Hint;
+            }
+        };
+
+        const markers: monaco.editor.IMarkerData[] = diagnostics.map((d) => ({
+            startLineNumber: d.startLineNumber,
+            startColumn: d.startColumn,
+            endLineNumber: d.endLineNumber,
+            endColumn: d.endColumn,
+            message: d.message,
+            severity: toMarkerSeverity(d.severity),
+            source: d.source ?? 'chip-build',
+        }));
+
+        monaco.editor.setModelMarkers(model, 'chip-build', markers);
+    }, [diagnostics, fileKey, code, language]);
+
+    // Reveal and focus a specific editor position when requested by caller
+    useEffect(() => {
+        if (!revealPosition || !editorRef.current) return;
+        const lineNumber = Math.max(1, revealPosition.lineNumber);
+        const column = Math.max(1, revealPosition.column);
+        editorRef.current.revealPositionInCenter({ lineNumber, column });
+        editorRef.current.setPosition({ lineNumber, column });
+        editorRef.current.focus();
+    }, [revealPosition?.token]);
 
     return <div ref={containerRef} className="w-full h-full" style={{ backgroundColor: 'var(--vsc-editor-bg, #2b2b2b)' }} />;
 });

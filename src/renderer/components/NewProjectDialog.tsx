@@ -5,6 +5,7 @@
  */
 import React, { useState, useRef, useEffect } from 'react';
 import { FolderPlus, X } from 'lucide-react';
+import { boardProfiles } from '../../shared/avr/profiles';
 
 export interface NewProjectOptions {
     name: string;
@@ -19,12 +20,10 @@ interface NewProjectDialogProps {
     onClose: () => void;
 }
 
-const BOARDS = [
-    { value: 'uno',  label: 'Arduino Uno' },
-    { value: 'mega', label: 'Arduino Mega' },
-    { value: 'nano', label: 'Arduino Nano' },
-    { value: 'mini', label: 'Arduino Mini' },
-];
+const BOARDS = boardProfiles.map((profile) => ({
+    value: profile.buildBoard,
+    label: profile.name,
+}));
 
 const CATEGORIES = ['beginner', 'intermediate', 'advanced'];
 
@@ -34,7 +33,7 @@ function slugify(s: string) {
 
 export default function NewProjectDialog({ onConfirm, onClose }: Readonly<NewProjectDialogProps>) {
     const [name, setName]         = useState('');
-    const [board, setBoard]       = useState('uno');
+    const [board, setBoard]       = useState(BOARDS[0]?.value ?? 'uno');
     const [category, setCategory] = useState('beginner');
     const [template, setTemplate] = useState<'blank' | 'blink'>('blink');
     const [error, setError]       = useState('');

@@ -3,60 +3,68 @@
  * Maps Arduino pin names (digital 0-13, analog A0-A5) to AVR port/bit pairs.
  */
 import type { AVRIOPort } from 'avr8js';
+import { defaultBoardProfile, resolveBoardPin, type BoardProfile } from '../../shared/avr/profiles';
 
 export interface PortBitInfo {
     port: AVRIOPort;
     bit: number;
 }
 
-interface ArduinoPorts {
-    portB: AVRIOPort;
-    portC: AVRIOPort;
-    portD: AVRIOPort;
+interface LegacyArduinoPorts {
+    portB?: AVRIOPort;
+    portC?: AVRIOPort;
+    portD?: AVRIOPort;
+}
+
+interface ProfileArduinoPorts {
+    B?: AVRIOPort;
+    C?: AVRIOPort;
+    D?: AVRIOPort;
+}
+
+export type ArduinoPorts =
+    | LegacyArduinoPorts
+    | ProfileArduinoPorts
+    | Record<string, AVRIOPort>
+    | (LegacyArduinoPorts & ProfileArduinoPorts);
+
+function getNamedPort(ports: ArduinoPorts, portId: string): AVRIOPort | null {
+    const modernPorts = ports as Record<string, AVRIOPort | undefined>;
+    const directPort = modernPorts[portId];
+    if (directPort) {
+        return directPort;
+    }
+
+    const legacyPortKey = `port${portId}`;
+    return modernPorts[legacyPortKey] ?? null;
 }
 
 /**
  * Resolves an Arduino pin name to the corresponding AVR port and bit.
- *
- * ATmega328p mapping:
- * - Pins 0-7   → Port D, bits 0-7
- * - Pins 8-13  → Port B, bits 0-5
- * - Pins A0-A5 → Port C, bits 0-5
+ * The default board profile preserves the Arduino Uno / ATmega328P mapping.
  */
-export function getPortAndBit(pinName: string, ports: ArduinoPorts): PortBitInfo | null {
-    // Digital pins
-    const digitalPin = Number.parseInt(pinName, 10);
-    if (!Number.isNaN(digitalPin)) {
-        if (digitalPin >= 0 && digitalPin <= 7) {
-            return { port: ports.portD, bit: digitalPin };
-        } else if (digitalPin >= 8 && digitalPin <= 13) {
-            return { port: ports.portB, bit: digitalPin - 8 };
-        }
+export function getPortAndBit(
+    pinName: string,
+    ports: ArduinoPorts,
+    boardProfile: BoardProfile = defaultBoardProfile,
+): PortBitInfo | null {
+    const resolvedPin = resolveBoardPin(boardProfile, pinName);
+    if (!resolvedPin?.portId || typeof resolvedPin.bit !== 'number') {
+        return null;
     }
 
-    // Analog pins as digital
-    const analogMatch = /^A(\d+)$/.exec(pinName);
-    if (analogMatch) {
-        const analogPin = Number.parseInt(analogMatch[1], 10);
-        if (analogPin >= 0 && analogPin <= 5) {
-            return { port: ports.portC, bit: analogPin };
-        }
+    const port = getNamedPort(ports, resolvedPin.portId);
+    if (!port) {
+        return null;
     }
 
-    return null;
+    return { port, bit: resolvedPin.bit };
 }
 
 /**
- * Resolves an Arduino analog pin name (A0-A5) to the ADC channel number (0-5).
+ * Resolves an Arduino analog pin name to the ADC channel number.
  * Returns null for non-analog pin names.
  */
-export function getADCChannel(pinName: string): number | null {
-    const analogMatch = /^A(\d+)$/.exec(pinName);
-    if (analogMatch) {
-        const channel = Number.parseInt(analogMatch[1], 10);
-        if (channel >= 0 && channel <= 7) {
-            return channel;
-        }
-    }
-    return null;
+export function getADCChannel(pinName: string, boardProfile: BoardProfile = defaultBoardProfile): number | null {
+    return resolveBoardPin(boardProfile, pinName)?.adcChannel ?? null;
 }

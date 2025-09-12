@@ -3,13 +3,17 @@
  * Static list of all supported Wokwi components for the "Add Component" menu.
  */
 import type { WokwiComponentDef } from '../types/wokwi.types';
+import { boardProfiles } from '../../shared/avr/profiles';
+
+const BOARD_COMPONENTS: WokwiComponentDef[] = boardProfiles.map((profile) => ({
+    type: profile.wokwiType,
+    label: profile.name,
+}));
 
 export const COMMON_COMPONENTS: WokwiComponentDef[] = [
     { type: 'wokwi-7segment', label: '7 Segment', attrs: { color: 'red' } },
     { type: 'wokwi-analog-joystick', label: 'Analog Joystick' },
-    { type: 'wokwi-arduino-mega', label: 'Arduino Mega' },
-    { type: 'wokwi-arduino-nano', label: 'Arduino Nano' },
-    { type: 'wokwi-arduino-uno', label: 'Arduino Uno' },
+    ...BOARD_COMPONENTS,
     { type: 'wokwi-big-sound-sensor', label: 'Big Sound Sensor' },
     { type: 'wokwi-buzzer', label: 'Buzzer' },
     { type: 'wokwi-dht22', label: 'DHT22' },

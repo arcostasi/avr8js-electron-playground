@@ -14,15 +14,6 @@ import {
   AVRUSART,
   AVRSPI,
   AVRTWI,
-  portBConfig,
-  portCConfig,
-  portDConfig,
-  timer0Config,
-  timer1Config,
-  timer2Config,
-  usart0Config,
-  spiConfig,
-  twiConfig,
 } from 'avr8js';
 
 import { Speaker } from "./speaker";
@@ -31,67 +22,102 @@ import { MicroTaskScheduler } from './task-scheduler';
 import { EEPROMLocalStorageBackend } from './eeprom';
 import { CPUPerformance } from '../shared/cpu-performance';
 import { ADCRegistry } from './adc-registry';
-
-// ATmega328p params
-const FLASH = 0x8000;
+import { atmega328PProfile, type McuProfile } from './avr/profiles';
 
 export class AVRRunner {
-  readonly program = new Uint16Array(FLASH);
+  readonly program: Uint16Array;
   readonly cpu: CPU;
+  readonly mcuProfile: McuProfile;
   readonly timer0: AVRTimer;
   readonly timer1: AVRTimer;
   readonly timer2: AVRTimer;
   readonly portB: AVRIOPort;
   readonly portC: AVRIOPort;
   readonly portD: AVRIOPort;
+  readonly ports: Record<string, AVRIOPort>;
+  readonly timers: Record<string, AVRTimer>;
   readonly eeprom: AVREEPROM;
   readonly usart: AVRUSART;
+  readonly usarts: Record<string, AVRUSART>;
   readonly spi: AVRSPI;
   readonly twi: AVRTWI;
   readonly speaker: Speaker;
-  readonly adcRegistry = new ADCRegistry();
-  readonly frequency = 16e6; // 16 MHZ
+  readonly adcRegistry: ADCRegistry;
+  readonly frequency: number;
   readonly taskScheduler = new MicroTaskScheduler();
   readonly performance: CPUPerformance;
 
   /** Simulation speed multiplier: 0.1 = 10 % speed, 2.0 = 200 % speed */
-  speedMultiplier = 1.0;
+  speedMultiplier = 1;
 
-  private serialBuffer: number[] = [];
+  private readonly serialBuffers: Record<string, number[]>;
   private stopped = false;
   private lastTime = 0;
+  private readonly primaryUsartId: string;
 
-  constructor(hex: string) {
+  constructor(hex: string, mcuProfile: McuProfile = atmega328PProfile) {
+    this.mcuProfile = mcuProfile;
+    this.program = new Uint16Array(this.mcuProfile.cpu.flashWords);
+    this.frequency = this.mcuProfile.cpu.frequencyHz;
+    this.adcRegistry = new ADCRegistry(this.mcuProfile.adc?.channelCount ?? 8);
+
     // Load program
     loadHex(hex, new Uint8Array(this.program.buffer));
 
-    // Check hex size
-    if (hex.length > 2048) {
-      // Fake RAM Size
-      this.cpu = new CPU(this.program, FLASH);
+    const needsLargeHexSram = typeof this.mcuProfile.cpu.largeHexThreshold === 'number'
+      && typeof this.mcuProfile.cpu.largeHexSramBytes === 'number'
+      && hex.length > this.mcuProfile.cpu.largeHexThreshold;
+
+    if (typeof this.mcuProfile.cpu.sramBytes === 'number') {
+      this.cpu = new CPU(this.program, this.mcuProfile.cpu.sramBytes);
+    } else if (needsLargeHexSram) {
+      this.cpu = new CPU(this.program, this.mcuProfile.cpu.largeHexSramBytes);
     } else {
-      // Arduino UNO (ATmega328)
       this.cpu = new CPU(this.program);
     }
 
     this.performance = new CPUPerformance(this.cpu, this.frequency);
 
-    this.timer0 = new AVRTimer(this.cpu, timer0Config);
-    this.timer1 = new AVRTimer(this.cpu, timer1Config);
-    this.timer2 = new AVRTimer(this.cpu, timer2Config);
+    this.timers = Object.fromEntries(
+      Object.entries(this.mcuProfile.timers).map(([timerId, timerProfile]) => [
+        timerId,
+        new AVRTimer(this.cpu, timerProfile.config),
+      ]),
+    );
+    this.timer0 = this.requireTimer(this.mcuProfile.defaults.timer0, 'timer0');
+    this.timer1 = this.requireTimer(this.mcuProfile.defaults.timer1, 'timer1');
+    this.timer2 = this.requireTimer(this.mcuProfile.defaults.timer2, 'timer2');
 
-    this.portB = new AVRIOPort(this.cpu, portBConfig);
-    this.portC = new AVRIOPort(this.cpu, portCConfig);
-    this.portD = new AVRIOPort(this.cpu, portDConfig);
+    this.ports = Object.fromEntries(
+      Object.entries(this.mcuProfile.ports).map(([portId, portProfile]) => [
+        portId,
+        new AVRIOPort(this.cpu, portProfile.config),
+      ]),
+    );
+    this.portB = this.requirePort('B');
+    this.portC = this.requirePort('C');
+    this.portD = this.requirePort('D');
+
+    this.primaryUsartId = this.mcuProfile.defaults.usart;
+    this.serialBuffers = Object.fromEntries(
+      Object.keys(this.mcuProfile.usarts).map((usartId) => [usartId, [] as number[]]),
+    );
 
     this.eeprom = new AVREEPROM(this.cpu, new EEPROMLocalStorageBackend());
-    this.usart = new AVRUSART(this.cpu, usart0Config, this.frequency);
-    this.spi = new AVRSPI(this.cpu, spiConfig, this.frequency);
-    this.twi = new AVRTWI(this.cpu, twiConfig, this.frequency);
+    this.usarts = Object.fromEntries(
+      Object.entries(this.mcuProfile.usarts).map(([usartId, usartProfile]) => [
+        usartId,
+        new AVRUSART(this.cpu, usartProfile.config, this.frequency),
+      ]),
+    );
+    this.usart = this.requireUsart(this.primaryUsartId);
+    this.spi = new AVRSPI(this.cpu, this.requireSpiConfig(this.mcuProfile.defaults.spi), this.frequency);
+    this.twi = new AVRTWI(this.cpu, this.requireTwiConfig(this.mcuProfile.defaults.twi), this.frequency);
     this.speaker = new Speaker(this.cpu, this.frequency);
 
-    // this.serialOnLineTransmit();
-    this.cpu.readHooks[usart0Config.UDR] = () => this.serialBuffer.shift() || 0;
+    for (const [usartId, usartProfile] of Object.entries(this.mcuProfile.usarts)) {
+      this.cpu.readHooks[usartProfile.config.UDR] = () => this.shiftSerialBuffer(usartId);
+    }
 
     // Enable ADC with live registry values
     this.analogPort();
@@ -101,10 +127,21 @@ export class AVRRunner {
 
   // Function to send data to the serial port
   serialWrite(value: string) {
+    this.serialWriteToUsart(this.primaryUsartId, value);
+  }
+
+  serialWriteToUsart(usartId: string, value: string) {
+    const serialBuffer = this.serialBuffers[usartId];
+    if (!serialBuffer) {
+      throw new Error(`MCU profile ${this.mcuProfile.id} is missing serial buffer for USART ${usartId}`);
+    }
+
     // Writing to UDR transmits the byte
     [...value].forEach(c => {
-      // Write a character
-      this.serialBuffer.push(c.charCodeAt(0));
+      const codePoint = c.codePointAt(0);
+      if (typeof codePoint === 'number') {
+        serialBuffer.push(codePoint);
+      }
     });
   }
 
@@ -116,10 +153,16 @@ export class AVRRunner {
   }
 
   rxCompleteInterrupt() {
-    const UCSRA = this.cpu.data[usart0Config.UCSRA];
+    for (const [usartId, usartProfile] of Object.entries(this.mcuProfile.usarts)) {
+      const serialBuffer = this.serialBuffers[usartId];
+      if (!serialBuffer?.length) {
+        continue;
+      }
 
-    if ((UCSRA & 0x20) && (this.serialBuffer.length > 0)) {
-      avrInterrupt(this.cpu, usart0Config.rxCompleteInterrupt);
+      const UCSRA = this.cpu.data[usartProfile.config.UCSRA];
+      if (UCSRA & 0x20) {
+        avrInterrupt(this.cpu, usartProfile.config.rxCompleteInterrupt);
+      }
     }
   }
 
@@ -163,23 +206,92 @@ export class AVRRunner {
     this.stopped = true;
   }
 
+  getPortOutputValue(portId: string): number {
+    const portProfile = this.mcuProfile.ports[portId];
+    if (!portProfile) {
+      return 0;
+    }
+    return this.cpu.data[portProfile.config.PORT];
+  }
+
   analogPort() {
+    const adcProfile = this.mcuProfile.adc;
+    if (!adcProfile) {
+      return;
+    }
+
     // ADC conversion: reads live values from the ADC registry.
-    // When ADSC (bit 6) is set in ADCSRA (0x7A), we read the selected
-    // channel from ADMUX (0x7C) and return the registry value.
-    this.cpu.writeHooks[0x7a] = value => {
-      if (value & (1 << 6)) {
-        // Read the selected ADC channel from ADMUX bits 3:0
-        const admux = this.cpu.data[0x7c];
-        const channel = admux & 0x0f;
+    this.cpu.writeHooks[adcProfile.adcsraRegister] = value => {
+      if (value & (1 << adcProfile.conversionStartBit)) {
+        const admux = this.cpu.data[adcProfile.admuxRegister];
+        let channel = admux & adcProfile.channelMask;
+        for (const selectBits of (adcProfile.channelSelectBits ?? [])) {
+          const highBits = (this.cpu.data[selectBits.register] & selectBits.mask) >> selectBits.shift;
+          channel |= highBits << selectBits.bitOffset;
+        }
         const analogValue = this.adcRegistry.getChannel(channel);
 
-        this.cpu.data[0x7a] = value & ~(1 << 6); // Clear ADSC - conversion done
-        this.cpu.data[0x78] = analogValue & 0xff;          // ADCL
-        this.cpu.data[0x79] = (analogValue >> 8) & 0x3;    // ADCH
+        this.cpu.data[adcProfile.adcsraRegister] = value & ~(1 << adcProfile.conversionStartBit);
+        this.cpu.data[adcProfile.adclRegister] = analogValue & 0xff;
+        this.cpu.data[adcProfile.adchRegister] = (analogValue >> 8) & 0x3;
 
-        return true; // Don't update register
+        return true;
       }
     };
+  }
+
+  private requirePort(portId: string): AVRIOPort {
+    const port = this.ports[portId];
+    if (!port) {
+      throw new Error(`MCU profile ${this.mcuProfile.id} is missing port ${portId}`);
+    }
+    return port;
+  }
+
+  private requireTimer(timerId: string | undefined, label: string): AVRTimer {
+    if (!timerId) {
+      throw new Error(`MCU profile ${this.mcuProfile.id} is missing default ${label}`);
+    }
+    const timer = this.timers[timerId];
+    if (!timer) {
+      throw new Error(`MCU profile ${this.mcuProfile.id} is missing timer ${timerId}`);
+    }
+    return timer;
+  }
+
+  private requireUsartConfig(usartId: string) {
+    const usartProfile = this.mcuProfile.usarts[usartId];
+    if (!usartProfile) {
+      throw new Error(`MCU profile ${this.mcuProfile.id} is missing USART ${usartId}`);
+    }
+    return usartProfile.config;
+  }
+
+  private requireUsart(usartId: string): AVRUSART {
+    const usart = this.usarts[usartId];
+    if (!usart) {
+      throw new Error(`MCU profile ${this.mcuProfile.id} is missing USART instance ${usartId}`);
+    }
+    return usart;
+  }
+
+  private shiftSerialBuffer(usartId: string): number {
+    return this.serialBuffers[usartId]?.shift() || 0;
+  }
+
+  private requireSpiConfig(spiId: string) {
+    const spiProfile = this.mcuProfile.spis[spiId];
+    if (!spiProfile) {
+      throw new Error(`MCU profile ${this.mcuProfile.id} is missing SPI ${spiId}`);
+    }
+    return spiProfile.config;
+  }
+
+  private requireTwiConfig(twiId: string) {
+    const twiProfile = this.mcuProfile.twis[twiId];
+    if (!twiProfile) {
+      throw new Error(`MCU profile ${this.mcuProfile.id} is missing TWI ${twiId}`);
+    }
+    return twiProfile.config;
   }
 }

@@ -1,6 +1,6 @@
 /**
  * ADC Channel Registry
- * Manages analog values (0-1023) for each ADC channel on the ATmega328p.
+ * Manages analog values (0-1023) for each ADC channel on the active MCU.
  * Supports both static values and live-bound DOM elements (e.g., potentiometers).
  *
  * When an element is bound to a channel, getChannel() reads its live `.value`
@@ -22,18 +22,20 @@ interface ADCChannelBinding {
 
 export class ADCRegistry {
     private channels: ADCChannelBinding[] = [];
+    private readonly channelCount: number;
 
-    constructor() {
-        for (let i = 0; i < 8; i++) {
+    constructor(channelCount = 8) {
+        this.channelCount = Math.max(1, channelCount);
+        for (let i = 0; i < this.channelCount; i++) {
             this.channels.push({ value: 0, property: 'value', scale: 1, offset: 0 });
         }
     }
 
     /**
-     * Set a static value for an ADC channel (0-7).
+     * Set a static value for an ADC channel.
      */
     setValue(channel: number, value: number): void {
-        if (channel >= 0 && channel < 8) {
+        if (channel >= 0 && channel < this.channelCount) {
             this.channels[channel].value = Math.max(0, Math.min(1023, Math.round(value)));
         }
     }
@@ -42,7 +44,7 @@ export class ADCRegistry {
      * Bind a DOM element to an ADC channel.
      * When getChannel() is called, the element's property is read live.
      *
-     * @param channel  ADC channel number (0-7)
+    * @param channel  ADC channel number
      * @param element  The Wokwi custom element
      * @param property Property name to read (default: 'value')
      * @param scale    Multiplier applied to the property value (default: 1)
@@ -55,7 +57,7 @@ export class ADCRegistry {
         scale = 1,
         offset = 0,
     ): void {
-        if (channel >= 0 && channel < 8) {
+        if (channel >= 0 && channel < this.channelCount) {
             this.channels[channel] = { value: 0, element, property, scale, offset };
         }
     }
@@ -65,7 +67,7 @@ export class ADCRegistry {
      * If an element is bound, reads its live property; otherwise returns the static value.
      */
     getChannel(channel: number): number {
-        if (channel < 0 || channel >= 8) return 0;
+        if (channel < 0 || channel >= this.channelCount) return 0;
 
         const ch = this.channels[channel];
         if (ch.element) {
@@ -80,7 +82,7 @@ export class ADCRegistry {
      * Reset all channels to zero and unbind all elements.
      */
     reset(): void {
-        for (let i = 0; i < 8; i++) {
+        for (let i = 0; i < this.channelCount; i++) {
             this.channels[i] = { value: 0, property: 'value', scale: 1, offset: 0 };
         }
     }

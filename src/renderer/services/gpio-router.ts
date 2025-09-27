@@ -12,9 +12,10 @@
  */
 import type { WokwiDiagram } from '../types/wokwi.types';
 import type { AVRRunner } from '../../shared/execute';
-import type { PortBitInfo } from '../utils/pin-mapping';
+import type { ArduinoPorts, PortBitInfo } from '../utils/pin-mapping';
 import type { AVRIOPort } from 'avr8js';
 import { getPortAndBit, getADCChannel } from '../utils/pin-mapping';
+import { resolveBoardProfileFromParts, type BoardProfile } from '../../shared/avr/profiles';
 import { StepperController } from '../../shared/stepper';
 
 /** Cast helper for wokwi custom elements with dynamic props */
@@ -29,18 +30,14 @@ interface ResolvedConn {
     componentPin: string;
 }
 
-/** Ports shorthand */
-interface Ports {
-    portB: AVRIOPort;
-    portC: AVRIOPort;
-    portD: AVRIOPort;
-}
+type Ports = Readonly<ArduinoPorts>;
 
 /** Component handler context */
 interface HandlerCtx {
     el: HTMLElement;
     conns: ResolvedConn[];
     ports: Ports;
+    boardProfile: BoardProfile;
     runner: AVRRunner;
     cleanups: Array<() => void>;
 }
@@ -97,14 +94,11 @@ export function setupGPIORouting(diagram: WokwiDiagram, runner: AVRRunner): GPIO
     }
 
     // Find the Arduino MCU
-    const arduinoPart = diagram.parts.find(p =>
-        p.type === 'wokwi-arduino-uno' ||
-        p.type === 'wokwi-arduino-mega' ||
-        p.type === 'wokwi-arduino-nano'
-    );
+    const arduinoPart = diagram.parts.find((part) => part.type.startsWith('wokwi-arduino-'));
     if (!arduinoPart) return () => {};
 
-    const ports: Ports = { portB: runner.portB, portC: runner.portC, portD: runner.portD };
+    const ports: Ports = runner.ports;
+    const boardProfile = resolveBoardProfileFromParts(diagram.parts);
 
     // Resolve and group connections by component
     const byComponent = resolveConnections(diagram, arduinoPart.id);
@@ -115,7 +109,7 @@ export function setupGPIORouting(diagram: WokwiDiagram, runner: AVRRunner): GPIO
         if (!comp) continue;
         const handler = handlerMap[comp.type];
         if (handler) {
-            handler({ el: comp.el, conns, ports, runner, cleanups });
+            handler({ el: comp.el, conns, ports, boardProfile, runner, cleanups });
         }
     }
 
@@ -133,6 +127,170 @@ export function setupGPIORouting(diagram: WokwiDiagram, runner: AVRRunner): GPIO
  * Arduino pin that ultimately drives the active component.
  */
 const PASSIVE_TYPES = new Set(['wokwi-resistor', 'wokwi-hx711']);
+const POWER_PIN_RE = /^(GND|5V|3V3|3\.3V|AREF|IOREF|VIN|PWR|RESET)/i;
+
+interface ConnectionGraph {
+    adjacency: Map<string, string[]>;
+    pinsByPart: Map<string, string[]>;
+}
+
+interface ComponentTouchPoint {
+    componentPin: string;
+    startNode: string;
+}
+
+function buildConnectionGraph(diagram: WokwiDiagram): ConnectionGraph {
+    const adjacency = new Map<string, string[]>();
+
+    const addEdge = (from: string, to: string) => {
+        const fromEdges = adjacency.get(from) ?? [];
+        const toEdges = adjacency.get(to) ?? [];
+        fromEdges.push(to);
+        toEdges.push(from);
+        adjacency.set(from, fromEdges);
+        adjacency.set(to, toEdges);
+    };
+
+    for (const conn of diagram.connections) {
+        addEdge(conn.from, conn.to);
+    }
+
+    const pinsByPart = new Map<string, string[]>();
+    for (const node of adjacency.keys()) {
+        const partId = node.split(':')[0];
+        const pins = pinsByPart.get(partId) ?? [];
+        pins.push(node);
+        pinsByPart.set(partId, pins);
+    }
+
+    return { adjacency, pinsByPart };
+}
+
+function enqueuePassivePins(
+    partId: string,
+    pinsByPart: Map<string, string[]>,
+    visited: Set<string>,
+    queue: string[],
+): void {
+    for (const sibling of (pinsByPart.get(partId) ?? [])) {
+        if (visited.has(sibling)) continue;
+        visited.add(sibling);
+        queue.push(sibling);
+    }
+}
+
+function shouldTraverseIntoPart(partId: string, arduinoId: string, partTypeMap: Map<string, string>): boolean {
+    if (partId === arduinoId) {
+        return true;
+    }
+    return PASSIVE_TYPES.has(partTypeMap.get(partId) ?? '');
+}
+
+function parseNodeRef(node: string): { partId: string; pinName: string } {
+    const colonIdx = node.indexOf(':');
+    return {
+        partId: node.slice(0, colonIdx),
+        pinName: node.slice(colonIdx + 1),
+    };
+}
+
+function enqueueTraversableNeighbor(
+    neighbor: string,
+    arduinoId: string,
+    partTypeMap: Map<string, string>,
+    graph: ConnectionGraph,
+    visited: Set<string>,
+    queue: string[],
+): void {
+    if (visited.has(neighbor)) return;
+
+    const { partId } = parseNodeRef(neighbor);
+    if (!shouldTraverseIntoPart(partId, arduinoId, partTypeMap)) return;
+
+    visited.add(neighbor);
+    queue.push(neighbor);
+
+    if (partId !== arduinoId) {
+        enqueuePassivePins(partId, graph.pinsByPart, visited, queue);
+    }
+}
+
+function enqueuePassiveSelfIfNeeded(
+    partId: string,
+    partTypeMap: Map<string, string>,
+    graph: ConnectionGraph,
+    visited: Set<string>,
+    queue: string[],
+): void {
+    if (!PASSIVE_TYPES.has(partTypeMap.get(partId) ?? '')) return;
+    enqueuePassivePins(partId, graph.pinsByPart, visited, queue);
+}
+
+function findArduinoPinFromNode(
+    startNode: string,
+    arduinoId: string,
+    partTypeMap: Map<string, string>,
+    graph: ConnectionGraph,
+): string | null {
+    const visited = new Set<string>([startNode]);
+    const queue: string[] = [startNode];
+
+    while (queue.length > 0) {
+        const node = queue.shift();
+        if (!node) continue;
+
+        const { partId, pinName } = parseNodeRef(node);
+
+        if (partId === arduinoId) {
+            return pinName;
+        }
+
+        for (const neighbor of (graph.adjacency.get(node) ?? [])) {
+            enqueueTraversableNeighbor(neighbor, arduinoId, partTypeMap, graph, visited, queue);
+        }
+
+        enqueuePassiveSelfIfNeeded(partId, partTypeMap, graph, visited, queue);
+    }
+
+    return null;
+}
+
+function listComponentTouchPoints(diagram: WokwiDiagram, partId: string): ComponentTouchPoint[] {
+    const touchPoints: ComponentTouchPoint[] = [];
+
+    for (const conn of diagram.connections) {
+        const [fromPartId, fromPin] = conn.from.split(':');
+        const [toPartId, toPin] = conn.to.split(':');
+
+        if (fromPartId === partId) {
+            touchPoints.push({ componentPin: fromPin, startNode: conn.from });
+        } else if (toPartId === partId) {
+            touchPoints.push({ componentPin: toPin, startNode: conn.to });
+        }
+    }
+
+    return touchPoints;
+}
+
+function shouldResolvePart(partId: string, arduinoId: string, partTypeMap: Map<string, string>): boolean {
+    if (partId === arduinoId) return false;
+    const partType = partTypeMap.get(partId) ?? '';
+    if (PASSIVE_TYPES.has(partType)) return false;
+    return !partType.startsWith('wokwi-arduino-');
+}
+
+function pushResolvedConnection(
+    byComponent: Map<string, ResolvedConn[]>,
+    partId: string,
+    componentPin: string,
+    arduinoPin: string,
+): void {
+    const list = byComponent.get(partId) ?? [];
+    if (!list.some((entry) => entry.arduinoPin === arduinoPin && entry.componentPin === componentPin)) {
+        list.push({ arduinoPin, componentPin });
+        byComponent.set(partId, list);
+    }
+}
 
 /**
  * Trace through passive components (resistors, etc.) to resolve
@@ -148,125 +306,18 @@ function resolveConnections(
     diagram: WokwiDiagram,
     arduinoId: string,
 ): Map<string, ResolvedConn[]> {
-    // Build part-type lookup
-    const partTypeMap = new Map(diagram.parts.map(p => [p.id, p.type]));
-
-    // Build bidirectional adjacency list: "partId:pin" → ["partId:pin", ...]
-    const adj = new Map<string, string[]>();
-    const addEdge = (a: string, b: string) => {
-        if (!adj.has(a)) adj.set(a, []);
-        if (!adj.has(b)) adj.set(b, []);
-        adj.get(a)!.push(b);
-        adj.get(b)!.push(a);
-    };
-    for (const conn of diagram.connections) {
-        addEdge(conn.from, conn.to);
-    }
-
-    // Group all known pin-nodes by part id for passive pass-through
-    const pinsByPart = new Map<string, string[]>();
-    for (const node of adj.keys()) {
-        const partId = node.split(':')[0];
-        if (!pinsByPart.has(partId)) pinsByPart.set(partId, []);
-        pinsByPart.get(partId)!.push(node);
-    }
-
-    /**
-     * BFS from a component pin node.
-     * Returns the Arduino pin name if reachable through the net, or null.
-     * Skips power / reference rails (GND, 5V, 3V3, etc.).
-     */
-    function findArduinoPinFrom(startNode: string): string | null {
-        const visited = new Set<string>([startNode]);
-        const queue: string[] = [startNode];
-
-        while (queue.length > 0) {
-            const node = queue.shift()!;
-            const colonIdx = node.indexOf(':');
-            const partId = node.slice(0, colonIdx);
-            const pinName = node.slice(colonIdx + 1);
-
-            // Reached the Arduino — return the pin name
-            if (partId === arduinoId) return pinName;
-
-            // Explore neighbors wired directly to this node
-            for (const neighbor of (adj.get(node) ?? [])) {
-                if (visited.has(neighbor)) continue;
-                const neighborPartId = neighbor.split(':')[0];
-                const neighborType = partTypeMap.get(neighborPartId) ?? '';
-                const isArduino = neighborPartId === arduinoId;
-                const isPassive = PASSIVE_TYPES.has(neighborType);
-
-                // Only traverse into Arduino or passive parts
-                if (!isArduino && !isPassive) continue;
-                visited.add(neighbor);
-                queue.push(neighbor);
-
-                // Pass-through: queue ALL pins of the passive so the BFS
-                // can exit on the other side of the resistor.
-                if (isPassive) {
-                    for (const sibling of (pinsByPart.get(neighborPartId) ?? [])) {
-                        if (!visited.has(sibling)) {
-                            visited.add(sibling);
-                            queue.push(sibling);
-                        }
-                    }
-                }
-            }
-
-            // If the current node itself is a passive, also pass through
-            // (handles the case where BFS entered via a passive internal jump)
-            const currentType = partTypeMap.get(partId) ?? '';
-            if (PASSIVE_TYPES.has(currentType)) {
-                for (const sibling of (pinsByPart.get(partId) ?? [])) {
-                    if (!visited.has(sibling)) {
-                        visited.add(sibling);
-                        queue.push(sibling);
-                    }
-                }
-            }
-        }
-        return null;
-    }
-
-    // Power / reference pins — not real GPIO, skip them
-    const POWER_PIN_RE = /^(GND|5V|3V3|3\.3V|AREF|IOREF|VIN|PWR|RESET)/i;
-
+    const partTypeMap = new Map(diagram.parts.map((part) => [part.id, part.type]));
+    const graph = buildConnectionGraph(diagram);
     const byComponent = new Map<string, ResolvedConn[]>();
 
     for (const part of diagram.parts) {
-        if (part.id === arduinoId) continue;
-        const partType = partTypeMap.get(part.id) ?? '';
-        if (PASSIVE_TYPES.has(partType)) continue;
-        if (partType.startsWith('wokwi-arduino-')) continue;
+        if (!shouldResolvePart(part.id, arduinoId, partTypeMap)) continue;
 
-        // Iterate over connections that directly touch this part
-        for (const conn of diagram.connections) {
-            const [fromPartId, fromPin] = conn.from.split(':');
-            const [toPartId, toPin] = conn.to.split(':');
-
-            let componentPin: string | undefined;
-            let startNode: string | undefined;
-
-            if (fromPartId === part.id) {
-                componentPin = fromPin;
-                startNode = conn.from;
-            } else if (toPartId === part.id) {
-                componentPin = toPin;
-                startNode = conn.to;
-            }
-
-            if (!componentPin || !startNode) continue;
-
-            const arduinoPin = findArduinoPinFrom(startNode);
+        for (const touchPoint of listComponentTouchPoints(diagram, part.id)) {
+            const arduinoPin = findArduinoPinFromNode(touchPoint.startNode, arduinoId, partTypeMap, graph);
             if (!arduinoPin || POWER_PIN_RE.test(arduinoPin)) continue;
 
-            const list = byComponent.get(part.id) ?? [];
-            // Deduplicate identical entries
-            if (!list.some(e => e.arduinoPin === arduinoPin && e.componentPin === componentPin)) {
-                list.push({ arduinoPin, componentPin });
-                byComponent.set(part.id, list);
-            }
+            pushResolvedConnection(byComponent, part.id, touchPoint.componentPin, arduinoPin);
         }
     }
 
@@ -277,9 +328,9 @@ function resolveConnections(
 // OUTPUT Handlers
 // ══════════════════════════════════════
 
-function wireLED({ el, conns, ports }: HandlerCtx): void {
+function wireLED({ el, conns, ports, boardProfile }: HandlerCtx): void {
     for (const c of conns) {
-        const pi = getPortAndBit(c.arduinoPin, ports);
+        const pi = getPortAndBit(c.arduinoPin, ports, boardProfile);
         if (!pi) continue;
         const led = el as HTMLElement & { value: boolean };
         if (c.componentPin === 'A') {
@@ -290,9 +341,9 @@ function wireLED({ el, conns, ports }: HandlerCtx): void {
     }
 }
 
-function wireSignalOutput({ el, conns, ports }: HandlerCtx): void {
+function wireSignalOutput({ el, conns, ports, boardProfile }: HandlerCtx): void {
     for (const c of conns) {
-        const pi = getPortAndBit(c.arduinoPin, ports);
+        const pi = getPortAndBit(c.arduinoPin, ports, boardProfile);
         if (!pi) continue;
         pi.port.addListener(() => {
             (el as WokwiElement).hasSignal = pi.port.pinState(pi.bit) === 1;
@@ -300,9 +351,9 @@ function wireSignalOutput({ el, conns, ports }: HandlerCtx): void {
     }
 }
 
-function wireLEDBarGraph({ el, conns, ports }: HandlerCtx): void {
+function wireLEDBarGraph({ el, conns, ports, boardProfile }: HandlerCtx): void {
     for (const c of conns) {
-        const pi = getPortAndBit(c.arduinoPin, ports);
+        const pi = getPortAndBit(c.arduinoPin, ports, boardProfile);
         if (!pi) continue;
         const pinMatch = /^([AC])(\d+)$/.exec(c.componentPin);
         if (!pinMatch) continue;
@@ -325,11 +376,11 @@ const SEGMENT_INDEX: Record<string, number> = {
     A: 0, B: 1, C: 2, D: 3, E: 4, F: 5, G: 6, DP: 7,
 };
 
-function wire7Segment({ el, conns, ports }: HandlerCtx): void {
+function wire7Segment({ el, conns, ports, boardProfile }: HandlerCtx): void {
     const seg7 = el as WokwiElement;
 
     // common cathode → HIGH = segment ON; common anode → LOW = segment ON
-    const commonAttr = (seg7.getAttribute?.('common') as string ?? 'cathode').toLowerCase();
+    const commonAttr = (seg7.getAttribute?.('common') ?? 'cathode').toLowerCase();
     const isAnode = commonAttr === 'anode';
 
     // Initialise values array if not already present
@@ -338,7 +389,7 @@ function wire7Segment({ el, conns, ports }: HandlerCtx): void {
     }
 
     for (const c of conns) {
-        const pi = getPortAndBit(c.arduinoPin, ports);
+        const pi = getPortAndBit(c.arduinoPin, ports, boardProfile);
         if (!pi) continue;
         const upperPin = c.componentPin.toUpperCase();
         // Skip COM / DIG select pins — not individual segment signals
@@ -360,9 +411,9 @@ function wire7Segment({ el, conns, ports }: HandlerCtx): void {
 // INPUT Handlers
 // ══════════════════════════════════════
 
-function wirePushbutton({ el, conns, ports, cleanups }: HandlerCtx): void {
+function wirePushbutton({ el, conns, ports, cleanups, boardProfile }: HandlerCtx): void {
     for (const c of conns) {
-        const pi = getPortAndBit(c.arduinoPin, ports);
+        const pi = getPortAndBit(c.arduinoPin, ports, boardProfile);
         if (!pi) continue;
         pi.port.setPin(pi.bit, true); // default: not pressed → HIGH
         const onPress = () => pi.port.setPin(pi.bit, false);
@@ -376,9 +427,9 @@ function wirePushbutton({ el, conns, ports, cleanups }: HandlerCtx): void {
     }
 }
 
-function wireSwitch({ el, conns, ports, cleanups }: HandlerCtx): void {
+function wireSwitch({ el, conns, ports, cleanups, boardProfile }: HandlerCtx): void {
     for (const c of conns) {
-        const pi = getPortAndBit(c.arduinoPin, ports);
+        const pi = getPortAndBit(c.arduinoPin, ports, boardProfile);
         if (!pi) continue;
         const readSwitch = () => {
             const val = Number((el as WokwiElement).value) || 0;
@@ -397,9 +448,9 @@ function wireSwitch({ el, conns, ports, cleanups }: HandlerCtx): void {
     }
 }
 
-function wireDipSwitch({ el, conns, ports, cleanups }: HandlerCtx): void {
+function wireDipSwitch({ el, conns, ports, cleanups, boardProfile }: HandlerCtx): void {
     for (const c of conns) {
-        const pi = getPortAndBit(c.arduinoPin, ports);
+        const pi = getPortAndBit(c.arduinoPin, ports, boardProfile);
         if (!pi) continue;
         const dipMatch = /^(\d+)(a?)$/i.exec(c.componentPin);
         if (!dipMatch) continue;
@@ -426,24 +477,24 @@ function wireDipSwitch({ el, conns, ports, cleanups }: HandlerCtx): void {
 // ANALOG Handlers
 // ══════════════════════════════════════
 
-function wireAnalogInput({ el, conns, runner }: HandlerCtx): void {
+function wireAnalogInput({ el, conns, runner, boardProfile }: HandlerCtx): void {
     for (const c of conns) {
         if (c.componentPin !== 'SIG') continue;
-        const ch = getADCChannel(c.arduinoPin);
+        const ch = getADCChannel(c.arduinoPin, boardProfile);
         if (ch === null) continue;
         runner.adcRegistry.bindElement(ch, el, 'value', 1, 0);
     }
 }
 
-function wireJoystick({ el, conns, ports, runner, cleanups }: HandlerCtx): void {
+function wireJoystick({ el, conns, ports, runner, cleanups, boardProfile }: HandlerCtx): void {
     for (const c of conns) {
         if (c.componentPin === 'HORZ' || c.componentPin === 'VER') {
-            const ch = getADCChannel(c.arduinoPin);
+            const ch = getADCChannel(c.arduinoPin, boardProfile);
             if (ch === null) continue;
             const prop = c.componentPin === 'HORZ' ? 'xValue' : 'yValue';
             runner.adcRegistry.bindElement(ch, el, prop, 1, 0);
         } else if (c.componentPin === 'SEL') {
-            const pi = getPortAndBit(c.arduinoPin, ports);
+            const pi = getPortAndBit(c.arduinoPin, ports, boardProfile);
             if (!pi) continue;
             pi.port.setPin(pi.bit, true);
             const onPress = () => pi.port.setPin(pi.bit, false);
@@ -463,10 +514,10 @@ function wireJoystick({ el, conns, ports, runner, cleanups }: HandlerCtx): void 
 // ══════════════════════════════════════
 
 /** Pure analog sensor — single OUT pin wired to ADC (NTC, etc.) */
-function wireAnalogSensor({ conns, runner }: HandlerCtx): void {
+function wireAnalogSensor({ conns, runner, boardProfile }: HandlerCtx): void {
     for (const c of conns) {
         if (c.componentPin !== 'OUT') continue;
-        const ch = getADCChannel(c.arduinoPin);
+        const ch = getADCChannel(c.arduinoPin, boardProfile);
         if (ch !== null) {
             // Default midpoint value; user can later adjust via a hypothetical UI
             runner.adcRegistry.setValue(ch, 512);
@@ -485,13 +536,13 @@ function setupAnalogMirroredDigital(pi: PortBitInfo, ch: number, runner: AVRRunn
     }, 50);
 }
 
-function wireAnalogDigitalSensor({ conns, ports, runner }: HandlerCtx): void {
+function wireAnalogDigitalSensor({ conns, ports, runner, boardProfile }: HandlerCtx): void {
     // Pass 1: resolve ADC channel from AOUT/AO pin
     let adcChannel: number | null = null;
     for (const c of conns) {
         const pin = c.componentPin.toUpperCase();
         if (pin === 'AOUT' || pin === 'AO') {
-            const ch = getADCChannel(c.arduinoPin);
+            const ch = getADCChannel(c.arduinoPin, boardProfile);
             if (ch !== null) { runner.adcRegistry.setValue(ch, 512); adcChannel = ch; }
         }
     }
@@ -499,7 +550,7 @@ function wireAnalogDigitalSensor({ conns, ports, runner }: HandlerCtx): void {
     for (const c of conns) {
         const pin = c.componentPin.toUpperCase();
         if (pin === 'DOUT' || pin === 'DO') {
-            const pi = getPortAndBit(c.arduinoPin, ports);
+            const pi = getPortAndBit(c.arduinoPin, ports, boardProfile);
             if (pi && adcChannel !== null) { setupAnalogMirroredDigital(pi, adcChannel, runner); }
             else if (pi) { pi.port.setPin(pi.bit, true); }
         }
@@ -507,10 +558,10 @@ function wireAnalogDigitalSensor({ conns, ports, runner }: HandlerCtx): void {
 }
 
 /** Pure digital sensor — single OUT pin (PIR, Heartbeat). Default LOW. */
-function wireDigitalSensor({ conns, ports }: HandlerCtx): void {
+function wireDigitalSensor({ conns, ports, boardProfile }: HandlerCtx): void {
     for (const c of conns) {
         if (c.componentPin !== 'OUT') continue;
-        const pi = getPortAndBit(c.arduinoPin, ports);
+        const pi = getPortAndBit(c.arduinoPin, ports, boardProfile);
         if (pi) {
             pi.port.setPin(pi.bit, false);
         }
@@ -522,12 +573,12 @@ function wireDigitalSensor({ conns, ports }: HandlerCtx): void {
 // ══════════════════════════════════════
 
 /** Rotary dialer — DIAL goes HIGH while dialing, PULSE emits N pulses for digit N */
-function wireRotaryDialer({ el, conns, ports, cleanups }: HandlerCtx): void {
+function wireRotaryDialer({ el, conns, ports, cleanups, boardProfile }: HandlerCtx): void {
     let dialPin: PortBitInfo | null = null;
     let pulsePin: PortBitInfo | null = null;
 
     for (const c of conns) {
-        const pi = getPortAndBit(c.arduinoPin, ports);
+        const pi = getPortAndBit(c.arduinoPin, ports, boardProfile);
         if (!pi) continue;
         if (c.componentPin === 'DIAL') dialPin = pi;
         else if (c.componentPin === 'PULSE') pulsePin = pi;
@@ -582,8 +633,8 @@ function emitPulses(pin: PortBitInfo | null, count: number): void {
 // ══════════════════════════════════════
 
 /** 4×4 keypad: Arduino scans rows LOW, reads columns */
-function wireKeypad({ el, conns, ports, cleanups }: HandlerCtx): void {
-    const { rowPins, colPins } = parseKeypadPins(conns, ports);
+function wireKeypad({ el, conns, ports, cleanups, boardProfile }: HandlerCtx): void {
+    const { rowPins, colPins } = parseKeypadPins(conns, ports, boardProfile);
     const pressedKeys = new Set<string>();
 
     const updateColumns = () => keypadUpdateColumns(rowPins, colPins, pressedKeys);
@@ -606,11 +657,11 @@ function wireKeypad({ el, conns, ports, cleanups }: HandlerCtx): void {
     });
 }
 
-function parseKeypadPins(conns: ResolvedConn[], ports: Ports) {
+function parseKeypadPins(conns: ResolvedConn[], ports: Ports, boardProfile: BoardProfile) {
     const rowPins: Array<PortBitInfo | null> = [null, null, null, null];
     const colPins: Array<PortBitInfo | null> = [null, null, null, null];
     for (const c of conns) {
-        const pi = getPortAndBit(c.arduinoPin, ports);
+        const pi = getPortAndBit(c.arduinoPin, ports, boardProfile);
         if (!pi) continue;
         const rm = /^R(\d)$/.exec(c.componentPin);
         const cm = /^C(\d)$/.exec(c.componentPin);
@@ -667,13 +718,13 @@ const KEYPAD_LAYOUT: Record<string, { row: number; col: number }> = {
 // ══════════════════════════════════════
 
 /** Quadrature encoder — generates CLK/DT pulses on rotation */
-function wireRotaryEncoder({ el, conns, ports, cleanups }: HandlerCtx): void {
+function wireRotaryEncoder({ el, conns, ports, cleanups, boardProfile }: HandlerCtx): void {
     let clkPin: PortBitInfo | null = null;
     let dtPin: PortBitInfo | null = null;
     let swPin: PortBitInfo | null = null;
 
     for (const c of conns) {
-        const pi = getPortAndBit(c.arduinoPin, ports);
+        const pi = getPortAndBit(c.arduinoPin, ports, boardProfile);
         if (!pi) continue;
         if (c.componentPin === 'CLK') clkPin = pi;
         else if (c.componentPin === 'DT') dtPin = pi;
@@ -732,10 +783,10 @@ function wireRotaryEncoder({ el, conns, ports, cleanups }: HandlerCtx): void {
 // OUTPUT: Servo (PWM → angle)
 // ══════════════════════════════════════
 
-function wireServo({ el, conns, ports, runner }: HandlerCtx): void {
+function wireServo({ el, conns, ports, runner, boardProfile }: HandlerCtx): void {
     for (const c of conns) {
         if (c.componentPin !== 'PWM') continue;
-        const pi = getPortAndBit(c.arduinoPin, ports);
+        const pi = getPortAndBit(c.arduinoPin, ports, boardProfile);
         if (!pi) continue;
         let lastRise = 0;
         let lastState = false;
@@ -763,18 +814,18 @@ function wireServo({ el, conns, ports, runner }: HandlerCtx): void {
 // ══════════════════════════════════════
 
 /** Detects 4-phase full-step sequence and updates element angle */
-function wireStepperMotor({ el, conns, ports }: HandlerCtx): void {
+function wireStepperMotor({ el, conns, ports, boardProfile }: HandlerCtx): void {
     const pinMap: Record<string, PortBitInfo | null> = {
         'A-': null, 'A+': null, 'B+': null, 'B-': null,
     };
     for (const c of conns) {
         if (c.componentPin in pinMap) {
-            pinMap[c.componentPin] = getPortAndBit(c.arduinoPin, ports);
+            pinMap[c.componentPin] = getPortAndBit(c.arduinoPin, ports, boardProfile);
         }
     }
 
     const stepsAttr = el.getAttribute('stepsperrev') ?? el.getAttribute('stepsPerRev');
-    const stepsPerRev = stepsAttr ? (parseInt(stepsAttr, 10) || 200) : 200;
+    const stepsPerRev = stepsAttr ? (Number.parseInt(stepsAttr, 10) || 200) : 200;
     const stepper = new StepperController();
     stepper.stepsPerRevolution = stepsPerRev;
     const readPin = (pi: PortBitInfo | null) => pi ? pi.port.pinState(pi.bit) === 1 : false;

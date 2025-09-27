@@ -18,19 +18,21 @@ import { IRController } from '../../shared/ir';
 import { DS1307Controller } from '../../shared/ds1307';
 import { MPU6050Controller, MPU6050_ADDR } from '../../shared/mpu6050';
 import { ILI9341Controller } from '../../shared/ili9341';
-import { getPortAndBit } from '../utils/pin-mapping';
-import type { AVRIOPort } from 'avr8js';
+import { MicroSdCardController } from '../../shared/microsd';
+import { resolveBoardProfileFromParts, type BoardProfile } from '../../shared/avr/profiles';
+import { getADCChannel, getPortAndBit, type ArduinoPorts } from '../utils/pin-mapping';
 import { attachCustomChipControllers } from './custom-chips';
 import type { CustomChipArtifacts, CustomChipControl, CustomChipManifests } from './custom-chips';
 import { buildNetlist } from './netlist-builder';
 import type { NetlistEntry } from './netlist-builder';
 
-/** Port set shorthand used throughout the engine */
-interface PortSet {
-    portB: AVRIOPort;
-    portC: AVRIOPort;
-    portD: AVRIOPort;
-}
+type PortSet = Readonly<ArduinoPorts>;
+type SpiMuxSession = {
+    id: string;
+    handleByte: (value: number) => boolean;
+};
+
+const SPI_MUX_KEY = '__avr8jsSimulationSpiMux';
 
 // ── Connection resolution helpers ──
 
@@ -41,6 +43,7 @@ interface ResolvedPin {
 
 export interface CompiledSimulationSetup {
     arduinoId: string;
+    boardProfile: BoardProfile;
     netlist: NetlistEntry[];
     componentPinsById: Map<string, ResolvedPin[]>;
     structuralHash: string;
@@ -54,12 +57,64 @@ function findArduinoPin(pins: ResolvedPin[], componentPin: string): string | nul
     return match?.arduinoPin ?? null;
 }
 
+function registerSpiMuxSession(runner: AVRRunner, session: SpiMuxSession): () => void {
+    const spiHost = runner.spi as typeof runner.spi & {
+        [SPI_MUX_KEY]?: {
+            previous: ((value: number) => void) | null;
+            sessions: SpiMuxSession[];
+        };
+    };
+
+    if (!spiHost[SPI_MUX_KEY]) {
+        const previous = typeof runner.spi.onByte === 'function' ? runner.spi.onByte : null;
+        spiHost[SPI_MUX_KEY] = { previous, sessions: [] };
+        runner.spi.onByte = (value: number) => {
+            const mux = spiHost[SPI_MUX_KEY];
+            if (!mux) {
+                runner.spi.completeTransfer(0xFF);
+                return;
+            }
+
+            for (const candidate of mux.sessions) {
+                if (candidate.handleByte(value)) {
+                    return;
+                }
+            }
+
+            if (mux.previous) {
+                mux.previous(value);
+            } else {
+                runner.spi.completeTransfer(0xFF);
+            }
+        };
+    }
+
+    const mux = spiHost[SPI_MUX_KEY];
+    if (mux) {
+        mux.sessions.push(session);
+    }
+
+    return () => {
+        const currentMux = spiHost[SPI_MUX_KEY];
+        if (!currentMux) {
+            return;
+        }
+
+        currentMux.sessions = currentMux.sessions.filter((candidate) => candidate.id !== session.id);
+        if (currentMux.sessions.length === 0) {
+            runner.spi.onByte = currentMux.previous;
+            delete spiHost[SPI_MUX_KEY];
+        }
+    };
+}
+
+function isSpiDeviceSelected(csPin: ReturnType<typeof getPortAndBit> | null): boolean {
+    return csPin ? csPin.port.pinState(csPin.bit) === 0 : true;
+}
+
 export function compileSimulationSetup(diagram: WokwiDiagram): CompiledSimulationSetup {
-    const arduinoPart = diagram.parts.find(p =>
-        p.type === 'wokwi-arduino-uno' ||
-        p.type === 'wokwi-arduino-mega' ||
-        p.type === 'wokwi-arduino-nano'
-    );
+    const arduinoPart = diagram.parts.find((part) => part.type.startsWith('wokwi-arduino-'));
+    const boardProfile = resolveBoardProfileFromParts(diagram.parts);
     const netlist = buildNetlist(diagram);
     const componentPinsById = new Map<string, ResolvedPin[]>();
 
@@ -89,6 +144,7 @@ export function compileSimulationSetup(diagram: WokwiDiagram): CompiledSimulatio
 
     return {
         arduinoId: arduinoPart?.id ?? '',
+        boardProfile,
         netlist,
         componentPinsById,
         structuralHash,
@@ -146,6 +202,18 @@ export interface AdjustableDevice {
 // ── Main API ──
 
 const NEOPIXEL_TYPES = new Set(['wokwi-neopixel', 'wokwi-led-ring', 'wokwi-neopixel-matrix']);
+const FLAME_DIGITAL_PROPERTIES: CustomChipControl[] = [
+    { key: 'detected', label: 'Flame Detected', min: 0, max: 1, step: 1, unit: '', defaultValue: 0 },
+];
+const TILT_SWITCH_PROPERTIES: CustomChipControl[] = [
+    { key: 'tilted', label: 'Tilted', min: 0, max: 1, step: 1, unit: '', defaultValue: 0 },
+];
+const HX711_PROPERTIES: CustomChipControl[] = [
+    { key: 'weight', label: 'Weight', min: 0, max: 5000, step: 10, unit: 'g', defaultValue: 0 },
+];
+const MICROSD_PROPERTIES: CustomChipControl[] = [
+    { key: 'inserted', label: 'Card Present', min: 0, max: 1, step: 1, unit: '', defaultValue: 1 },
+];
 
 /**
  * Creates hardware controllers for I2C and pin-based components found in the diagram.
@@ -170,8 +238,9 @@ export function createHardwareControllers( // NOSONAR: central hardware factory 
     const adjustable: AdjustableDevice[] = [];
     const cleanups: Array<() => void> = [];
     const cpuMillis = () => (runner.cpu.cycles / runner.frequency) * 1000;
-    const ports = { portB: runner.portB, portC: runner.portC, portD: runner.portD };
+    const ports: PortSet = runner.ports;
     const resolvedSetup = compiledSetup ?? compileSimulationSetup(diagram);
+    const { boardProfile } = resolvedSetup;
     const elementById = new Map<string, HTMLElement>();
     for (const part of diagram.parts) {
         const element = document.getElementById(part.id);
@@ -196,22 +265,22 @@ export function createHardwareControllers( // NOSONAR: central hardware factory 
         } else if (part.type === 'wokwi-ssd1306') {
             setupSSD1306(el, cpuMillis, i2cBus, controllers);
         } else if (part.type === 'wokwi-ili9341') {
-            setupILI9341(part, el, componentPinsFor(part.id), runner, ports, controllers);
+            setupILI9341(part, el, componentPinsFor(part.id), runner, { ports, profile: boardProfile }, controllers, cleanups);
         }
 
         // ── NeoPixel (single, ring, matrix) ──
         else if (NEOPIXEL_TYPES.has(part.type)) {
-            setupNeopixel(part, el, componentPinsFor(part.id), runner, ports, controllers);
+            setupNeopixel(part, el, componentPinsFor(part.id), runner, ports, boardProfile, controllers);
         }
 
         // ── Speaker / Buzzer audio ──
         else if (part.type === 'wokwi-buzzer') {
-            setupSpeaker(part, el, componentPinsFor(part.id), runner, ports);
+            setupSpeaker(part, el, componentPinsFor(part.id), runner, ports, boardProfile);
         }
 
         // ── DHT22 sensor ──
         else if (part.type === 'wokwi-dht22') {
-            const dht = setupDHT22(part, componentPinsFor(part.id), runner, ports);
+            const dht = setupDHT22(part, componentPinsFor(part.id), runner, ports, boardProfile);
             if (dht) {
                 adjustable.push({
                     partId: part.id, partType: part.type,
@@ -226,7 +295,7 @@ export function createHardwareControllers( // NOSONAR: central hardware factory 
 
         // ── HC-SR04 ultrasonic ──
         else if (part.type === 'wokwi-hc-sr04') {
-            const sr = setupHCSR04(part, componentPinsFor(part.id), runner, ports);
+            const sr = setupHCSR04(part, componentPinsFor(part.id), runner, ports, boardProfile);
             if (sr) {
                 adjustable.push({
                     partId: part.id, partType: part.type,
@@ -238,7 +307,7 @@ export function createHardwareControllers( // NOSONAR: central hardware factory 
 
         // ── IR Receiver ──
         else if (part.type === 'wokwi-ir-receiver') {
-            const ctrl = setupIRReceiver(part, componentPinsFor(part.id), runner, ports);
+            const ctrl = setupIRReceiver(part, componentPinsFor(part.id), runner, ports, boardProfile);
             if (ctrl) irControllers.push(ctrl);
         }
 
@@ -308,6 +377,28 @@ export function createHardwareControllers( // NOSONAR: central hardware factory 
                     }
                 },
             });
+        } else if (part.type === 'wokwi-hx711') {
+            const hx711 = setupHX711(componentPinsFor(part.id), ports, boardProfile);
+            if (hx711) {
+                adjustable.push({
+                    partId: part.id,
+                    partType: part.type,
+                    label: 'HX711 Load Cell',
+                    properties: HX711_PROPERTIES,
+                    get: () => hx711.getWeight(),
+                    set: (_key, value) => hx711.setWeight(value),
+                });
+            }
+        } else if (part.type === 'wokwi-microsd-card') {
+            const microSd = setupMicroSdCard(part.id, componentPinsFor(part.id), runner, ports, boardProfile, cleanups);
+            adjustable.push({
+                partId: part.id,
+                partType: part.type,
+                label: 'microSD Card',
+                properties: MICROSD_PROPERTIES,
+                get: () => microSd.getInserted(),
+                set: (_key, value) => microSd.setInserted(value),
+            });
         }
     }
 
@@ -342,9 +433,8 @@ export function createHardwareControllers( // NOSONAR: central hardware factory 
             for (const cp of compPins) {
                 const pin = cp.componentPin.toUpperCase();
                 if (pin === 'OUT' || pin === 'AO' || pin === 'AOUT') {
-                    const pinNum = cp.arduinoPin.replace(/^A/, '');
-                    const ch = Number.parseInt(pinNum, 10);
-                    if (!Number.isNaN(ch) && ch >= 0 && ch < 8) {
+                    const ch = getADCChannel(cp.arduinoPin, boardProfile);
+                    if (ch !== null) {
                         adcCh = ch;
                         break;
                     }
@@ -357,6 +447,30 @@ export function createHardwareControllers( // NOSONAR: central hardware factory 
                     get: () => runner.adcRegistry.getChannel(ch),
                     set: (_k, v) => runner.adcRegistry.setValue(ch, v),
                 });
+            } else if (part.type === 'wokwi-flame-sensor') {
+                const flameSignal = setupFlameDigitalSensor(componentPinsFor(part.id), ports, boardProfile, part.id);
+                if (flameSignal) {
+                    adjustable.push({
+                        partId: part.id,
+                        partType: part.type,
+                        label: 'Flame Sensor',
+                        properties: FLAME_DIGITAL_PROPERTIES,
+                        get: () => flameSignal.getDetected(),
+                        set: (_key, value) => flameSignal.setDetected(value),
+                    });
+                }
+            }
+        } else if (part.type === 'wokwi-tilt-switch') {
+            const tiltSwitch = setupTiltSwitchAdjustable(componentPinsFor(part.id), ports, boardProfile);
+            if (tiltSwitch) {
+                adjustable.push({
+                    partId: part.id,
+                    partType: part.type,
+                    label: 'Tilt Switch',
+                    properties: TILT_SWITCH_PROPERTIES,
+                    get: () => tiltSwitch.getTilted(),
+                    set: (_key, value) => tiltSwitch.setTilted(value),
+                });
             }
         } else if (DIGITAL_SENSOR_TYPES.has(part.type)) {
             // Digital sensors: find the OUT/SIG pin
@@ -364,7 +478,7 @@ export function createHardwareControllers( // NOSONAR: central hardware factory 
             for (const cp of compPins) {
                 const pin = cp.componentPin.toUpperCase();
                 if (pin === 'OUT' || pin === 'SIG') {
-                    const pi = getPortAndBit(cp.arduinoPin, ports);
+                    const pi = getPortAndBit(cp.arduinoPin, ports, boardProfile);
                     if (pi) {
                         adjustable.push({
                             partId: part.id, partType: part.type,
@@ -379,17 +493,17 @@ export function createHardwareControllers( // NOSONAR: central hardware factory 
     }
 
     // ── Custom chip WASM runtime (MVP) ──
-    attachCustomChipControllers(
+    attachCustomChipControllers({
         diagram,
         runner,
         i2cBus,
         controllers,
-        adjustable,
+        adjustableDevices: adjustable,
         cleanups,
-        customChipArtifacts,
-        customChipManifests,
+        artifacts: customChipArtifacts,
+        manifests: customChipManifests,
         onChipLog,
-    );
+    });
 
     return {
         controllers,
@@ -404,6 +518,182 @@ export function createHardwareControllers( // NOSONAR: central hardware factory 
 }
 
 // ── Setup functions (keep cognitive complexity low) ──
+
+function setupFlameDigitalSensor(
+    compPins: ResolvedPin[],
+    ports: PortSet,
+    boardProfile: BoardProfile,
+    partId: string,
+): { getDetected: () => number; setDetected: (value: number) => void } | null {
+    const digitalPin = findArduinoPin(compPins, 'DOUT') ?? findArduinoPin(compPins, 'DO');
+    if (!digitalPin) {
+        return null;
+    }
+
+    const portBit = getPortAndBit(digitalPin, ports, boardProfile);
+    if (!portBit) {
+        return null;
+    }
+
+    const applyDetected = (detected: boolean) => {
+        portBit.port.setPin(portBit.bit, !detected);
+        const element = document.getElementById(partId) as (HTMLElement & { ledSignal?: boolean }) | null;
+        if (element) {
+            element.ledSignal = detected;
+        }
+    };
+
+    applyDetected(false);
+
+    return {
+        getDetected: () => (portBit.port.pinState(portBit.bit) === 0 ? 1 : 0),
+        setDetected: (value) => applyDetected(value >= 0.5),
+    };
+}
+
+function setupTiltSwitchAdjustable(
+    compPins: ResolvedPin[],
+    ports: PortSet,
+    boardProfile: BoardProfile,
+): { getTilted: () => number; setTilted: (value: number) => void } | null {
+    const outputPin = findArduinoPin(compPins, 'OUT');
+    if (!outputPin) {
+        return null;
+    }
+
+    const portBit = getPortAndBit(outputPin, ports, boardProfile);
+    if (!portBit) {
+        return null;
+    }
+
+    const applyTilted = (tilted: boolean) => {
+        portBit.port.setPin(portBit.bit, tilted);
+    };
+
+    applyTilted(false);
+
+    return {
+        getTilted: () => (portBit.port.pinState(portBit.bit) === 1 ? 1 : 0),
+        setTilted: (value) => applyTilted(value >= 0.5),
+    };
+}
+
+function setupMicroSdCard(
+    partId: string,
+    compPins: ResolvedPin[],
+    runner: AVRRunner,
+    ports: PortSet,
+    boardProfile: BoardProfile,
+    cleanups: Array<() => void>,
+): { getInserted: () => number; setInserted: (value: number) => void } {
+    const cardDetectPin = findArduinoPin(compPins, 'CD');
+    const chipSelectPin = findArduinoPin(compPins, 'CS');
+    const cardDetectPortBit = cardDetectPin ? getPortAndBit(cardDetectPin, ports, boardProfile) : null;
+    const chipSelectPortBit = chipSelectPin ? getPortAndBit(chipSelectPin, ports, boardProfile) : null;
+    const controller = new MicroSdCardController();
+    let inserted = true;
+    let selected = false;
+
+    const applyInserted = (nextInserted: boolean) => {
+        inserted = nextInserted;
+        controller.setInserted(nextInserted ? 1 : 0);
+        if (cardDetectPortBit) {
+            cardDetectPortBit.port.setPin(cardDetectPortBit.bit, !nextInserted);
+        }
+    };
+
+    cleanups.push(registerSpiMuxSession(runner, {
+        id: `microsd:${partId}`,
+        handleByte: (value: number) => {
+            const nowSelected = inserted && isSpiDeviceSelected(chipSelectPortBit);
+            if (nowSelected && !selected) {
+                controller.beginTransaction();
+            } else if (!nowSelected && selected) {
+                controller.endTransaction();
+            }
+            selected = nowSelected;
+
+            if (!selected) {
+                return false;
+            }
+
+            runner.spi.completeTransfer(controller.transferByte(value));
+            return true;
+        },
+    }));
+
+    applyInserted(true);
+
+    return {
+        getInserted: () => (inserted ? 1 : 0),
+        setInserted: (value) => applyInserted(value >= 0.5),
+    };
+}
+
+function encodeHx711RawValue(rawValue: number): number {
+    const clamped = Math.max(-0x800000, Math.min(0x7fffff, Math.round(rawValue)));
+    return clamped < 0 ? (0x1000000 + clamped) & 0xffffff : clamped & 0xffffff;
+}
+
+function setupHX711(
+    compPins: ResolvedPin[],
+    ports: PortSet,
+    boardProfile: BoardProfile,
+): { getWeight: () => number; setWeight: (value: number) => void } | null {
+    const dataPin = findArduinoPin(compPins, 'DT');
+    const clockPin = findArduinoPin(compPins, 'SCK');
+    if (!dataPin || !clockPin) {
+        return null;
+    }
+
+    const dataPortBit = getPortAndBit(dataPin, ports, boardProfile);
+    const clockPortBit = getPortAndBit(clockPin, ports, boardProfile);
+    if (!dataPortBit || !clockPortBit) {
+        return null;
+    }
+
+    const calibrationUnitsPerGram = 430;
+    let weightGrams = 0;
+    let shiftValue = 0;
+    let pulseCount = 0;
+    let lastClockHigh = clockPortBit.port.pinState(clockPortBit.bit) === 1;
+
+    const primeReady = () => {
+        dataPortBit.port.setPin(dataPortBit.bit, false);
+    };
+
+    const onClockChange = () => {
+        const clockHigh = clockPortBit.port.pinState(clockPortBit.bit) === 1;
+        if (clockHigh && !lastClockHigh) {
+            if (pulseCount === 0) {
+                shiftValue = encodeHx711RawValue(weightGrams * calibrationUnitsPerGram);
+            }
+
+            if (pulseCount < 24) {
+                const bit = (shiftValue >> (23 - pulseCount)) & 1;
+                dataPortBit.port.setPin(dataPortBit.bit, bit === 1);
+                pulseCount++;
+            } else {
+                pulseCount = 0;
+                primeReady();
+            }
+        }
+        lastClockHigh = clockHigh;
+    };
+
+    primeReady();
+    clockPortBit.port.addListener(onClockChange);
+
+    return {
+        getWeight: () => weightGrams,
+        setWeight: (value) => {
+            weightGrams = Math.max(0, Math.round(value));
+            if (pulseCount === 0) {
+                primeReady();
+            }
+        },
+    };
+}
 
 function setupLCD1602(
     el: HTMLElement, cpuMillis: () => number, i2cBus: I2CBus, controllers: HardwareController[],
@@ -445,16 +735,19 @@ function setupILI9341(
     el: HTMLElement,
     compPins: ResolvedPin[],
     runner: AVRRunner,
-    ports: PortSet,
+    board: { ports: PortSet; profile: BoardProfile },
     controllers: HardwareController[],
+    cleanups: Array<() => void>,
 ): void {
     // Resolve D/C pin (Data/Command select)
     const dcArduino = findArduinoPin(compPins, 'D/C');
+    const csArduino = findArduinoPin(compPins, 'CS');
     if (!dcArduino) {
         console.warn('[ILI9341] D/C pin not connected — display disabled');
         return;
     }
-    const dcPi = getPortAndBit(dcArduino, ports);
+    const dcPi = getPortAndBit(dcArduino, board.ports, board.profile);
+    const csPi = csArduino ? getPortAndBit(csArduino, board.ports, board.profile) : null;
     if (!dcPi) {
         console.warn('[ILI9341] D/C pin could not be resolved — display disabled');
         return;
@@ -472,11 +765,18 @@ function setupILI9341(
     attachCanvas();                                          // canvas is usually ready by now
     el.addEventListener('canvas-ready', attachCanvas, { once: true });
 
-    // Hook the SPI bus: receive every MOSI byte, return MISO = 0xFF
-    runner.spi.onByte = (value: number) => {
-        ctrl.receiveByte(value);
-        runner.spi.completeTransfer(0xFF);
-    };
+    cleanups.push(registerSpiMuxSession(runner, {
+        id: `ili9341:${part.id}`,
+        handleByte: (value: number) => {
+            if (!isSpiDeviceSelected(csPi)) {
+                return false;
+            }
+
+            ctrl.receiveByte(value);
+            runner.spi.completeTransfer(0xFF);
+            return true;
+        },
+    }));
 
     // Push a controller that flushes dirty rows every simulation tick
     controllers.push({
@@ -495,6 +795,7 @@ function setupNeopixel(
     compPins: ResolvedPin[],
     runner: AVRRunner,
     ports: PortSet,
+    boardProfile: BoardProfile,
     controllers: HardwareController[],
 ): void {
     const numPixels = getNeoPixelCount(part);
@@ -505,7 +806,7 @@ function setupNeopixel(
 
     if (dinArduino) {
         // Resolve to AVR port/bit
-        const pi = getPortAndBit(dinArduino, ports);
+        const pi = getPortAndBit(dinArduino, ports, boardProfile);
         if (pi) {
             pi.port.addListener(() => {
                 const state = pi.port.pinState(pi.bit);
@@ -534,12 +835,13 @@ function setupSpeaker(
     compPins: ResolvedPin[],
     runner: AVRRunner,
     ports: PortSet,
+    boardProfile: BoardProfile,
 ): void {
     // Buzzer has pin "1" (signal) and "2" (GND)
     const sigArduino = findArduinoPin(compPins, '1') ?? findArduinoPin(compPins, 'SIG');
     if (!sigArduino) return;
 
-    const pi = getPortAndBit(sigArduino, ports);
+    const pi = getPortAndBit(sigArduino, ports, boardProfile);
     if (!pi) return;
 
     // Reuse the speaker already created in AVRRunner
@@ -554,11 +856,12 @@ function setupDHT22(
     compPins: ResolvedPin[],
     runner: AVRRunner,
     ports: PortSet,
+    boardProfile: BoardProfile,
 ): DHT22Controller | null {
     const sdaArduino = findArduinoPin(compPins, 'SDA');
     if (!sdaArduino) return null;
 
-    const pi = getPortAndBit(sdaArduino, ports);
+    const pi = getPortAndBit(sdaArduino, ports, boardProfile);
     if (!pi) return null;
 
     // DHT22Controller self-registers a port listener
@@ -570,13 +873,14 @@ function setupHCSR04(
     compPins: ResolvedPin[],
     runner: AVRRunner,
     ports: PortSet,
+    boardProfile: BoardProfile,
 ): HCSR04Controller | null {
     const trigArduino = findArduinoPin(compPins, 'TRIG');
     const echoArduino = findArduinoPin(compPins, 'ECHO');
     if (!trigArduino || !echoArduino) return null;
 
-    const trigPi = getPortAndBit(trigArduino, ports);
-    const echoPi = getPortAndBit(echoArduino, ports);
+    const trigPi = getPortAndBit(trigArduino, ports, boardProfile);
+    const echoPi = getPortAndBit(echoArduino, ports, boardProfile);
     if (!trigPi || !echoPi) return null;
 
     // HC-SR04 Controller self-registers a port listener
@@ -590,11 +894,12 @@ function setupIRReceiver(
     compPins: ResolvedPin[],
     runner: AVRRunner,
     ports: PortSet,
+    boardProfile: BoardProfile,
 ): IRController | null {
     const datArduino = findArduinoPin(compPins, 'DAT');
     if (!datArduino) return null;
 
-    const pi = getPortAndBit(datArduino, ports);
+    const pi = getPortAndBit(datArduino, ports, boardProfile);
     if (!pi) return null;
 
     return new IRController(runner.cpu, pi.port, pi.bit, runner.frequency);

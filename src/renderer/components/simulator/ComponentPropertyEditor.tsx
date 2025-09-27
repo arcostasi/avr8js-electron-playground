@@ -148,17 +148,47 @@ export const PROPERTY_CATALOG: Record<string, {
             },
         ],
     },
+    'wokwi-tilt-switch': {
+        label: 'Tilt Switch',
+        props: [
+            {
+                key: 'tilted', label: 'Tilted',
+                min: 0, max: 1, step: 1, unit: '',
+                defaultValue: 0,
+            },
+        ],
+    },
+    'wokwi-hx711': {
+        label: 'HX711 Load Cell',
+        props: [
+            {
+                key: 'weight', label: 'Weight',
+                min: 0, max: 5000, step: 10, unit: 'g',
+                defaultValue: 0,
+            },
+        ],
+    },
+    'wokwi-microsd-card': {
+        label: 'microSD Card',
+        props: [
+            {
+                key: 'inserted', label: 'Card Present',
+                min: 0, max: 1, step: 1, unit: '',
+                defaultValue: 1,
+            },
+        ],
+    },
 };
 
 // ── Single property slider row ──
 
 function PropertySlider({
     def, value, onChange,
-}: {
+}: Readonly<{
     def: PropertyDef;
     value: number;
     onChange: (val: number) => void;
-}) {
+}>) {
     return (
         <div className="flex flex-col gap-1 px-2 py-1">
             <div className="flex justify-between text-[11px]">
@@ -185,10 +215,10 @@ function PropertySlider({
 
 function ComponentGroup({
     comp, forceOpen,
-}: {
+}: Readonly<{
     comp: ComponentProperties;
     forceOpen: boolean;
-}) {
+}>) {
     const [open, setOpen] = useState(forceOpen);
     const [values, setValues] = useState<Record<string, number>>(() => {
         const init: Record<string, number> = {};
@@ -249,7 +279,7 @@ function ComponentGroup({
 
 export default function ComponentPropertyEditor({
     components, isPlaying,
-}: ComponentPropertyEditorProps) {
+}: Readonly<ComponentPropertyEditorProps>) {
     const [collapsed, setCollapsed] = useState(false);
 
     if (components.length === 0 || !isPlaying) return null;

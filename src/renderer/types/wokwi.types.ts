@@ -150,11 +150,11 @@ export interface WokwiSimulatorProps {
     }>;
     isCompiling: boolean;
     onCompile: () => void;
-    onSerialOutput: (text: string) => void;
+    onSerialOutput: (text: string, usartId?: string) => void;
     onChipOutput?: (text: string) => void;
     onAddComponent?: (part: WokwiPart) => void;
     onDiagramChange?: (newDiagram: WokwiDiagram) => void;
-    serialWriteRef?: { current: ((text: string) => void) | null };
+    serialWriteRef?: { current: ((text: string, usartId?: string) => void) | null };
     /** Undo/redo passthrough from the parent diagram state manager */
     onUndo?: () => void;
     onRedo?: () => void;

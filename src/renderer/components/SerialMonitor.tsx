@@ -51,7 +51,10 @@ interface SerialMonitorProps {
     onShowDismissedRestoredWarning?: () => void;
     onOpenRestoredDiagnostics?: () => void;
     onOpenRestoredHistory?: () => void;
-    onSend: (text: string) => void;
+    serialTargetOptions?: Array<{ value: string; label: string }>;
+    selectedSerialTarget?: string;
+    onSelectedSerialTargetChange?: (value: string) => void;
+    onSend: (text: string, serialTarget?: string) => void;
     onClear: () => void;
     onClearChipOutput?: () => void;
     onHide: () => void;
@@ -168,6 +171,7 @@ export default function SerialMonitor({
     diagnosticsExpandedIds = [], onDiagnosticsExpandedIdsChange,
     restoredLogWarning, dismissedRestoredWarning, onDismissRestoredLogWarning, onShowDismissedRestoredWarning,
     onOpenRestoredDiagnostics, onOpenRestoredHistory,
+    serialTargetOptions = [], selectedSerialTarget = 'usart0', onSelectedSerialTargetChange,
     onSend, onClear, onClearChipOutput, onHide,
     compileHistory = [], compileHistoryExpandedIds = [], onCompileHistoryExpandedIdsChange, onClearHistory,
     chipDiagnostics = [], onOpenChipDiagnostic, onClearChipDiagnostics,
@@ -195,6 +199,9 @@ export default function SerialMonitor({
         return a.diagnostic.startColumn - b.diagnostic.startColumn;
     });
     const tab = selectedTab;
+    const serialTarget = serialTargetOptions.some((option) => option.value === selectedSerialTarget)
+        ? selectedSerialTarget
+        : serialTargetOptions[0]?.value ?? 'usart0';
 
     useEffect(() => {
         if (!restoredLogWarning) {
@@ -237,9 +244,9 @@ export default function SerialMonitor({
     const handleSubmit = useCallback((e: React.SyntheticEvent<HTMLFormElement>) => {
         e.preventDefault();
         if (!input) return;
-        onSend(input + lineEnding);
+        onSend(input + lineEnding, serialTarget);
         setInput('');
-    }, [input, lineEnding, onSend]);
+    }, [input, lineEnding, onSend, serialTarget]);
 
     // Format output with optional timestamps
     const formattedOutput = showTimestamps
@@ -502,11 +509,25 @@ export default function SerialMonitor({
                         className="flex items-center border-t border-vscode-border
                             px-2 py-1 gap-1 shrink-0"
                     >
+                        {serialTargetOptions.length > 1 && (
+                            <select
+                                value={serialTarget}
+                                onChange={(e) => onSelectedSerialTargetChange?.(e.target.value)}
+                                title="Serial target"
+                                className="bg-vscode-input text-[11px] text-vscode-text border border-vscode-border rounded px-1.5 py-1 outline-none cursor-pointer"
+                            >
+                                {serialTargetOptions.map((option) => (
+                                    <option key={option.value} value={option.value}>
+                                        {option.label}
+                                    </option>
+                                ))}
+                            </select>
+                        )}
                         <span className="text-[12px] text-vscode-text opacity-75 font-mono">&gt;</span>
                         <input
                             value={input}
                             onChange={(e) => setInput(e.target.value)}
-                            placeholder="Send to Serial…"
+                            placeholder={`Send to ${serialTarget.toUpperCase()}...`}
                             className="flex-1 bg-transparent text-[13px] font-mono
                                 text-vscode-textActive outline-none placeholder:text-vscode-text placeholder:opacity-60"
                         />

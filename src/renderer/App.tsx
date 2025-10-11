@@ -4,6 +4,8 @@ import type { PaletteCommand } from '@/components/CommandPalette';
 import type { NewProjectOptions } from '@/components/NewProjectDialog';
 import type { WokwiDiagram, WokwiPart } from '@/types/wokwi.types';
 import { parseDiagram } from '@/types/wokwi.types';
+import { resolveBoardProfileFromParts } from '../shared/avr/profiles';
+import { stringifyEmptyDiagramForBuildBoard } from '../shared/avr/board-diagrams';
 import { buildHex } from '../shared/compile';
 import {
     discoverProjects, discoverProjectsFromRoot, getAppRoot, isProjectOperationAborted, loadProject, pickProjectsDirectory, preloadProject,
@@ -232,15 +234,12 @@ void loop() {
   delay(1000);
 }`;
 
-const DEFAULT_JSON = `{
-  "version": 2,
-  "author": "Anonymous maker",
-  "editor": "wokwi",
-  "parts": [
-    { "type": "wokwi-arduino-uno", "id": "uno", "top": 0, "left": 0, "rotate": 0, "attrs": {} }
-  ],
-  "connections": []
-}`;
+const DEFAULT_JSON = JSON.stringify({
+        version: 2,
+        editor: 'avr8js-electron-playground',
+        parts: [],
+        connections: [],
+});
 
 const DEFAULT_DIAGRAM: WokwiDiagram = parseDiagram(JSON.parse(DEFAULT_JSON));
 
@@ -945,7 +944,7 @@ export default function App() { // NOSONAR: composition root
     } = useDiagramState(DEFAULT_DIAGRAM);
 
     // ── Serial Input ──
-    const serialWriteRef = useRef<((text: string) => void) | null>(null);
+    const serialWriteRef = useRef<((text: string, usartId?: string) => void) | null>(null);
     const tabStripRef = useRef<HTMLDivElement | null>(null);
     const tabButtonRefs = useRef<Record<string, HTMLButtonElement | null>>({});
     const discoverAbortRef = useRef<AbortController | null>(null);
@@ -975,6 +974,17 @@ export default function App() { // NOSONAR: composition root
         clearTerminalOutput,
         appendTerminalOutput,
     ]);
+
+    const serialTargetOptions = useMemo(() => {
+        const boardProfile = resolveBoardProfileFromParts(diagram?.parts ?? []);
+        return Object.keys(boardProfile.mcu.usarts).map((usartId) => ({
+            value: usartId,
+            label: usartId.toUpperCase(),
+        }));
+    }, [diagram]);
+    const selectedSerialTarget = serialTargetOptions.some((option) => option.value === terminalViewState.serialTarget)
+        ? terminalViewState.serialTarget
+        : (serialTargetOptions[0]?.value ?? DEFAULT_UI_TERMINAL_SESSION_STATE.serialTarget);
 
     // ── Layout Hooks (Declarative Split.js) ──
     useEffect(() => {
@@ -1614,15 +1624,46 @@ export default function App() { // NOSONAR: composition root
         setNewFileName('');
     }, [newFileName, files, setFiles, setActiveFile]);
 
+    const getTabStripItems = useCallback(() => {
+        const container = tabStripRef.current;
+        if (!container) return [];
+
+        return Array.from(container.children)
+            .filter((child): child is HTMLDivElement => child instanceof HTMLDivElement);
+    }, []);
+
     const scrollTabStrip = useCallback((direction: 'left' | 'right') => {
-        const el = tabStripRef.current;
-        if (!el) return;
-        const delta = Math.max(180, Math.floor(el.clientWidth * 0.7));
-        el.scrollBy({
-            left: direction === 'left' ? -delta : delta,
+        const container = tabStripRef.current;
+        if (!container) return;
+
+        const items = getTabStripItems();
+        if (items.length === 0) return;
+
+        const viewportStart = container.scrollLeft;
+        const pageWidth = Math.max(320, Math.floor(container.clientWidth * 0.9));
+        const maxScrollLeft = Math.max(0, container.scrollWidth - container.clientWidth);
+        const tolerance = 2;
+        const desiredLeft = direction === 'right'
+            ? Math.min(maxScrollLeft, viewportStart + pageWidth)
+            : Math.max(0, viewportStart - pageWidth);
+
+        const target = direction === 'right'
+            ? items.find((item) => item.offsetLeft >= desiredLeft - tolerance)
+            : [...items].reverse().find((item) => item.offsetLeft <= desiredLeft + tolerance);
+
+        if (!target) {
+            container.scrollTo({
+                left: desiredLeft,
+                behavior: 'smooth',
+            });
+            return;
+        }
+
+        container.scrollTo({
+            left: target.offsetLeft,
             behavior: 'smooth',
         });
-    }, []);
+    }, [getTabStripItems]);
 
     const openFileInEditor = useCallback((fileName: string) => {
         setOpenEditorFiles((previous) => previous.includes(fileName) ? previous : [...previous, fileName]);
@@ -1684,13 +1725,7 @@ export default function App() { // NOSONAR: composition root
         const blankCode = `// ${opts.name}\nvoid setup() {\n\n}\n\nvoid loop() {\n\n}\n`;
         const blinkCode = `// ${opts.name} — Blink LED\nvoid setup() {\n  pinMode(13, OUTPUT);\n}\n\nvoid loop() {\n  digitalWrite(13, HIGH);\n  delay(1000);\n  digitalWrite(13, LOW);\n  delay(1000);\n}\n`;
         const inoContent = opts.template === 'blink' ? blinkCode : blankCode;
-        const diagramContent = JSON.stringify({
-            version: 2,
-            author: 'Anonymous maker',
-            editor: 'wokwi',
-            parts: [{ type: 'wokwi-arduino-uno', id: 'uno', top: 0, left: 0, rotate: 0, attrs: {} }],
-            connections: [],
-        }, null, 2);
+        const diagramContent = stringifyEmptyDiagramForBuildBoard(opts.board);
 
         const result = await ipcRenderer.invoke('project:create', {
             appRoot,
@@ -2097,16 +2132,20 @@ export default function App() { // NOSONAR: composition root
                                                 setPersistedTerminalTab('history');
                                                 setTerminalViewState((current) => ({ ...current, selectedTab: 'history' }));
                                             }}
+                                            serialTargetOptions={serialTargetOptions}
+                                            selectedSerialTarget={selectedSerialTarget}
+                                            onSelectedSerialTargetChange={(serialTarget) => setTerminalViewState((current) => ({ ...current, serialTarget }))}
                                             chipDiagnostics={chipDiagnostics}
                                             onOpenChipDiagnostic={openChipDiagnostic}
                                             onClearChipDiagnostics={() => {
                                                 setDiagnosticsFilterState((current) => ({ ...current, expandedIds: [] }));
                                                 clearChipDiagnostics();
                                             }}
-                                            onSend={(text) => {
+                                            onSend={(text, serialTarget) => {
                                                 if (serialWriteRef.current) {
-                                                    serialWriteRef.current(text);
-                                                    appendTerminalOutput('> ' + text);
+                                                    const target = serialTarget ?? selectedSerialTarget;
+                                                    serialWriteRef.current(text, target);
+                                                    appendTerminalOutput(target === 'usart0' ? `> ${text}` : `> [${target}] ${text}`);
                                                 }
                                             }}
                                             onClear={clearTerminalOutput}

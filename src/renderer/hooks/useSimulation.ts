@@ -10,6 +10,12 @@ import { setupGPIORouting } from '../services/gpio-router';
 import type { GPIOCleanup } from '../services/gpio-router';
 import { markPerf, measureAsync, measureSync } from '../utils/perf';
 
+export interface CpuPortSnapshot {
+    id: string;
+    label: string;
+    value: number;
+}
+
 /** Snapshot of AVR CPU state for the inspector panel */
 export interface CpuSnapshot {
     /** General-purpose registers R0–R31 */
@@ -20,12 +26,8 @@ export interface CpuSnapshot {
     pc: number;
     /** Status register (SREG) */
     sreg: number;
-    /** Port B data register */
-    portB: number;
-    /** Port C data register */
-    portC: number;
-    /** Port D data register */
-    portD: number;
+    /** Dynamic collection of MCU output ports derived from the active profile */
+    ports: CpuPortSnapshot[];
 }
 
 interface UseSimulationParams {
@@ -33,7 +35,7 @@ interface UseSimulationParams {
     hex?: string | null;
     customChipArtifacts?: CustomChipArtifacts;
     customChipManifests?: CustomChipManifests;
-    onSerialOutput: (text: string) => void;
+    onSerialOutput: (text: string, usartId?: string) => void;
     onChipOutput?: (text: string) => void;
     setIsEditMode: (edit: boolean) => void;
 }
@@ -48,7 +50,7 @@ interface UseSimulationReturn {
     setSpeedMultiplier: (v: number) => void;
     handlePlay: () => Promise<void>;
     handleStop: () => void;
-    serialWrite: (text: string) => void;
+    serialWrite: (text: string, usartId?: string) => void;
     adjustableDevices: AdjustableDevice[];
     /** Returns current CPU registers snapshot (null if not running) */
     getCpuSnapshot: () => CpuSnapshot | null;
@@ -73,6 +75,7 @@ export function useSimulation({
     const compiledSetupRef = useRef<CompiledSimulationSetup | null>(null);
     const lastDiagramShapeRef = useRef<string | null>(null);
     const lastDiagramLayoutRef = useRef<string | null>(null);
+    const serialLineStateRef = useRef<Record<string, boolean>>({});
 
     const getDiagramLayoutHash = useCallback((currentDiagram: WokwiDiagram): string => {
         return JSON.stringify(currentDiagram.parts.map((part) => ({
@@ -123,19 +126,35 @@ export function useSimulation({
         setIsPlaying(true);
 
         const { AVRRunner } = await import('../../shared/execute');
+        const { getBoardSimulationWarning, resolveBoardProfileFromParts } = await import('../../shared/avr/profiles');
         const { formatTime } = await import('../../shared/format-time');
         const { I2CBus } = await import('../../shared/i2c-bus');
         const { CPUPerformance } = await import('../../shared/cpu-performance');
 
         if (runnerRef.current) runnerRef.current.stop();
 
-        const runner = new AVRRunner(hex);
+        const boardProfile = resolveBoardProfileFromParts(diagram?.parts ?? []);
+        const simulationWarning = getBoardSimulationWarning(boardProfile);
+        if (simulationWarning) {
+            onSerialOutput(`[warning] ${simulationWarning}\n`);
+        }
+        const runner = new AVRRunner(hex, boardProfile.mcu);
         runnerRef.current = runner;
         runner.speedMultiplier = speedMultiplier;
+        serialLineStateRef.current = Object.fromEntries(
+            Object.keys(runner.usarts).map((usartId) => [usartId, true]),
+        );
 
-        runner.usart.onByteTransmit = (value: number) => {
-            onSerialOutput(String.fromCodePoint(value));
-        };
+        for (const [usartId, usart] of Object.entries(runner.usarts)) {
+            usart.onByteTransmit = (value: number) => {
+                const char = String.fromCodePoint(value);
+                const isPrimary = usartId === runner.mcuProfile.defaults.usart;
+                const atLineStart = serialLineStateRef.current[usartId] ?? true;
+                const prefix = !isPrimary && atLineStart && char !== '\n' && char !== '\r' ? `[${usartId}] ` : '';
+                onSerialOutput(prefix + char, usartId);
+                serialLineStateRef.current[usartId] = char === '\n' || char === '\r';
+            };
+        }
 
         // Initialize hardware
         const i2cBus = new I2CBus(runner.twi);
@@ -221,8 +240,13 @@ export function useSimulation({
         stopSimulation();
     }, [stopSimulation]);
 
-    const serialWrite = useCallback((text: string) => {
-        runnerRef.current?.serialWrite(text);
+    const serialWrite = useCallback((text: string, usartId?: string) => {
+        if (!runnerRef.current) return;
+        if (usartId) {
+            runnerRef.current.serialWriteToUsart(usartId, text);
+            return;
+        }
+        runnerRef.current.serialWrite(text);
     }, []);
 
     /** Apply speed multiplier to the running AVRRunner (or remember for next run) */
@@ -248,10 +272,11 @@ export function useSimulation({
             pc: runner.cpu.pc,
             // SREG = 0x5F
             sreg: data[0x5F],
-            // Port data output regs: PORTB=0x25, PORTC=0x28, PORTD=0x2B
-            portB: data[0x25],
-            portC: data[0x28],
-            portD: data[0x2B],
+            ports: Object.values(runner.mcuProfile.ports).map((portProfile) => ({
+                id: portProfile.id,
+                label: portProfile.label,
+                value: runner.getPortOutputValue(portProfile.id),
+            })),
         };
     }, []);
 

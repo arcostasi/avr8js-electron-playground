@@ -63,6 +63,7 @@ export type UiTerminalTab = 'monitor' | 'plotter' | 'history' | 'chips' | 'diagn
 
 export interface UiTerminalSessionState {
     selectedTab: UiTerminalTab;
+    serialTarget: string;
     autoScroll: boolean;
     showTimestamps: boolean;
     lineEnding: string;
@@ -92,6 +93,7 @@ export const DEFAULT_UI_LAYOUT_STATE: UiLayoutState = {
 
 export const DEFAULT_UI_TERMINAL_SESSION_STATE: UiTerminalSessionState = {
     selectedTab: 'monitor',
+    serialTarget: 'usart0',
     autoScroll: true,
     showTimestamps: false,
     lineEnding: '\n',
@@ -351,6 +353,9 @@ function sanitizeTerminalState(value: unknown): UiTerminalSessionState {
 
     return {
         selectedTab: validTab ? selectedTab : DEFAULT_UI_TERMINAL_SESSION_STATE.selectedTab,
+        serialTarget: typeof parsed.serialTarget === 'string' && parsed.serialTarget.length > 0
+            ? parsed.serialTarget
+            : DEFAULT_UI_TERMINAL_SESSION_STATE.serialTarget,
         autoScroll: typeof parsed.autoScroll === 'boolean' ? parsed.autoScroll : DEFAULT_UI_TERMINAL_SESSION_STATE.autoScroll,
         showTimestamps: typeof parsed.showTimestamps === 'boolean' ? parsed.showTimestamps : DEFAULT_UI_TERMINAL_SESSION_STATE.showTimestamps,
         lineEnding: typeof parsed.lineEnding === 'string' ? parsed.lineEnding : DEFAULT_UI_TERMINAL_SESSION_STATE.lineEnding,

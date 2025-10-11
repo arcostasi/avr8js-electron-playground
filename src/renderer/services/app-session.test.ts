@@ -26,6 +26,7 @@ describe('app-session', () => {
             tabStripScrollLeft: 96,
             terminal: {
                 selectedTab: 'chips',
+                serialTarget: 'usart1',
                 autoScroll: false,
                 showTimestamps: true,
                 lineEnding: '\r\n',
@@ -65,6 +66,7 @@ describe('app-session', () => {
             tabStripScrollLeft: 96,
             terminal: {
                 selectedTab: 'chips',
+                serialTarget: 'usart1',
                 autoScroll: false,
                 showTimestamps: true,
                 lineEnding: '\r\n',
@@ -107,6 +109,7 @@ describe('app-session', () => {
             tabStripScrollLeft: 144,
             terminal: {
                 selectedTab: 'history',
+                serialTarget: 'usart2',
                 autoScroll: false,
                 showTimestamps: true,
                 lineEnding: '\r',
@@ -155,6 +158,7 @@ describe('app-session', () => {
             tabStripScrollLeft: 144,
             terminal: {
                 selectedTab: 'diagnostics',
+                serialTarget: 'usart2',
                 autoScroll: false,
                 showTimestamps: true,
                 lineEnding: '\r',

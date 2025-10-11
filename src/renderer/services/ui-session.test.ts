@@ -88,6 +88,7 @@ describe('ui-session', () => {
                     tabStripScrollLeft: -5,
                     terminal: {
                         selectedTab: 'unknown',
+                        serialTarget: 9,
                         autoScroll: 'yes',
                         showTimestamps: true,
                         lineEnding: '\r\n',
@@ -200,6 +201,7 @@ describe('ui-session', () => {
                 tabStripScrollLeft: 144,
                 terminal: {
                     selectedTab: 'history',
+                    serialTarget: 'usart3',
                     autoScroll: false,
                     showTimestamps: true,
                     lineEnding: '\r',
@@ -248,6 +250,7 @@ describe('ui-session', () => {
             tabStripScrollLeft: 144,
             terminal: {
                 selectedTab: 'history',
+                serialTarget: 'usart3',
                 autoScroll: false,
                 showTimestamps: true,
                 lineEnding: '\r',

@@ -17,7 +17,7 @@ const SREG_BITS = ['C', 'Z', 'N', 'V', 'S', 'H', 'T', 'I'] as const;
 function hex2(n: number) { return n.toString(16).toUpperCase().padStart(2, '0'); }
 function hex4(n: number) { return n.toString(16).toUpperCase().padStart(4, '0'); }
 
-function SREGDisplay({ sreg }: { sreg: number }) {
+function SREGDisplay({ sreg }: Readonly<{ sreg: number }>) {
     return (
         <div className="flex gap-0.5">
             {SREG_BITS.map((bit, i) => {
@@ -42,7 +42,7 @@ function SREGDisplay({ sreg }: { sreg: number }) {
     );
 }
 
-function PortDisplay({ label, value }: { label: string; value: number }) {
+function PortDisplay({ label, value }: Readonly<{ label: string; value: number }>) {
     return (
         <div className="flex items-center gap-2">
             <span className="text-[11px] text-vscode-text opacity-50 w-12 font-mono">{label}</span>
@@ -72,7 +72,7 @@ function PortDisplay({ label, value }: { label: string; value: number }) {
     );
 }
 
-export default function AVRInspector({ isPlaying, getCpuSnapshot }: AVRInspectorProps) {
+export default function AVRInspector({ isPlaying, getCpuSnapshot }: Readonly<AVRInspectorProps>) {
     const [snapshot, setSnapshot] = useState<CpuSnapshot | null>(null);
     const [paused, setPaused] = useState(false);
 
@@ -104,6 +104,7 @@ export default function AVRInspector({ isPlaying, getCpuSnapshot }: AVRInspector
     const sp = snapshot?.sp ?? 0;
     const pc = snapshot?.pc ?? 0;
     const sreg = snapshot?.sreg ?? 0;
+    const ports = snapshot?.ports ?? [];
 
     return (
         <div className="flex flex-col h-full overflow-y-auto bg-vscode-panel text-[12px] font-mono">
@@ -156,11 +157,15 @@ export default function AVRInspector({ isPlaying, getCpuSnapshot }: AVRInspector
                     <p className="text-[10px] text-vscode-text opacity-40 uppercase tracking-widest mb-1.5">
                         I/O Ports
                     </p>
-                    <div className="space-y-1">
-                        <PortDisplay label="PORTB" value={snapshot?.portB ?? 0} />
-                        <PortDisplay label="PORTC" value={snapshot?.portC ?? 0} />
-                        <PortDisplay label="PORTD" value={snapshot?.portD ?? 0} />
-                    </div>
+                    {ports.length === 0 ? (
+                        <div className="text-vscode-text opacity-30 italic">No port data available.</div>
+                    ) : (
+                        <div className="space-y-1">
+                            {ports.map((port) => (
+                                <PortDisplay key={port.id} label={port.label} value={port.value} />
+                            ))}
+                        </div>
+                    )}
                 </section>
 
                 {/* General Purpose Registers R0-R31 */}

@@ -48,7 +48,7 @@ export default function SimulatorToolbar({
         <div className={
             'flex items-center gap-1 px-2 py-1 '
             + 'bg-vscode-surface2 border-b border-vscode-border '
-            + 'z-10 shrink-0 overflow-hidden'
+            + 'z-10 shrink-0 overflow-visible'
         }>
 
             {/* Add Component (always visible in edit mode) */}

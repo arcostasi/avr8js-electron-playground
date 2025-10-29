@@ -27,6 +27,82 @@ import WireColorPopup from './WireColorPopup';
 import ComponentPropertyEditor, { PROPERTY_CATALOG } from './ComponentPropertyEditor';
 import type { ComponentProperties } from './ComponentPropertyEditor';
 import { startPerfMeasure } from '../../utils/perf';
+import { boardProfiles } from '../../../shared/avr/profiles';
+import {
+    getConnectionRouteHints,
+    getPreferredWiringLegendTones,
+    getWiringCandidateDescriptor,
+    getWiringCandidateToneAppearance,
+    getWiringLegendDescription,
+    getWiringLegendHeading,
+    listDiagramRouteHints,
+    type WiringCandidateTone,
+} from '../../utils/pin-capabilities';
+
+type WiringLegendTone = Exclude<WiringCandidateTone, 'neutral'>;
+type WiringLegendVisualMode = 'subtle' | 'blocked';
+
+const WIRING_LEGEND_VALID_TONE_ORDER: Exclude<WiringLegendTone, 'invalid'>[] = ['pwm', 'adc', 'i2c', 'spi', 'uart', 'generic'];
+const EMPTY_STATE_BOARDS = boardProfiles.map((profile) => ({
+    label: profile.name,
+    type: profile.wokwiType,
+}));
+const SHADOW_LAYOUT_STYLE_ID = 'avr8js-shadow-layout-tweaks';
+const SHADOW_LAYOUT_STYLE = `
+footer,
+[part~="footer"],
+[part~="status"],
+.footer,
+.status,
+.status-bar,
+.statusbar,
+[class*="footer"],
+[class*="status-bar"],
+[class*="statusBar"],
+[class*="statusbar"] {
+    box-sizing: border-box;
+    width: 100%;
+    padding: 8px 12px !important;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 10px;
+}
+
+footer > *,
+[part~="footer"] > *,
+[part~="status"] > *,
+.footer > *,
+.status > *,
+.status-bar > *,
+.statusbar > *,
+[class*="footer"] > *,
+[class*="status-bar"] > *,
+[class*="statusBar"] > *,
+[class*="statusbar"] > * {
+    margin-left: 0 !important;
+    max-width: 100%;
+}
+`;
+
+function applyEmbeddedLayoutTweaks(container: HTMLElement | null): void {
+    if (!container) {
+        return;
+    }
+
+    const elements = Array.from(container.querySelectorAll<HTMLElement>('*'));
+    for (const element of elements) {
+        const shadowRoot = element.shadowRoot;
+        if (!shadowRoot || shadowRoot.getElementById(SHADOW_LAYOUT_STYLE_ID)) {
+            continue;
+        }
+
+        const style = document.createElement('style');
+        style.id = SHADOW_LAYOUT_STYLE_ID;
+        style.textContent = SHADOW_LAYOUT_STYLE;
+        shadowRoot.append(style);
+    }
+}
 
 export default function WokwiSimulator({
     diagram, hex, customChipArtifacts, customChipManifests, isCompiling, onCompile,
@@ -59,6 +135,8 @@ export default function WokwiSimulator({
     const [showInspector, setShowInspector] = useState(false);
     /** Show/hide Oscilloscope panel */
     const [showOscilloscope, setShowOscilloscope] = useState(false);
+    /** Show/hide persistent wiring diagnostics panel */
+    const [showWiringDiagnostics, setShowWiringDiagnostics] = useState(true);
 
 
     const wiringStartRef = useRef<string | null>(null);
@@ -85,6 +163,14 @@ export default function WokwiSimulator({
         onChipOutput,
         setIsEditMode,
     });
+
+    useEffect(() => {
+        const frameId = globalThis.requestAnimationFrame(() => {
+            applyEmbeddedLayoutTweaks(canvas.containerRef.current);
+        });
+
+        return () => globalThis.cancelAnimationFrame(frameId);
+    }, [canvas.containerRef, diagram, isEditMode]);
 
     let canvasCursor = 'default';
     if (canvas.isPanning) {
@@ -122,6 +208,79 @@ export default function WokwiSimulator({
             })
             .filter((c) => c.properties.length > 0);
     }, [sim.adjustableDevices]);
+
+    const selectedWireHints = useMemo(() => {
+        if (!selectedWireId) {
+            return [];
+        }
+
+        return diagram?.connections.find((connection) => connection.id === selectedWireId)?.routeHints ?? [];
+    }, [diagram?.connections, selectedWireId]);
+
+    const wiringDiagnostics = useMemo(() => listDiagramRouteHints(diagram), [diagram]);
+    const wiringCandidateDescriptors = useMemo(() => {
+        if (!diagram || !wiringStart) {
+            return {};
+        }
+
+        return Object.fromEntries(
+            Object.keys(pinPositions).map((pinId) => [pinId, getWiringCandidateDescriptor(diagram, wiringStart, pinId)]),
+        );
+    }, [diagram, pinPositions, wiringStart]);
+    const wiringLegendState = useMemo(() => {
+        if (!wiringStart) {
+            return {
+                description: 'Showing compatible board targets',
+                heading: 'Wiring key',
+                validTones: [] as Exclude<WiringLegendTone, 'invalid'>[],
+                hasInvalid: false,
+                visualMode: 'subtle' as WiringLegendVisualMode,
+            };
+        }
+
+        const preferredTones = getPreferredWiringLegendTones(diagram, wiringStart);
+
+        const presentTones = new Set(
+            Object.values(wiringCandidateDescriptors)
+                .map((descriptor) => descriptor.tone)
+                .filter((tone) => tone !== 'neutral'),
+        );
+
+        const presentValidTones = WIRING_LEGEND_VALID_TONE_ORDER.filter((tone) => presentTones.has(tone));
+        const focusedValidTones = preferredTones.filter((tone) => presentTones.has(tone));
+        const validTones = focusedValidTones.length > 0 ? focusedValidTones : presentValidTones;
+        const hasInvalid = presentTones.has('invalid');
+
+        return {
+            description: getWiringLegendDescription(diagram, wiringStart, {
+                hasValidTargets: validTones.length > 0,
+                hasInvalidTargets: hasInvalid,
+            }),
+            heading: getWiringLegendHeading(diagram, wiringStart),
+            validTones,
+            hasInvalid,
+            visualMode: validTones.length === 0 && hasInvalid ? 'blocked' : 'subtle',
+        };
+    }, [diagram, wiringCandidateDescriptors, wiringStart]);
+    const hasParts = (diagram?.parts.length ?? 0) > 0;
+
+    const handleAddEmptyStateBoard = (boardType: string) => {
+        if (!onAddComponent) {
+            return;
+        }
+
+        const shortName = boardType.replace('wokwi-', '').split('-').join('');
+        const existingCount = (diagram?.parts ?? []).filter((part) => part.type === boardType).length;
+
+        onAddComponent({
+            type: boardType,
+            id: `${shortName}${existingCount + 1}`,
+            top: Math.round((-canvas.pan.y) / canvas.zoom + 150 + Math.random() * 50),
+            left: Math.round((-canvas.pan.x) / canvas.zoom + 150 + Math.random() * 50),
+            rotate: 0,
+            attrs: {},
+        });
+    };
 
     const handleWireClick = (e: React.MouseEvent, connId: string) => {
         e.stopPropagation();
@@ -234,13 +393,23 @@ export default function WokwiSimulator({
         const startPin = wiringStartRef.current;
         if (startPin && startPin !== pinId && diagramRef.current && onDiagramChange) {
             const nextId = `conn-${diagramRef.current.connections.length}-${Date.now()}`;
+            const routeHints = getConnectionRouteHints(diagramRef.current, startPin, pinId);
             onDiagramChange({
                 ...diagramRef.current,
                 connections: [
                     ...diagramRef.current.connections,
-                    { id: nextId, from: startPin, to: pinId, color: wireColor }
+                    {
+                        id: nextId,
+                        from: startPin,
+                        to: pinId,
+                        color: wireColor,
+                        ...(routeHints.length > 0 ? { routeHints } : {}),
+                    }
                 ],
             });
+            setSelectedWireId(nextId);
+            setSelectedPartId(null);
+            setPopupState(null);
         }
         wiringStartRef.current = null;
         setWiringStart(null);
@@ -320,15 +489,82 @@ export default function WokwiSimulator({
                         isPlaying={sim.isPlaying}
                     />
 
+                    {wiringDiagnostics.length > 0 && (
+                        <div className="mx-3 mt-2 rounded border border-amber-500/30 bg-amber-500/10 text-[11px] text-amber-100 overflow-hidden">
+                            <button
+                                type="button"
+                                className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-amber-500/10"
+                                onClick={() => setShowWiringDiagnostics((current) => !current)}
+                            >
+                                <span className="text-[10px] uppercase tracking-widest text-amber-300/80">
+                                    Wiring Diagnostics
+                                </span>
+                                <span className="rounded border border-amber-400/20 bg-amber-500/10 px-1.5 py-0.5 text-[10px] text-amber-100/90">
+                                    {wiringDiagnostics.length}
+                                </span>
+                                <div className="flex-1" />
+                                <span className="text-[10px] text-amber-200/70">
+                                    {showWiringDiagnostics ? 'Hide' : 'Show'}
+                                </span>
+                            </button>
+                            {showWiringDiagnostics && (
+                                <div className="border-t border-amber-500/20 px-2 py-2 space-y-1.5">
+                                    {wiringDiagnostics.map((diagnostic, index) => {
+                                        const isSelected = diagnostic.connectionId === selectedWireId;
+                                        return (
+                                            <button
+                                                key={`${diagnostic.connectionId}:${index}`}
+                                                type="button"
+                                                className={[
+                                                    'block w-full rounded px-2 py-1.5 text-left',
+                                                    isSelected
+                                                        ? 'bg-amber-400/15 ring-1 ring-amber-300/30'
+                                                        : 'hover:bg-amber-400/10',
+                                                ].join(' ')}
+                                                onClick={() => {
+                                                    setSelectedWireId(diagnostic.connectionId);
+                                                    setSelectedPartId(null);
+                                                    setPopupState(null);
+                                                }}
+                                            >
+                                                <div className="text-[10px] font-mono text-amber-200/80">
+                                                    {diagnostic.connectionLabel}
+                                                </div>
+                                                <div className="mt-0.5 text-[11px] text-amber-50/95">
+                                                    {diagnostic.message}
+                                                </div>
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            )}
+                        </div>
+                    )}
+
                     {/* ── Hovered Pin Label ── */}
                     {showPinTooltips && (
                         <PinTooltip
                             hoveredPin={hoveredPin}
+                            wiringStart={wiringStart}
                             pinPositions={pinPositions}
+                            diagram={diagram}
                             isEditMode={isEditMode}
                             zoom={canvas.zoom}
                             pan={canvas.pan}
                         />
+                    )}
+
+                    {selectedWireHints.length > 0 && (
+                        <div className="mx-3 mt-2 rounded border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-[11px] text-amber-100">
+                            <div className="text-[10px] uppercase tracking-widest text-amber-300/80">
+                                Wiring Hint
+                            </div>
+                            <div className="mt-1 space-y-1">
+                                {selectedWireHints.map((hint) => (
+                                    <div key={hint}>{hint}</div>
+                                ))}
+                            </div>
+                        </div>
                     )}
 
                     {/* Canvas + oscilloscope column */}
@@ -354,6 +590,129 @@ export default function WokwiSimulator({
                             onPointerLeave={handlePointerUp}
                             onContextMenu={(e) => e.preventDefault()}
                         >
+                            {!hasParts && (
+                                <div className="absolute inset-0 z-30 flex items-center justify-center p-6 pointer-events-none">
+                                    <div className="pointer-events-auto max-w-md rounded-xl border border-vscode-border bg-vscode-panel/94 px-5 py-5 text-center shadow-2xl backdrop-blur-sm">
+                                        <div className="text-[11px] uppercase tracking-[0.18em] text-vscode-text opacity-60">
+                                            Empty Simulator
+                                        </div>
+                                        <div className="mt-2 text-[18px] font-semibold text-vscode-textActive">
+                                            No board has been added yet
+                                        </div>
+                                        <p className="mt-2 text-[12px] leading-relaxed text-vscode-text opacity-75">
+                                            Start by choosing an Arduino board for your circuit.
+                                        </p>
+                                        <div className="mt-4 grid gap-2 text-left">
+                                            {EMPTY_STATE_BOARDS.map((board) => (
+                                                <button
+                                                    key={board.type}
+                                                    type="button"
+                                                    className={[
+                                                        'rounded-lg border border-vscode-border bg-vscode-input/70 px-3 py-2',
+                                                        'text-sm text-vscode-text transition-colors',
+                                                        'hover:border-blue-500 hover:bg-vscode-hover hover:text-vscode-textActive',
+                                                    ].join(' ')}
+                                                    onClick={() => handleAddEmptyStateBoard(board.type)}
+                                                >
+                                                    {board.label}
+                                                </button>
+                                            ))}
+                                        </div>
+                                        <div className="mt-3 text-[12px] text-vscode-text opacity-70">
+                                            Use the toolbar + button to add sensors and other components
+                                            {' '}
+                                            after selecting a board.
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+
+                            {(wiringLegendState.validTones.length > 0 || wiringLegendState.hasInvalid) && (
+                                <div
+                                    className={[
+                                        'absolute right-3 top-3 z-40 pointer-events-none rounded px-2.5 py-2 text-[10px] shadow-lg backdrop-blur-sm transition-colors',
+                                        wiringLegendState.visualMode === 'blocked'
+                                            ? 'border border-rose-300/30 bg-rose-950/78 text-rose-50 shadow-rose-950/30'
+                                            : 'border border-slate-300/10 bg-black/52 text-slate-100 shadow-black/20',
+                                    ].join(' ')}
+                                >
+                                    <div className={[
+                                        'uppercase tracking-widest text-[8px]',
+                                        wiringLegendState.visualMode === 'blocked'
+                                            ? 'text-rose-200/85'
+                                            : 'text-slate-300/65',
+                                    ].join(' ')}>
+                                        {wiringLegendState.heading}
+                                    </div>
+                                    <div className={[
+                                        'mt-1 text-[10px]',
+                                        wiringLegendState.visualMode === 'blocked'
+                                            ? 'text-rose-100/90'
+                                            : 'text-slate-200/58',
+                                    ].join(' ')}>
+                                        {wiringLegendState.description}
+                                    </div>
+                                    {wiringLegendState.validTones.length > 0 && (
+                                        <div className="mt-1.5 flex flex-wrap gap-1.5 max-w-[240px]">
+                                            {wiringLegendState.validTones.map((tone) => {
+                                                const appearance = getWiringCandidateToneAppearance(tone);
+                                                return (
+                                                    <div
+                                                        key={tone}
+                                                        className={[
+                                                            'flex items-center gap-1.5 rounded px-1.5 py-1',
+                                                            wiringLegendState.visualMode === 'blocked'
+                                                                ? 'border border-white/10 bg-white/8'
+                                                                : 'border border-white/6 bg-white/4',
+                                                        ].join(' ')}
+                                                    >
+                                                        <span
+                                                            className="block h-2.5 w-2.5 rounded-full border"
+                                                            style={{
+                                                                backgroundColor: appearance.fill,
+                                                                borderColor: appearance.stroke,
+                                                                boxShadow: `0 0 0 2px ${appearance.ring}`,
+                                                            }}
+                                                        />
+                                                        <span className={[
+                                                            'text-[10px]',
+                                                            wiringLegendState.visualMode === 'blocked'
+                                                                ? 'text-rose-50/95'
+                                                                : 'text-slate-100/82',
+                                                        ].join(' ')}>
+                                                            {appearance.label}
+                                                        </span>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    )}
+                                    {wiringLegendState.hasInvalid && (() => {
+                                        const invalidAppearance = getWiringCandidateToneAppearance('invalid');
+                                        return (
+                                            <div className={[
+                                                'mt-1.5 flex items-center gap-1.5 rounded px-1.5 py-1 text-[10px]',
+                                                wiringLegendState.visualMode === 'blocked'
+                                                    ? 'border border-rose-300/30 bg-rose-400/16 text-rose-50'
+                                                    : 'border border-rose-400/15 bg-rose-500/10 text-rose-50/95',
+                                            ].join(' ')}>
+                                                <span
+                                                    className="block h-2.5 w-2.5 rounded-full border"
+                                                    style={{
+                                                        backgroundColor: invalidAppearance.fill,
+                                                        borderColor: invalidAppearance.stroke,
+                                                        boxShadow: `0 0 0 2px ${invalidAppearance.ring}`,
+                                                    }}
+                                                />
+                                                <span>
+                                                    {invalidAppearance.label} targets visible
+                                                </span>
+                                            </div>
+                                        );
+                                    })()}
+                                </div>
+                            )}
+
                             <div
                                 className="absolute top-0 left-0 transform-gpu w-full h-full pointer-events-none"
                                 style={{
@@ -392,6 +751,7 @@ export default function WokwiSimulator({
                                             pinPositions={pinPositions}
                                             wiringStart={wiringStart}
                                             hoveredPin={hoveredPin}
+                                            pinDescriptors={wiringCandidateDescriptors}
                                             onHoverPin={setHoveredPin}
                                             onWiringStart={handleWiringStart}
                                             onWiringEnd={handleWiringEnd}

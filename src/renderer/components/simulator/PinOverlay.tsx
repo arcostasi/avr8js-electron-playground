@@ -4,11 +4,40 @@
  */
 import React from 'react';
 import type { PinPosition } from '../../types/wokwi.types';
+import {
+    getWiringCandidateToneAppearance,
+    type WiringCandidateDescriptor,
+    type WiringCandidateTone,
+} from '../../utils/pin-capabilities';
+
+interface PinOverlayPalette {
+    ring: string;
+    fill: string;
+    stroke: string;
+}
+
+function getPinOverlayPalette(isActive: boolean, tone: WiringCandidateTone): PinOverlayPalette {
+    if (isActive) {
+        return {
+            ring: 'rgba(59,130,246,0.3)',
+            fill: '#3b82f6',
+            stroke: '#93c5fd',
+        };
+    }
+
+    const appearance = getWiringCandidateToneAppearance(tone);
+    return {
+        ring: appearance.ring,
+        fill: appearance.fill,
+        stroke: appearance.stroke,
+    };
+}
 
 interface PinOverlayProps {
     pinPositions: Record<string, PinPosition>;
     wiringStart: string | null;
     hoveredPin: string | null;
+    pinDescriptors?: Record<string, WiringCandidateDescriptor>;
     onHoverPin: (pinId: string | null) => void;
     onWiringStart: (pinId: string) => void;
     onWiringEnd: (pinId: string) => void;
@@ -19,17 +48,24 @@ export default function PinOverlay({
     pinPositions,
     wiringStart,
     hoveredPin,
+    pinDescriptors = {},
     onHoverPin,
     onWiringStart,
     onWiringEnd,
     setDraggingPart,
-}: PinOverlayProps) {
+}: Readonly<PinOverlayProps>) {
     return (
         <>
             {Object.entries(pinPositions).map(([pinId, pos]) => {
                 const isActive = wiringStart === pinId;
                 const isHovered = hoveredPin === pinId;
-                const isVisible = isActive || isHovered;
+                const descriptor = pinDescriptors[pinId] ?? { status: 'neutral', tone: 'neutral' };
+                const isCandidate = descriptor.status !== 'neutral';
+                const isVisible = isActive || isHovered || isCandidate;
+                const palette = getPinOverlayPalette(isActive, descriptor.tone);
+                const hitboxClass = descriptor.status === 'invalid'
+                    ? 'cursor-not-allowed'
+                    : 'cursor-crosshair';
 
                 return (
                     <g key={`pin-${pinId}`}>
@@ -38,7 +74,7 @@ export default function PinOverlay({
                             <circle
                                 cx={pos.x} cy={pos.y} r={12}
                                 fill="none"
-                                stroke="rgba(59,130,246,0.3)"
+                                stroke={palette.ring}
                                 strokeWidth={2}
                                 className="animate-pulse"
                             />
@@ -49,8 +85,8 @@ export default function PinOverlay({
                                 cx={pos.x}
                                 cy={pos.y}
                                 r={isActive ? 6 : 5}
-                                fill={isActive ? '#3b82f6' : 'rgba(59,130,246,0.6)'}
-                                stroke={isActive ? '#93c5fd' : '#60a5fa'}
+                                fill={palette.fill}
+                                stroke={palette.stroke}
                                 strokeWidth={1.5}
                             />
                         )}
@@ -61,7 +97,7 @@ export default function PinOverlay({
                             r={10}
                             fill="transparent"
                             stroke="none"
-                            className="cursor-crosshair"
+                            className={hitboxClass}
                             style={{ pointerEvents: 'all' }}
                             onPointerEnter={() => onHoverPin(pinId)}
                             onPointerLeave={() => onHoverPin(null)}

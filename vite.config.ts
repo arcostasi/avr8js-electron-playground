@@ -14,7 +14,6 @@ export default defineConfig({
             output: {
                 manualChunks: {
                     vendor: ['react', 'react-dom'],
-                    monaco: ['monaco-editor'],
                     wokwi: ['@wokwi/elements'],
                     lucide: ['lucide-react']
                 }
@@ -29,5 +28,6 @@ export default defineConfig({
     test: {
         globals: true,
         environment: 'node',
+        exclude: ['dist/**', 'node_modules/**'],
     }
 } as any);

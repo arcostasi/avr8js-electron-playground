@@ -6,7 +6,7 @@ export default tseslint.config(
     ...tseslint.configs.recommended,
     {
         rules: {
-            "max-len": ["error", { "code": 120 }],
+            "max-len": ["error", { "code": 220 }],
             "@typescript-eslint/no-explicit-any": "error",
             "@typescript-eslint/no-var-requires": "off"
         }

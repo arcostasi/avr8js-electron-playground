@@ -206,7 +206,6 @@ export class LCD1602Controller implements I2CDevice {
     // Check RAM type
     if (this.cgramMode) {
       // CGRAM
-      // eslint-disable-next-line max-len
       const data = (value & 0x01) << 4 | (value & 0x02) << 2 | (value & 0x04) | (value & 0x08) >> 2 | (value & 0x10) >> 4;
 
       this.cgram[this.addr] = data;

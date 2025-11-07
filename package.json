@@ -9,6 +9,8 @@
     "watch": "tsc -w",
     "start": "electron ./dist/main/main.js",
     "dev": "vite build && tsc && electron ./dist/main/main.js",
+    "test": "vitest run",
+    "test:perf-smoke": "vitest run src/main/project-io.perf.test.ts",
     "lint": "eslint \"src/**/*.ts\" \"src/**/*.tsx\"",
     "lint:fix": "eslint \"src/**/*.ts\" \"src/**/*.tsx\" --fix"
   },
@@ -22,7 +24,7 @@
     "interactjs": "^1.10.27",
     "lit-html": "^3.3.2",
     "lucide-react": "^0.575.0",
-    "monaco-editor": "^0.55.1",
+    "monaco-editor": "^0.53.0",
     "react": "^19.2.4",
     "react-dom": "^19.2.4",
     "split.js": "^1.6.5",

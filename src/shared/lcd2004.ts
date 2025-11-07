@@ -171,7 +171,6 @@ export class LCD2004Controller implements I2CDevice {
 
     processData(value: number) {
         if (this.cgramMode) {
-            // eslint-disable-next-line max-len
             const data = (value & 0x01) << 4 | (value & 0x02) << 2 | (value & 0x04) | (value & 0x08) >> 2 | (value & 0x10) >> 4;
             this.cgram[this.addr] = data;
             this.addr = (this.addr + 1) % 64;

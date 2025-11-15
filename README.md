@@ -2,6 +2,8 @@
 
 A full-featured **Arduino simulator** built with [AVR8js](https://github.com/wokwi/avr8js), [Wokwi Elements](https://github.com/wokwi/wokwi-elements), and [Electron](https://github.com/electron/electron). Write Arduino code, design circuits visually, and simulate everything in real time — all offline in a native desktop application.
 
+See [ROADMAP.md](ROADMAP.md) for the phased plan to expand the simulator and improve AVR8 architecture coverage, and [BACKLOG.md](BACKLOG.md) for the prioritized execution backlog.
+
 <img src="examples/print.png" alt="AVR8js Electron Playground Screenshot" width="900px">
 
 ---

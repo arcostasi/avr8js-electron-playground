@@ -1,0 +1,8 @@
+{
+  "name": "DIP Switch 8",
+  "slug": "dip-switch-8",
+  "category": "basics",
+  "board": "uno",
+  "description": "Read 8 individual DIP switches and display their states as a binary byte via Serial.",
+  "tags": ["dip-switch", "digital", "binary", "input"]
+}

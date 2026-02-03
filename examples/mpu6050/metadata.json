@@ -1,0 +1,8 @@
+{
+  "name": "MPU6050 IMU",
+  "slug": "mpu6050",
+  "category": "sensors",
+  "board": "uno",
+  "description": "Read accelerometer and gyroscope data from an MPU-6050 IMU via I2C.",
+  "tags": ["mpu6050", "imu", "accelerometer", "gyroscope", "i2c"]
+}

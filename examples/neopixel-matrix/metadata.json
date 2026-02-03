@@ -1,0 +1,8 @@
+{
+  "name": "NeoPixel Matrix Fire",
+  "slug": "neopixel-matrix",
+  "category": "leds",
+  "board": "uno",
+  "description": "Fire2012 simulation with color palettes on a 16x16 NeoPixel matrix using FastLED.",
+  "tags": ["fastled", "neopixel", "ws2812", "matrix", "animation"]
+}

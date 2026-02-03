@@ -1,0 +1,8 @@
+{
+  "name": "ILI9341 TFT Display",
+  "slug": "ili9341",
+  "category": "display",
+  "board": "uno",
+  "description": "Drive a 320×240 color TFT display (ILI9341) over SPI using Adafruit_ILI9341 and Adafruit_GFX.",
+  "tags": ["ili9341", "tft", "display", "spi", "adafruit", "graphics"]
+}

@@ -1,0 +1,8 @@
+{
+  "name": "DS1307 RTC",
+  "slug": "ds1307",
+  "category": "sensors",
+  "board": "uno",
+  "description": "Set and read the current date/time from a DS1307 real-time clock over I2C.",
+  "tags": ["ds1307", "rtc", "clock", "i2c", "time"]
+}

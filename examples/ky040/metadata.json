@@ -1,0 +1,8 @@
+{
+  "name": "KY-040 Rotary Encoder",
+  "slug": "ky040",
+  "category": "sensors",
+  "board": "uno",
+  "description": "Count encoder clicks and detect button presses with a KY-040 rotary encoder.",
+  "tags": ["rotary-encoder", "ky040", "encoder", "sensor"]
+}

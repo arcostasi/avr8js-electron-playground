@@ -1,0 +1,146 @@
+{
+  "version": 2,
+  "author": "avr8js-electron",
+  "editor": "avr8js-electron-playground",
+  "parts": [
+    {
+      "id": "uno",
+      "type": "wokwi-arduino-uno",
+      "top": 320,
+      "left": 200,
+      "rotate": 0
+    },
+    {
+      "id": "bar1",
+      "type": "wokwi-led-bar-graph",
+      "top": 80,
+      "left": 160,
+      "rotate": 0,
+      "attrs": {
+        "color": "red"
+      }
+    }
+  ],
+  "connections": [
+    {
+      "id": "conn-a1",
+      "from": "uno:2",
+      "to": "bar1:A1",
+      "color": "orange"
+    },
+    {
+      "id": "conn-a2",
+      "from": "uno:3",
+      "to": "bar1:A2",
+      "color": "orange"
+    },
+    {
+      "id": "conn-a3",
+      "from": "uno:4",
+      "to": "bar1:A3",
+      "color": "orange"
+    },
+    {
+      "id": "conn-a4",
+      "from": "uno:5",
+      "to": "bar1:A4",
+      "color": "orange"
+    },
+    {
+      "id": "conn-a5",
+      "from": "uno:6",
+      "to": "bar1:A5",
+      "color": "orange"
+    },
+    {
+      "id": "conn-a6",
+      "from": "uno:7",
+      "to": "bar1:A6",
+      "color": "orange"
+    },
+    {
+      "id": "conn-a7",
+      "from": "uno:8",
+      "to": "bar1:A7",
+      "color": "orange"
+    },
+    {
+      "id": "conn-a8",
+      "from": "uno:9",
+      "to": "bar1:A8",
+      "color": "orange"
+    },
+    {
+      "id": "conn-a9",
+      "from": "uno:10",
+      "to": "bar1:A9",
+      "color": "orange"
+    },
+    {
+      "id": "conn-a10",
+      "from": "uno:11",
+      "to": "bar1:A10",
+      "color": "orange"
+    },
+    {
+      "id": "conn-b1",
+      "from": "bar1:B1",
+      "to": "uno:GND.1",
+      "color": "black"
+    },
+    {
+      "id": "conn-b2",
+      "from": "bar1:B2",
+      "to": "uno:GND.1",
+      "color": "black"
+    },
+    {
+      "id": "conn-b3",
+      "from": "bar1:B3",
+      "to": "uno:GND.1",
+      "color": "black"
+    },
+    {
+      "id": "conn-b4",
+      "from": "bar1:B4",
+      "to": "uno:GND.1",
+      "color": "black"
+    },
+    {
+      "id": "conn-b5",
+      "from": "bar1:B5",
+      "to": "uno:GND.1",
+      "color": "black"
+    },
+    {
+      "id": "conn-b6",
+      "from": "bar1:B6",
+      "to": "uno:GND.2",
+      "color": "black"
+    },
+    {
+      "id": "conn-b7",
+      "from": "bar1:B7",
+      "to": "uno:GND.2",
+      "color": "black"
+    },
+    {
+      "id": "conn-b8",
+      "from": "bar1:B8",
+      "to": "uno:GND.2",
+      "color": "black"
+    },
+    {
+      "id": "conn-b9",
+      "from": "bar1:B9",
+      "to": "uno:GND.2",
+      "color": "black"
+    },
+    {
+      "id": "conn-b10",
+      "from": "bar1:B10",
+      "to": "uno:GND.2",
+      "color": "black"
+    }
+  ]
+}

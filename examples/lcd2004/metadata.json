@@ -1,0 +1,8 @@
+{
+  "name": "LCD 2004 (I2C)",
+  "slug": "lcd2004",
+  "category": "display",
+  "board": "uno",
+  "description": "Drive a 20×4 character LCD display via I2C using the LiquidCrystal_I2C library.",
+  "tags": ["lcd2004", "lcd", "display", "i2c", "liquidcrystal"]
+}

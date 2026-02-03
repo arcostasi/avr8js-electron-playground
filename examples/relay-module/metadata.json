@@ -1,0 +1,8 @@
+{
+  "name": "Relay Module",
+  "slug": "relay-module",
+  "category": "actuators",
+  "board": "uno",
+  "description": "Control a KS2E relay module from a digital pin to switch a load LED on and off.",
+  "tags": ["relay", "actuator", "digital", "switch"]
+}

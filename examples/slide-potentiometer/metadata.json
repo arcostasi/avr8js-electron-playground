@@ -1,0 +1,8 @@
+{
+  "name": "Slide Potentiometer",
+  "slug": "slide-potentiometer",
+  "category": "sensors",
+  "board": "uno",
+  "description": "Read a slide potentiometer and control LED brightness via PWM.",
+  "tags": ["slide-potentiometer", "analog", "pwm", "led"]
+}

@@ -1,0 +1,53 @@
+{
+  "version": 2,
+  "author": "avr8js-electron",
+  "editor": "avr8js-electron-playground",
+  "parts": [
+    {
+      "id": "uno",
+      "type": "wokwi-arduino-uno",
+      "top": 300,
+      "left": 200,
+      "rotate": 0
+    },
+    {
+      "id": "joy1",
+      "type": "wokwi-analog-joystick",
+      "top": 80,
+      "left": 240,
+      "rotate": 0
+    }
+  ],
+  "connections": [
+    {
+      "id": "conn-0",
+      "from": "joy1:GND",
+      "to": "uno:GND.1",
+      "color": "black"
+    },
+    {
+      "id": "conn-1",
+      "from": "joy1:VCC",
+      "to": "uno:5V",
+      "color": "red"
+    },
+    {
+      "id": "conn-2",
+      "from": "joy1:VERT",
+      "to": "uno:A0",
+      "color": "orange"
+    },
+    {
+      "id": "conn-3",
+      "from": "joy1:HORIZ",
+      "to": "uno:A1",
+      "color": "green"
+    },
+    {
+      "id": "conn-4",
+      "from": "joy1:SEL",
+      "to": "uno:2",
+      "color": "blue"
+    }
+  ]
+}

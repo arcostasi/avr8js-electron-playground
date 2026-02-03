@@ -1,0 +1,8 @@
+{
+  "name": "RGB LED",
+  "slug": "rgb-led",
+  "category": "basics",
+  "board": "uno",
+  "description": "Cycle through colors on a common-cathode RGB LED using PWM pins 9, 10, 11.",
+  "tags": ["rgb", "led", "pwm", "color"]
+}

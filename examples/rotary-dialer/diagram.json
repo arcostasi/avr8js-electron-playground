@@ -1,0 +1,35 @@
+{
+  "version": 2,
+  "author": "avr8js-electron",
+  "editor": "avr8js-electron-playground",
+  "parts": [
+    {
+      "id": "uno",
+      "type": "wokwi-arduino-uno",
+      "top": 320,
+      "left": 200,
+      "rotate": 0
+    },
+    {
+      "id": "dial1",
+      "type": "wokwi-rotary-dialer",
+      "top": 8,
+      "left": 238,
+      "rotate": 0
+    }
+  ],
+  "connections": [
+    {
+      "id": "conn-0",
+      "from": "dial1:PULSE",
+      "to": "uno:2",
+      "color": "orange"
+    },
+    {
+      "id": "conn-1",
+      "from": "dial1:GND",
+      "to": "uno:GND.1",
+      "color": "black"
+    }
+  ]
+}

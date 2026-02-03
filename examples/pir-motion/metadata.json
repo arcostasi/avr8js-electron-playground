@@ -1,0 +1,8 @@
+{
+  "name": "PIR Motion Sensor",
+  "slug": "pir-motion",
+  "category": "sensors",
+  "board": "uno",
+  "description": "Detect motion with a PIR sensor and activate an LED alarm on pin 13.",
+  "tags": ["pir", "motion", "sensor", "led", "alarm"]
+}

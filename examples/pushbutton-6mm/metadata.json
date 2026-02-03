@@ -1,0 +1,8 @@
+{
+  "name": "Pushbutton 6mm",
+  "slug": "pushbutton-6mm",
+  "category": "basics",
+  "board": "uno",
+  "description": "Toggle an LED with a compact 6mm pushbutton using internal pull-up on pin 2.",
+  "tags": ["pushbutton", "led", "digital", "input"]
+}

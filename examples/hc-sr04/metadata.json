@@ -1,0 +1,8 @@
+{
+  "name": "HC-SR04 Ultrasonic",
+  "slug": "hc-sr04",
+  "category": "sensors",
+  "board": "uno",
+  "description": "Measure distance with an HC-SR04 ultrasonic sensor using pulseIn() and print via Serial.",
+  "tags": ["hc-sr04", "ultrasonic", "distance", "sensor"]
+}

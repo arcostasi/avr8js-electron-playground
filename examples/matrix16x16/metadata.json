@@ -1,0 +1,8 @@
+{
+  "name": "16x16 LED Matrix",
+  "slug": "matrix16x16",
+  "category": "leds",
+  "board": "uno",
+  "description": "Metaballs plasma animation on a 16x16 NeoPixel matrix using FastLED.",
+  "tags": ["fastled", "neopixel", "ws2812", "matrix"]
+}

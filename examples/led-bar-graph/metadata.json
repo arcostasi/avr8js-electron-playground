@@ -1,0 +1,8 @@
+{
+  "name": "LED Bar Graph",
+  "slug": "led-bar-graph",
+  "category": "leds",
+  "board": "uno",
+  "description": "Animate a 10-segment LED bar graph as a running level indicator on pins 2-11.",
+  "tags": ["led-bar-graph", "led", "animation", "digital"]
+}

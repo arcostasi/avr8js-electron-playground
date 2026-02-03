@@ -1,0 +1,119 @@
+{
+  "version": 2,
+  "author": "avr8js-electron",
+  "editor": "avr8js-electron-playground",
+  "parts": [
+    {
+      "id": "uno",
+      "type": "wokwi-arduino-uno",
+      "top": 300,
+      "left": 200,
+      "rotate": 0
+    },
+    {
+      "id": "dip1",
+      "type": "wokwi-dip-switch-8",
+      "top": 100,
+      "left": 160,
+      "rotate": 0
+    }
+  ],
+  "connections": [
+    {
+      "id": "conn-0",
+      "from": "dip1:1A",
+      "to": "uno:2",
+      "color": "blue"
+    },
+    {
+      "id": "conn-1",
+      "from": "dip1:2A",
+      "to": "uno:3",
+      "color": "blue"
+    },
+    {
+      "id": "conn-2",
+      "from": "dip1:3A",
+      "to": "uno:4",
+      "color": "blue"
+    },
+    {
+      "id": "conn-3",
+      "from": "dip1:4A",
+      "to": "uno:5",
+      "color": "blue"
+    },
+    {
+      "id": "conn-4",
+      "from": "dip1:5A",
+      "to": "uno:6",
+      "color": "blue"
+    },
+    {
+      "id": "conn-5",
+      "from": "dip1:6A",
+      "to": "uno:7",
+      "color": "blue"
+    },
+    {
+      "id": "conn-6",
+      "from": "dip1:7A",
+      "to": "uno:8",
+      "color": "blue"
+    },
+    {
+      "id": "conn-7",
+      "from": "dip1:8A",
+      "to": "uno:9",
+      "color": "blue"
+    },
+    {
+      "id": "conn-8",
+      "from": "dip1:1B",
+      "to": "uno:GND.1",
+      "color": "black"
+    },
+    {
+      "id": "conn-9",
+      "from": "dip1:2B",
+      "to": "uno:GND.1",
+      "color": "black"
+    },
+    {
+      "id": "conn-10",
+      "from": "dip1:3B",
+      "to": "uno:GND.1",
+      "color": "black"
+    },
+    {
+      "id": "conn-11",
+      "from": "dip1:4B",
+      "to": "uno:GND.1",
+      "color": "black"
+    },
+    {
+      "id": "conn-12",
+      "from": "dip1:5B",
+      "to": "uno:GND.2",
+      "color": "black"
+    },
+    {
+      "id": "conn-13",
+      "from": "dip1:6B",
+      "to": "uno:GND.2",
+      "color": "black"
+    },
+    {
+      "id": "conn-14",
+      "from": "dip1:7B",
+      "to": "uno:GND.2",
+      "color": "black"
+    },
+    {
+      "id": "conn-15",
+      "from": "dip1:8B",
+      "to": "uno:GND.2",
+      "color": "black"
+    }
+  ]
+}

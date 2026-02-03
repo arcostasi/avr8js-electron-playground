@@ -1,0 +1,81 @@
+{
+  "version": 2,
+  "author": "avr8js-electron",
+  "editor": "avr8js-electron-playground",
+  "parts": [
+    {
+      "id": "uno",
+      "type": "wokwi-arduino-uno",
+      "top": 320,
+      "left": 200,
+      "rotate": 0
+    },
+    {
+      "id": "relay1",
+      "type": "wokwi-relay-module",
+      "top": 120,
+      "left": 160,
+      "rotate": 0
+    },
+    {
+      "id": "r1",
+      "type": "wokwi-resistor",
+      "top": 100,
+      "left": 360,
+      "rotate": 0,
+      "attrs": { "value": "220" }
+    },
+    {
+      "id": "led1",
+      "type": "wokwi-led",
+      "top": 40,
+      "left": 360,
+      "rotate": 0,
+      "attrs": { "color": "red" }
+    }
+  ],
+  "connections": [
+    {
+      "id": "conn-0",
+      "from": "relay1:GND",
+      "to": "uno:GND.1",
+      "color": "black"
+    },
+    {
+      "id": "conn-1",
+      "from": "relay1:VCC",
+      "to": "uno:5V",
+      "color": "red"
+    },
+    {
+      "id": "conn-2",
+      "from": "relay1:IN",
+      "to": "uno:7",
+      "color": "orange"
+    },
+    {
+      "id": "conn-3",
+      "from": "relay1:COM",
+      "to": "uno:5V",
+      "color": "red"
+    },
+    {
+      "id": "conn-4",
+      "from": "relay1:NO",
+      "to": "r1:1",
+      "color": "orange"
+    },
+    {
+      "id": "conn-5",
+      "from": "r1:2",
+      "to": "led1:A",
+      "color": "orange"
+    },
+    {
+      "id": "conn-6",
+      "from": "led1:C",
+      "to": "uno:GND.2",
+      "color": "black"
+    }
+  ]
+}

@@ -1,0 +1,8 @@
+{
+  "name": "Flame Sensor",
+  "slug": "flame-sensor",
+  "category": "sensors",
+  "board": "uno",
+  "description": "Detect flames with an IR flame sensor and trigger a buzzer alarm.",
+  "tags": ["flame-sensor", "fire", "buzzer", "sensor", "alarm"]
+}

@@ -1,0 +1,66 @@
+{
+  "version": 2,
+  "author": "avr8js-electron",
+  "editor": "avr8js-electron-playground",
+  "parts": [
+    {
+      "id": "uno",
+      "type": "wokwi-arduino-uno",
+      "top": 340,
+      "left": 200,
+      "rotate": 0
+    },
+    {
+      "id": "servo1",
+      "type": "wokwi-servo",
+      "top": 80,
+      "left": 280,
+      "rotate": 0
+    },
+    {
+      "id": "pot1",
+      "type": "wokwi-potentiometer",
+      "top": 160,
+      "left": 100,
+      "rotate": 0
+    }
+  ],
+  "connections": [
+    {
+      "id": "conn-0",
+      "from": "servo1:GND",
+      "to": "uno:GND.1",
+      "color": "black"
+    },
+    {
+      "id": "conn-1",
+      "from": "servo1:V+",
+      "to": "uno:5V",
+      "color": "red"
+    },
+    {
+      "id": "conn-2",
+      "from": "servo1:PWM",
+      "to": "uno:9",
+      "color": "orange"
+    },
+    {
+      "id": "conn-3",
+      "from": "pot1:GND",
+      "to": "uno:GND.2",
+      "color": "black"
+    },
+    {
+      "id": "conn-4",
+      "from": "pot1:VCC",
+      "to": "uno:3.3V",
+      "color": "red"
+    },
+    {
+      "id": "conn-5",
+      "from": "pot1:SIG",
+      "to": "uno:A0",
+      "color": "green"
+    }
+  ]
+}

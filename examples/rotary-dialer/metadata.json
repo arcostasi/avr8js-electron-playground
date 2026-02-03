@@ -1,0 +1,8 @@
+{
+  "name": "Rotary Dialer",
+  "slug": "rotary-dialer",
+  "category": "input",
+  "board": "uno",
+  "description": "Decode pulses from a vintage rotary telephone dial and print the dialed digit.",
+  "tags": ["rotary-dialer", "rotary", "pulse", "input", "vintage"]
+}

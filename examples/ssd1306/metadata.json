@@ -1,0 +1,8 @@
+{
+  "name": "SSD1306 OLED",
+  "slug": "ssd1306",
+  "category": "display",
+  "board": "uno",
+  "description": "Drive a 128x64 SSD1306 OLED display over I2C with graphics and animation demos.",
+  "tags": ["i2c", "oled", "display", "ssd1306"]
+}

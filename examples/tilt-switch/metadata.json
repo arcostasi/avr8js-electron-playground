@@ -1,0 +1,8 @@
+{
+  "name": "Tilt Switch",
+  "slug": "tilt-switch",
+  "category": "sensors",
+  "board": "uno",
+  "description": "Detect tilt orientation with a ball tilt switch and trigger an LED.",
+  "tags": ["tilt-switch", "sensor", "led", "orientation"]
+}

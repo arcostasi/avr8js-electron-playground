@@ -1,0 +1,8 @@
+{
+  "name": "Pushbutton",
+  "slug": "pushbutton",
+  "category": "basics",
+  "board": "uno",
+  "description": "Toggle an LED with a pushbutton using internal pull-up resistor on pin 2.",
+  "tags": ["pushbutton", "led", "digital", "input"]
+}

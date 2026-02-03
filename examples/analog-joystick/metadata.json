@@ -1,0 +1,8 @@
+{
+  "name": "Analog Joystick",
+  "slug": "analog-joystick",
+  "category": "sensors",
+  "board": "uno",
+  "description": "Read X/Y axes and the push-button of an analog joystick module.",
+  "tags": ["joystick", "analog", "button", "sensor"]
+}

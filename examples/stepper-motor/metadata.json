@@ -1,0 +1,8 @@
+{
+  "name": "Stepper Motor",
+  "slug": "stepper-motor",
+  "category": "actuators",
+  "board": "uno",
+  "description": "Drive a unipolar/bipolar stepper motor with the Arduino Stepper library.",
+  "tags": ["stepper", "motor", "actuator"]
+}

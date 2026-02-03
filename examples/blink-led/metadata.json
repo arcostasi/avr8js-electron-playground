@@ -1,0 +1,8 @@
+{
+  "name": "Blink LED",
+  "slug": "blink-led",
+  "category": "basics",
+  "board": "uno",
+  "description": "Blink an external LED through a current-limiting resistor connected to pin 13.",
+  "tags": ["led", "blink", "digital", "resistor"]
+}

@@ -1,0 +1,8 @@
+{
+  "name": "DHT22 Temperature & Humidity",
+  "slug": "dht22",
+  "category": "sensors",
+  "board": "uno",
+  "description": "Read temperature and relative humidity from a DHT22 sensor and print via Serial.",
+  "tags": ["dht22", "temperature", "humidity", "sensor"]
+}

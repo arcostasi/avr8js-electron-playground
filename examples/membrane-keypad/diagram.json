@@ -1,0 +1,74 @@
+{
+  "version": 2,
+  "author": "avr8js-electron",
+  "editor": "avr8js-electron-playground",
+  "parts": [
+    {
+      "id": "uno",
+      "type": "wokwi-arduino-uno",
+      "top": 360,
+      "left": 200,
+      "rotate": 0
+    },
+    {
+      "id": "kp1",
+      "type": "wokwi-membrane-keypad",
+      "top": 60,
+      "left": 160,
+      "rotate": 0,
+      "attrs": {
+        "columns": "4"
+      }
+    }
+  ],
+  "connections": [
+    {
+      "id": "conn-r1",
+      "from": "kp1:R1",
+      "to": "uno:2",
+      "color": "orange"
+    },
+    {
+      "id": "conn-r2",
+      "from": "kp1:R2",
+      "to": "uno:3",
+      "color": "orange"
+    },
+    {
+      "id": "conn-r3",
+      "from": "kp1:R3",
+      "to": "uno:4",
+      "color": "orange"
+    },
+    {
+      "id": "conn-r4",
+      "from": "kp1:R4",
+      "to": "uno:5",
+      "color": "orange"
+    },
+    {
+      "id": "conn-c1",
+      "from": "kp1:C1",
+      "to": "uno:6",
+      "color": "green"
+    },
+    {
+      "id": "conn-c2",
+      "from": "kp1:C2",
+      "to": "uno:7",
+      "color": "green"
+    },
+    {
+      "id": "conn-c3",
+      "from": "kp1:C3",
+      "to": "uno:8",
+      "color": "green"
+    },
+    {
+      "id": "conn-c4",
+      "from": "kp1:C4",
+      "to": "uno:9",
+      "color": "green"
+    }
+  ]
+}

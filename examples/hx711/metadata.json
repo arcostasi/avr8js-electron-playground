@@ -1,0 +1,8 @@
+{
+  "name": "HX711 Load Cell",
+  "slug": "hx711",
+  "category": "sensors",
+  "board": "uno",
+  "description": "Read weight measurements from a load cell via an HX711 24-bit ADC module.",
+  "tags": ["hx711", "load-cell", "weight", "scale", "sensor"]
+}

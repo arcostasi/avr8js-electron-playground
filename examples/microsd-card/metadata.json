@@ -1,0 +1,8 @@
+{
+  "name": "MicroSD Card",
+  "slug": "microsd-card",
+  "category": "storage",
+  "board": "uno",
+  "description": "Write timestamped lines to a microSD card via SPI using the Arduino SD library.",
+  "tags": ["microsd", "sd", "spi", "storage", "logging"]
+}

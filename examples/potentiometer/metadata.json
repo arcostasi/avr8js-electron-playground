@@ -1,0 +1,8 @@
+{
+  "name": "Potentiometer",
+  "slug": "potentiometer",
+  "category": "sensors",
+  "board": "uno",
+  "description": "Read the wiper position of a 10k potentiometer and print the voltage via Serial.",
+  "tags": ["potentiometer", "analog", "adc", "sensor"]
+}

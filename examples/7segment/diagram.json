@@ -1,0 +1,81 @@
+{
+  "version": 2,
+  "author": "avr8js-electron",
+  "editor": "avr8js-electron-playground",
+  "parts": [
+    {
+      "id": "uno",
+      "type": "wokwi-arduino-uno",
+      "top": 300,
+      "left": 200,
+      "rotate": 0
+    },
+    {
+      "id": "seg1",
+      "type": "wokwi-7segment",
+      "top": 311,
+      "left": 503,
+      "rotate": 0,
+      "attrs": {
+        "color": "red",
+        "common": "cathode"
+      }
+    }
+  ],
+  "connections": [
+    {
+      "id": "conn-0",
+      "from": "uno:2",
+      "to": "seg1:A",
+      "color": "orange"
+    },
+    {
+      "id": "conn-1",
+      "from": "uno:3",
+      "to": "seg1:B",
+      "color": "orange"
+    },
+    {
+      "id": "conn-2",
+      "from": "uno:4",
+      "to": "seg1:C",
+      "color": "orange"
+    },
+    {
+      "id": "conn-3",
+      "from": "uno:5",
+      "to": "seg1:D",
+      "color": "orange"
+    },
+    {
+      "id": "conn-4",
+      "from": "uno:6",
+      "to": "seg1:E",
+      "color": "orange"
+    },
+    {
+      "id": "conn-5",
+      "from": "uno:7",
+      "to": "seg1:F",
+      "color": "orange"
+    },
+    {
+      "id": "conn-6",
+      "from": "uno:8",
+      "to": "seg1:G",
+      "color": "orange"
+    },
+    {
+      "id": "conn-7",
+      "from": "seg1:COM",
+      "to": "uno:GND.1",
+      "color": "black"
+    },
+    {
+      "id": "conn-8-1772495637717",
+      "from": "seg1:COM.1",
+      "to": "uno:GND.1",
+      "color": "black"
+    }
+  ]
+}

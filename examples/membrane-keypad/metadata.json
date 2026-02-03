@@ -1,0 +1,8 @@
+{
+  "name": "Membrane Keypad",
+  "slug": "membrane-keypad",
+  "category": "input",
+  "board": "uno",
+  "description": "Read keypresses from a 4x4 membrane keypad and display the pressed key over Serial.",
+  "tags": ["keypad", "membrane", "input", "matrix"]
+}

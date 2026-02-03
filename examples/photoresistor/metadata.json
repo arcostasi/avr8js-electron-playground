@@ -1,0 +1,8 @@
+{
+  "name": "Photoresistor",
+  "slug": "photoresistor",
+  "category": "sensors",
+  "board": "uno",
+  "description": "Measure ambient light with a photoresistor sensor and auto-dim an LED via PWM.",
+  "tags": ["photoresistor", "ldr", "light", "analog", "pwm"]
+}

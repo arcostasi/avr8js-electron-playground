@@ -1,0 +1,8 @@
+{
+  "name": "NTC Temperature Sensor",
+  "slug": "ntc-temperature",
+  "category": "sensors",
+  "board": "uno",
+  "description": "Calculate temperature from a 10k NTC thermistor using the Steinhart-Hart equation.",
+  "tags": ["ntc", "thermistor", "temperature", "analog", "sensor"]
+}

@@ -1,0 +1,8 @@
+{
+  "name": "Hello World",
+  "slug": "hello-world",
+  "category": "display",
+  "board": "uno",
+  "description": "Display a scrolling message on a 16x2 I2C LCD using a custom heart character.",
+  "tags": ["lcd", "i2c", "display", "lcd1602"]
+}

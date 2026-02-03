@@ -1,0 +1,8 @@
+{
+  "name": "Servo Motor",
+  "slug": "servo",
+  "category": "actuators",
+  "board": "uno",
+  "description": "Sweep a servo motor 0 to 180 degrees and back, controlled by a potentiometer.",
+  "tags": ["servo", "pwm", "motor", "potentiometer"]
+}

@@ -1,0 +1,8 @@
+{
+  "name": "Heart Beat Sensor",
+  "slug": "heart-beat-sensor",
+  "category": "sensors",
+  "board": "uno",
+  "description": "Detect heartbeat pulses from a finger-clip pulse sensor and calculate BPM.",
+  "tags": ["heart-beat", "pulse", "bpm", "sensor", "analog"]
+}

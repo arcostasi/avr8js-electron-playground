@@ -1,0 +1,8 @@
+{
+  "name": "7-Segment Display",
+  "slug": "7segment",
+  "category": "display",
+  "board": "uno",
+  "description": "Count 0-9 on a common-cathode 7-segment display controlled via 7 digital pins.",
+  "tags": ["7segment", "display", "digital", "counter"]
+}

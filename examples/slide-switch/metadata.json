@@ -1,0 +1,8 @@
+{
+  "name": "Slide Switch",
+  "slug": "slide-switch",
+  "category": "basics",
+  "board": "uno",
+  "description": "Use a slide switch to toggle an LED on and off.",
+  "tags": ["slide-switch", "led", "digital", "switch"]
+}

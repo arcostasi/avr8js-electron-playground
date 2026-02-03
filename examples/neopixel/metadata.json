@@ -1,0 +1,8 @@
+{
+  "name": "NeoPixel",
+  "slug": "neopixel",
+  "category": "leds",
+  "board": "uno",
+  "description": "Control a single WS2812B NeoPixel LED with FastLED — cycling through HSV hues.",
+  "tags": ["neopixel", "fastled", "ws2812", "rgb", "led"]
+}

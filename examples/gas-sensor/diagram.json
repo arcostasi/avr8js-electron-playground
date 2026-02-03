@@ -1,0 +1,47 @@
+{
+  "version": 2,
+  "author": "avr8js-electron",
+  "editor": "avr8js-electron-playground",
+  "parts": [
+    {
+      "id": "uno",
+      "type": "wokwi-arduino-uno",
+      "top": 300,
+      "left": 200,
+      "rotate": 0
+    },
+    {
+      "id": "gas1",
+      "type": "wokwi-gas-sensor",
+      "top": 80,
+      "left": 260,
+      "rotate": 0
+    }
+  ],
+  "connections": [
+    {
+      "id": "conn-0",
+      "from": "gas1:GND",
+      "to": "uno:GND.1",
+      "color": "black"
+    },
+    {
+      "id": "conn-1",
+      "from": "gas1:VCC",
+      "to": "uno:5V",
+      "color": "red"
+    },
+    {
+      "id": "conn-2",
+      "from": "gas1:DOUT",
+      "to": "uno:4",
+      "color": "green"
+    },
+    {
+      "id": "conn-3",
+      "from": "gas1:AOUT",
+      "to": "uno:A0",
+      "color": "orange"
+    }
+  ]
+}

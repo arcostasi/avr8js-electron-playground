@@ -1,0 +1,8 @@
+{
+  "name": "IR Receiver",
+  "slug": "ir-receiver",
+  "category": "sensors",
+  "board": "uno",
+  "description": "Decode NEC IR remote commands with an IR receiver and the IRremote library.",
+  "tags": ["ir", "infrared", "remote", "receiver", "irremote"]
+}

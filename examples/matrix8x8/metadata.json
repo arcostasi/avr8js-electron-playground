@@ -1,0 +1,8 @@
+{
+  "name": "8x8 LED Matrix",
+  "slug": "matrix8x8",
+  "category": "leds",
+  "board": "uno",
+  "description": "Animated 2D blur swirl effect on an 8x8 NeoPixel matrix using FastLED.",
+  "tags": ["fastled", "neopixel", "ws2812", "matrix"]
+}

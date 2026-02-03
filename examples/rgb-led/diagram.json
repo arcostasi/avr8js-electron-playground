@@ -1,0 +1,90 @@
+{
+  "version": 2,
+  "author": "avr8js-electron",
+  "editor": "avr8js-electron-playground",
+  "parts": [
+    {
+      "id": "uno",
+      "type": "wokwi-arduino-uno",
+      "top": 300,
+      "left": 200,
+      "rotate": 0
+    },
+    {
+      "id": "rgb1",
+      "type": "wokwi-rgb-led",
+      "top": 100,
+      "left": 260,
+      "rotate": 0,
+      "attrs": { "common": "cathode" }
+    },
+    {
+      "id": "rr",
+      "type": "wokwi-resistor",
+      "top": 200,
+      "left": 180,
+      "rotate": 0,
+      "attrs": { "value": "220" }
+    },
+    {
+      "id": "rg",
+      "type": "wokwi-resistor",
+      "top": 200,
+      "left": 260,
+      "rotate": 0,
+      "attrs": { "value": "220" }
+    },
+    {
+      "id": "rb",
+      "type": "wokwi-resistor",
+      "top": 200,
+      "left": 340,
+      "rotate": 0,
+      "attrs": { "value": "220" }
+    }
+  ],
+  "connections": [
+    {
+      "id": "conn-0",
+      "from": "uno:9",
+      "to": "rr:1",
+      "color": "red"
+    },
+    {
+      "id": "conn-1",
+      "from": "rr:2",
+      "to": "rgb1:R",
+      "color": "red"
+    },
+    {
+      "id": "conn-2",
+      "from": "uno:10",
+      "to": "rg:1",
+      "color": "green"
+    },
+    {
+      "id": "conn-3",
+      "from": "rg:2",
+      "to": "rgb1:G",
+      "color": "green"
+    },
+    {
+      "id": "conn-4",
+      "from": "uno:11",
+      "to": "rb:1",
+      "color": "blue"
+    },
+    {
+      "id": "conn-5",
+      "from": "rb:2",
+      "to": "rgb1:B",
+      "color": "blue"
+    },
+    {
+      "id": "conn-6",
+      "from": "rgb1:COM",
+      "to": "uno:GND.1",
+      "color": "black"
+    }
+  ]
+}

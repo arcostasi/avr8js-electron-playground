@@ -1,0 +1,8 @@
+{
+  "name": "Buzzer",
+  "slug": "buzzer",
+  "category": "audio",
+  "board": "uno",
+  "description": "Play musical notes on a passive buzzer using the Arduino tone() function.",
+  "tags": ["buzzer", "tone", "audio", "music"]
+}

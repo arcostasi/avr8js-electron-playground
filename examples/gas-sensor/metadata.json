@@ -1,0 +1,8 @@
+{
+  "name": "Gas Sensor",
+  "slug": "gas-sensor",
+  "category": "sensors",
+  "board": "uno",
+  "description": "Read analog gas concentration from an MQ-series sensor module and detect threshold.",
+  "tags": ["gas-sensor", "mq", "air-quality", "analog", "sensor"]
+}

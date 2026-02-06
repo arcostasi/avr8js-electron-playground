@@ -109,6 +109,44 @@ class Main {
       },
     );
 
+    // Generic file save — writes any project file to disk
+    ipcMain.handle(
+      'project:save-file',
+      async (_event, { projectPath, filename, content }: {
+        projectPath: string; filename: string; content: string;
+      }) => {
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        const fs = require('node:fs/promises');
+        try {
+          const filePath = path.join(projectPath, filename);
+          await fs.writeFile(filePath, content, 'utf-8');
+          return { success: true };
+        } catch (e: unknown) {
+          const msg = e instanceof Error ? e.message : String(e);
+          return { success: false, error: msg };
+        }
+      },
+    );
+
+    // Generic file read — reads a project file from disk
+    ipcMain.handle(
+      'project:read-file',
+      async (_event, { projectPath, filename }: {
+        projectPath: string; filename: string;
+      }) => {
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        const fs = require('node:fs/promises');
+        try {
+          const filePath = path.join(projectPath, filename);
+          const content = await fs.readFile(filePath, 'utf-8') as string;
+          return { success: true, content };
+        } catch (e: unknown) {
+          const msg = e instanceof Error ? e.message : String(e);
+          return { success: false, content: '', error: msg };
+        }
+      },
+    );
+
     // Dialog IPC: Save / Open file pickers
     ipcMain.handle('dialog-save', async (_event, options) => {
       return dialog.showSaveDialog(this.mainWindow, options);
@@ -116,6 +154,130 @@ class Main {
     ipcMain.handle('dialog-open', async (_event, options) => {
       return dialog.showOpenDialog(this.mainWindow, options);
     });
+
+    // Create a new project folder under examples/
+    ipcMain.handle(
+      'project:create',
+      async (_event, {
+        appRoot,
+        category,
+        slug,
+        name,
+        board,
+        inoContent,
+        diagramContent,
+      }: {
+        appRoot: string;
+        category: string;
+        slug: string;
+        name: string;
+        board: string;
+        inoContent: string;
+        diagramContent: string;
+      }) => {
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        const fs = require('node:fs/promises') as typeof import('node:fs/promises');
+        try {
+          const dir = path.join(appRoot, 'examples', category, slug);
+          await fs.mkdir(dir, { recursive: true });
+
+          const metadata = JSON.stringify(
+            { name, board, description: '', category, tags: [] },
+            null, 2,
+          );
+          await fs.writeFile(path.join(dir, 'metadata.json'), metadata, 'utf-8');
+          await fs.writeFile(path.join(dir, `${slug}.ino`), inoContent, 'utf-8');
+          await fs.writeFile(path.join(dir, 'diagram.json'), diagramContent, 'utf-8');
+
+          return { success: true, dirPath: dir };
+        } catch (e: unknown) {
+          const msg = e instanceof Error ? e.message : String(e);
+          return { success: false, error: msg };
+        }
+      },
+    );
+
+    // arduino-cli local compilation
+    ipcMain.handle(
+      'arduino-cli:compile',
+      async (_event, {
+        source,
+        extraFiles,
+        arduinoCliPath,
+        arduinoCliBin,
+        fqbn,
+        extraFlags,
+      }: {
+        source: string;
+        extraFiles: { name: string; content: string }[];
+        arduinoCliPath: string;
+        arduinoCliBin: string;
+        fqbn: string;
+        extraFlags: string;
+      }) => {
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        const fs = require('node:fs/promises') as typeof import('node:fs/promises');
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        const os = require('node:os') as typeof import('node:os');
+        // eslint-disable-next-line @typescript-eslint/no-require-imports
+        const cp = require('node:child_process') as typeof import('node:child_process');
+
+        // Create an isolated temp directory
+        const tmpBase = await fs.mkdtemp(path.join(os.tmpdir(), 'avr8js-'));
+        // Sketch folder must match the .ino file name (arduino-cli requirement)
+        const sketchName = 'sketch';
+        const sketchDir = path.join(tmpBase, sketchName);
+        const outputDir = path.join(tmpBase, 'build');
+        await fs.mkdir(sketchDir, { recursive: true });
+        await fs.mkdir(outputDir, { recursive: true });
+
+        try {
+          // Write main sketch
+          await fs.writeFile(path.join(sketchDir, `${sketchName}.ino`), source, 'utf-8');
+          // Write extra files
+          for (const f of (extraFiles || [])) {
+            await fs.writeFile(path.join(sketchDir, f.name), f.content, 'utf-8');
+          }
+
+          // Build command
+          const cliBin = path.join(arduinoCliPath, arduinoCliBin || 'arduino-cli');
+          const extraFlagsList = (extraFlags || '')
+            .split(/\s+/)
+            .filter(Boolean);
+          const args = [
+            'compile',
+            '--fqbn', fqbn,
+            '--output-dir', outputDir,
+            ...extraFlagsList,
+            sketchDir,
+          ];
+
+          const { stdout, stderr, code } = await new Promise<{
+            stdout: string; stderr: string; code: number;
+          }>((resolve) => {
+            let out = '';
+            let err = '';
+            const proc = cp.spawn(cliBin, args, { env: process.env });
+            proc.stdout?.on('data', (d: Buffer) => { out += d.toString(); });
+            proc.stderr?.on('data', (d: Buffer) => { err += d.toString(); });
+            proc.on('close', (exitCode: number) => resolve({ stdout: out, stderr: err, code: exitCode ?? 1 }));
+            proc.on('error', (e: Error) => resolve({ stdout: out, stderr: err + '\n' + e.message, code: 1 }));
+          });
+
+          if (code !== 0) {
+            return { hex: '', stdout, stderr };
+          }
+
+          // Read the compiled hex file
+          const hexPath = path.join(outputDir, `${sketchName}.ino.hex`);
+          const hex = await fs.readFile(hexPath, 'utf-8');
+          return { hex, stdout, stderr };
+        } finally {
+          // Clean up temp directory in background
+          fs.rm(tmpBase, { recursive: true, force: true }).catch(() => { /* ignore */ });
+        }
+      },
+    );
   }
 
   private onActivate() {

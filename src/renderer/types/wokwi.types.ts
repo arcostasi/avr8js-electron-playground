@@ -109,6 +109,9 @@ export interface WokwiComponentDef {
 export interface PinPosition {
     x: number;
     y: number;
+    /** Canvas-space exit unit vector (away from the component face). */
+    ex?: number;
+    ey?: number;
 }
 
 export interface PinInfo {
@@ -136,4 +139,13 @@ export interface WokwiSimulatorProps {
     onAddComponent?: (part: WokwiPart) => void;
     onDiagramChange?: (newDiagram: WokwiDiagram) => void;
     serialWriteRef?: { current: ((text: string) => void) | null };
+    /** Undo/redo passthrough from the parent diagram state manager */
+    onUndo?: () => void;
+    onRedo?: () => void;
+    canUndo?: boolean;
+    canRedo?: boolean;
+    /** Default colour of new wires (from settings) */
+    defaultWireColor?: string;
+    /** Whether to show pin-name tooltip on hover in edit mode */
+    showPinTooltips?: boolean;
 }

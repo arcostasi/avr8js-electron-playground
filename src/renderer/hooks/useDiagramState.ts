@@ -17,6 +17,8 @@ export interface DiagramStateReturn {
     diagram: WokwiDiagram;
     diagramRef: React.RefObject<WokwiDiagram>;
     setDiagram: React.Dispatch<React.SetStateAction<WokwiDiagram>>;
+    /** Replace the diagram AND reset the undo/redo history (use on project load/switch). */
+    resetDiagram: (diagram: WokwiDiagram) => void;
     movePart: (partId: string, top: number, left: number) => void;
     rotatePart: (partId: string, degrees: number) => void;
     addPart: (part: WokwiPart) => void;
@@ -111,6 +113,19 @@ export function useDiagramState(initialDiagram: WokwiDiagram): DiagramStateRetur
         indexRef.current += 1;
         skipHistoryRef.current = true;
         setDiagramRaw(snap(historyRef.current[indexRef.current]));
+    }, []);
+
+    /**
+     * Replaces the active diagram and RESETS the entire undo/redo history to a
+     * single entry. Use this whenever loading or switching projects so that
+     * Ctrl+Z cannot cross project boundaries.
+     */
+    const resetDiagram = useCallback((newDiagram: WokwiDiagram) => {
+        const s = snap(newDiagram);
+        historyRef.current = [s];
+        indexRef.current = 0;
+        skipHistoryRef.current = false;
+        setDiagramRaw(s);
     }, []);
 
     // Keyboard shortcuts: Ctrl+Z / Ctrl+Y
@@ -216,6 +231,7 @@ export function useDiagramState(initialDiagram: WokwiDiagram): DiagramStateRetur
         diagram,
         diagramRef,
         setDiagram,
+        resetDiagram,
         movePart,
         rotatePart,
         addPart,

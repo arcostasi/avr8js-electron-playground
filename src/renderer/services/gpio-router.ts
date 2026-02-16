@@ -126,34 +126,146 @@ export function setupGPIORouting(diagram: WokwiDiagram, runner: AVRRunner): GPIO
 
 // ── Connection Resolver ──
 
+/**
+ * Component types that are electrically transparent (passive).
+ * When tracing a net we pass straight through them to find the
+ * Arduino pin that ultimately drives the active component.
+ */
+const PASSIVE_TYPES = new Set(['wokwi-resistor', 'wokwi-hx711']);
+
+/**
+ * Trace through passive components (resistors, etc.) to resolve
+ * the Arduino pin that drives (or is driven by) each component pin.
+ *
+ * Algorithm: BFS starting at a component pin node, traversing the
+ * connection graph.  The traversal crosses through passives by also
+ * queuing every other pin that belongs to the same passive part,
+ * because those pins are electrically shorted inside the passive.
+ * Traversal stops (does not enter) at non-passive, non-Arduino nodes.
+ */
 function resolveConnections(
     diagram: WokwiDiagram,
     arduinoId: string,
 ): Map<string, ResolvedConn[]> {
+    // Build part-type lookup
+    const partTypeMap = new Map(diagram.parts.map(p => [p.id, p.type]));
+
+    // Build bidirectional adjacency list: "partId:pin" → ["partId:pin", ...]
+    const adj = new Map<string, string[]>();
+    const addEdge = (a: string, b: string) => {
+        if (!adj.has(a)) adj.set(a, []);
+        if (!adj.has(b)) adj.set(b, []);
+        adj.get(a)!.push(b);
+        adj.get(b)!.push(a);
+    };
+    for (const conn of diagram.connections) {
+        addEdge(conn.from, conn.to);
+    }
+
+    // Group all known pin-nodes by part id for passive pass-through
+    const pinsByPart = new Map<string, string[]>();
+    for (const node of adj.keys()) {
+        const partId = node.split(':')[0];
+        if (!pinsByPart.has(partId)) pinsByPart.set(partId, []);
+        pinsByPart.get(partId)!.push(node);
+    }
+
+    /**
+     * BFS from a component pin node.
+     * Returns the Arduino pin name if reachable through the net, or null.
+     * Skips power / reference rails (GND, 5V, 3V3, etc.).
+     */
+    function findArduinoPinFrom(startNode: string): string | null {
+        const visited = new Set<string>([startNode]);
+        const queue: string[] = [startNode];
+
+        while (queue.length > 0) {
+            const node = queue.shift()!;
+            const colonIdx = node.indexOf(':');
+            const partId = node.slice(0, colonIdx);
+            const pinName = node.slice(colonIdx + 1);
+
+            // Reached the Arduino — return the pin name
+            if (partId === arduinoId) return pinName;
+
+            // Explore neighbors wired directly to this node
+            for (const neighbor of (adj.get(node) ?? [])) {
+                if (visited.has(neighbor)) continue;
+                const neighborPartId = neighbor.split(':')[0];
+                const neighborType = partTypeMap.get(neighborPartId) ?? '';
+                const isArduino = neighborPartId === arduinoId;
+                const isPassive = PASSIVE_TYPES.has(neighborType);
+
+                // Only traverse into Arduino or passive parts
+                if (!isArduino && !isPassive) continue;
+                visited.add(neighbor);
+                queue.push(neighbor);
+
+                // Pass-through: queue ALL pins of the passive so the BFS
+                // can exit on the other side of the resistor.
+                if (isPassive) {
+                    for (const sibling of (pinsByPart.get(neighborPartId) ?? [])) {
+                        if (!visited.has(sibling)) {
+                            visited.add(sibling);
+                            queue.push(sibling);
+                        }
+                    }
+                }
+            }
+
+            // If the current node itself is a passive, also pass through
+            // (handles the case where BFS entered via a passive internal jump)
+            const currentType = partTypeMap.get(partId) ?? '';
+            if (PASSIVE_TYPES.has(currentType)) {
+                for (const sibling of (pinsByPart.get(partId) ?? [])) {
+                    if (!visited.has(sibling)) {
+                        visited.add(sibling);
+                        queue.push(sibling);
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
+    // Power / reference pins — not real GPIO, skip them
+    const POWER_PIN_RE = /^(GND|5V|3V3|3\.3V|AREF|IOREF|VIN|PWR|RESET)/i;
+
     const byComponent = new Map<string, ResolvedConn[]>();
 
-    for (const conn of diagram.connections) {
-        const [fromPartId, fromPin] = conn.from.split(':');
-        const [toPartId, toPin] = conn.to.split(':');
+    for (const part of diagram.parts) {
+        if (part.id === arduinoId) continue;
+        const partType = partTypeMap.get(part.id) ?? '';
+        if (PASSIVE_TYPES.has(partType)) continue;
+        if (partType.startsWith('wokwi-arduino-')) continue;
 
-        let arduinoPin: string | undefined;
-        let componentPartId: string | undefined;
-        let componentPin: string | undefined;
+        // Iterate over connections that directly touch this part
+        for (const conn of diagram.connections) {
+            const [fromPartId, fromPin] = conn.from.split(':');
+            const [toPartId, toPin] = conn.to.split(':');
 
-        if (fromPartId === arduinoId) {
-            arduinoPin = fromPin;
-            componentPartId = toPartId;
-            componentPin = toPin;
-        } else if (toPartId === arduinoId) {
-            arduinoPin = toPin;
-            componentPartId = fromPartId;
-            componentPin = fromPin;
-        }
+            let componentPin: string | undefined;
+            let startNode: string | undefined;
 
-        if (arduinoPin && componentPartId && componentPin) {
-            const list = byComponent.get(componentPartId) || [];
-            list.push({ arduinoPin, componentPin });
-            byComponent.set(componentPartId, list);
+            if (fromPartId === part.id) {
+                componentPin = fromPin;
+                startNode = conn.from;
+            } else if (toPartId === part.id) {
+                componentPin = toPin;
+                startNode = conn.to;
+            }
+
+            if (!componentPin || !startNode) continue;
+
+            const arduinoPin = findArduinoPinFrom(startNode);
+            if (!arduinoPin || POWER_PIN_RE.test(arduinoPin)) continue;
+
+            const list = byComponent.get(part.id) ?? [];
+            // Deduplicate identical entries
+            if (!list.some(e => e.arduinoPin === arduinoPin && e.componentPin === componentPin)) {
+                list.push({ arduinoPin, componentPin });
+                byComponent.set(part.id, list);
+            }
         }
     }
 
@@ -207,18 +319,38 @@ function wireLEDBarGraph({ el, conns, ports }: HandlerCtx): void {
     }
 }
 
-const SEGMENT_MAP: Record<string, string> = {
-    A: 'a', B: 'b', C: 'c', D: 'd', E: 'e', F: 'f', G: 'g', DP: 'dp', COM: 'com',
+/** Index in the `values` array for each segment pin name */
+const SEGMENT_INDEX: Record<string, number> = {
+    A: 0, B: 1, C: 2, D: 3, E: 4, F: 5, G: 6, DP: 7,
 };
 
 function wire7Segment({ el, conns, ports }: HandlerCtx): void {
+    const seg7 = el as WokwiElement;
+
+    // common cathode → HIGH = segment ON; common anode → LOW = segment ON
+    const commonAttr = (seg7.getAttribute?.('common') as string ?? 'cathode').toLowerCase();
+    const isAnode = commonAttr === 'anode';
+
+    // Initialise values array if not already present
+    if (!Array.isArray(seg7.values)) {
+        seg7.values = [0, 0, 0, 0, 0, 0, 0, 0];
+    }
+
     for (const c of conns) {
         const pi = getPortAndBit(c.arduinoPin, ports);
         if (!pi) continue;
-        const seg = SEGMENT_MAP[c.componentPin.toUpperCase()];
-        if (!seg) continue;
+        const upperPin = c.componentPin.toUpperCase();
+        // Skip COM / DIG select pins — not individual segment signals
+        if (upperPin.startsWith('COM') || upperPin.startsWith('DIG')) continue;
+        const idx = SEGMENT_INDEX[upperPin];
+        if (idx === undefined) continue;
+
         pi.port.addListener(() => {
-            (el as WokwiElement)[seg] = pi.port.pinState(pi.bit) === 1;
+            const high = pi.port.pinState(pi.bit) === 1;
+            const lit = isAnode ? !high : high;
+            const vals = [...(seg7.values as number[])];
+            vals[idx] = lit ? 1 : 0;
+            seg7.values = vals;
         });
     }
 }

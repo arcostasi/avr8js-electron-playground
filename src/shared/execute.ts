@@ -54,6 +54,9 @@ export class AVRRunner {
   readonly taskScheduler = new MicroTaskScheduler();
   readonly performance: CPUPerformance;
 
+  /** Simulation speed multiplier: 0.1 = 10 % speed, 2.0 = 200 % speed */
+  speedMultiplier = 1.0;
+
   private serialBuffer: number[] = [];
   private stopped = false;
   private lastTime = 0;
@@ -136,7 +139,7 @@ export class AVRRunner {
     const deltaMs = now - this.lastTime;
     // Cap at 100ms in case the browser tab was suspended
     const runMs = Math.min(deltaMs, 100);
-    const cyclesToRun = Math.floor(runMs * (this.frequency / 1000));
+    const cyclesToRun = Math.floor(runMs * (this.frequency / 1000) * this.speedMultiplier);
 
     // Only update last time if we actually run cycles
     if (cyclesToRun > 0) {

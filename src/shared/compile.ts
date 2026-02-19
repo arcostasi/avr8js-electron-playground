@@ -4,7 +4,7 @@
  *
  * Copyright (C) 2019, Uri Shaked
  */
-const url = 'https://hexi.wokwi.com';
+const DEFAULT_URL = 'https://hexi.wokwi.com';
 
 export interface IHexiResult {
   stdout: string;
@@ -16,15 +16,24 @@ export interface IHexiResult {
  * @param source - main source
  * @param files - array[]
  * @param board - 'nano', 'uno', 'mega'
+ * @param options - extra options
+ * @param debug - use local debug server
+ * @param baseUrl - override the Hexi cloud URL (reads from settings when omitted)
  */
-export async function buildHex(source: string, files: { name: string, content: string }[],
-  board: string = 'uno', options: Record<string, unknown> = {}, debug: boolean = false) {
+export async function buildHex(
+  source: string,
+  files: { name: string, content: string }[],
+  board: string = 'uno',
+  options: Record<string, unknown> = {},
+  debug: boolean = false,
+  baseUrl?: string,
+) {
   // Check FakeRamSize test
   if (!debug && board === 'fakeuno') {
     board = 'uno';
   }
 
-  const _url = debug ? 'http://localhost:9090' : url;
+  const _url = debug ? 'http://localhost:9090' : (baseUrl || DEFAULT_URL);
 
   const resp = await fetch(_url + '/build', {
     method: 'POST',

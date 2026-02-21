@@ -15,6 +15,8 @@ interface UseWireRendererParams {
     zoom: number;
     isEditMode: boolean;
     wireColor: string;
+    /** ID of the currently selected wire — renders a highlight ring around it */
+    selectedWireId?: string | null;
     diagramRef: React.RefObject<WokwiDiagram | undefined>;
     onDiagramChange?: (newDiagram: WokwiDiagram) => void;
     onWireClick?: (e: React.MouseEvent, connId: string) => void;
@@ -29,6 +31,7 @@ export function useWireRenderer({
     zoom,
     isEditMode,
     wireColor,
+    selectedWireId,
     diagramRef,
     onDiagramChange,
     onWireClick,
@@ -54,6 +57,8 @@ export function useWireRenderer({
                 path = buildCatenaryPath(start, end);
             }
 
+            const isSelected = id === selectedWireId;
+
             const handleDeleteWire = (e: React.MouseEvent) => {
                 e.stopPropagation();
                 if (isEditMode && onDiagramChange && diagramRef.current) {
@@ -68,8 +73,22 @@ export function useWireRenderer({
                 }
             };
 
+            const wireStrokeColor = color || 'green';
+
             return (
                 <g key={id}>
+                    {/* Selection glow — rendered below the wire when selected */}
+                    {isSelected && (
+                        <path
+                            d={path}
+                            stroke="rgba(255,255,255,0.55)"
+                            strokeWidth="9"
+                            fill="none"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            style={{ filter: 'blur(2px)' }}
+                        />
+                    )}
                     {/* Shadow / thickness illusion */}
                     <path
                         d={path}
@@ -82,15 +101,17 @@ export function useWireRenderer({
                     {/* Main cable */}
                     <path
                         d={path}
-                        stroke={color || 'green'}
-                        strokeWidth="3"
+                        stroke={wireStrokeColor}
+                        strokeWidth={isSelected ? 4 : 3}
                         fill="none"
                         strokeLinecap="round"
                         strokeLinejoin="round"
                         className={isEditMode ? 'cursor-pointer' : ''}
                         style={{
                             pointerEvents: isEditMode ? 'stroke' : 'none',
-                            filter: 'drop-shadow(0 1px 1px rgba(0,0,0,0.2))',
+                            filter: isSelected
+                                ? `drop-shadow(0 0 4px ${wireStrokeColor})`
+                                : 'drop-shadow(0 1px 1px rgba(0,0,0,0.2))',
                         }}
                         onClick={handleWireClick}
                         onDoubleClick={handleDeleteWire}
@@ -107,8 +128,8 @@ export function useWireRenderer({
                         onDoubleClick={handleDeleteWire}
                     />
                     {/* Connector jack dots at endpoints */}
-                    <circle cx={start.x} cy={start.y} r={3} fill={color || 'green'} opacity={0.8} />
-                    <circle cx={end.x} cy={end.y} r={3} fill={color || 'green'} opacity={0.8} />
+                    <circle cx={start.x} cy={start.y} r={isSelected ? 4 : 3} fill={wireStrokeColor} opacity={0.8} />
+                    <circle cx={end.x} cy={end.y} r={isSelected ? 4 : 3} fill={wireStrokeColor} opacity={0.8} />
                 </g>
             );
         });
@@ -145,5 +166,5 @@ export function useWireRenderer({
         }
 
         return drawnWires;
-    }, [diagram, pinPositions, wiringStart, mousePos, pan, zoom, isEditMode, onDiagramChange, wireColor, diagramRef]);
+    }, [diagram, pinPositions, wiringStart, mousePos, pan, zoom, isEditMode, onDiagramChange, wireColor, selectedWireId, diagramRef]);
 }

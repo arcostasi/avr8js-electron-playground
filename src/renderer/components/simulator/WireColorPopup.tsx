@@ -46,6 +46,11 @@ export default function WireColorPopup({ x, y, currentColor, onSelectColor, onCl
                 transform: 'translate(-50%, -100%)',
                 marginTop: '-10px'
             }}
+            // Stop pointerdown from bubbling to the canvas container.
+            // Without this, handleCanvasPointerDown fires and calls
+            // setPopupState(null) BEFORE the color-swatch click event is
+            // processed, so the color never gets applied.
+            onPointerDown={(e) => e.stopPropagation()}
         >
             {/* Tailwind/Lucide standard tip pointing down */}
             <div className={

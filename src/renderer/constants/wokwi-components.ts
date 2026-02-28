@@ -54,6 +54,8 @@ export const COMMON_COMPONENTS: WokwiComponentDef[] = [
     { type: 'wokwi-ssd1306', label: 'SSD1306' },
     { type: 'wokwi-stepper-motor', label: 'Stepper Motor' },
     { type: 'wokwi-tilt-switch', label: 'Tilt Switch' },
+    // ── Special / Meta ──
+    { type: 'wokwi-label', label: 'Text Label', attrs: { text: 'Label', color: '#ffffff', 'font-size': '14' } },
 ];
 
 /** Wire color palette for the toolbar */

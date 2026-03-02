@@ -8,14 +8,22 @@ module.exports = {
         extend: {
             colors: {
                 vscode: {
-                    bg: '#1e1e1e',
-                    sidebar: '#252526',
-                    activity: '#333333',
-                    tab: '#2d2d2d',
-                    tabActive: '#1e1e1e',
-                    border: '#3c3c3c',
-                    text: '#cccccc',
-                    textActive: '#ffffff'
+                    bg:         'var(--vsc-bg)',
+                    sidebar:    'var(--vsc-sidebar)',
+                    activity:   'var(--vsc-activity)',
+                    tab:        'var(--vsc-tab)',
+                    tabActive:  'var(--vsc-tab-active)',
+                    border:     'var(--vsc-border)',
+                    text:       'var(--vsc-text)',
+                    textActive: 'var(--vsc-text-active)',
+                    panel:      'var(--vsc-panel)',
+                    surface:    'var(--vsc-surface)',
+                    surface2:   'var(--vsc-surface-2)',
+                    input:      'var(--vsc-input)',
+                    hover:      'var(--vsc-hover)',
+                    hover2:     'var(--vsc-hover-2)',
+                    divider:    'var(--vsc-divider)',
+                    codeBg:     'var(--vsc-code-bg)',
                 }
             }
         },

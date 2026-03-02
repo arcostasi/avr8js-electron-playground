@@ -2,6 +2,56 @@
 @tailwind components;
 @tailwind utilities;
 
+/* ── Default (dark) theme ─────────────────────────────────── */
+:root {
+  --vsc-bg:          #1e1e1e;
+  --vsc-sidebar:     #252526;
+  --vsc-activity:    #333333;
+  --vsc-tab:         #2d2d2d;
+  --vsc-tab-active:  #1e1e1e;
+  --vsc-border:      #3c3c3c;
+  --vsc-text:        #cccccc;
+  --vsc-text-active: #ffffff;
+  /* Extended semantic tokens */
+  --vsc-panel:       #161616;
+  --vsc-surface:     #1a1a1a;
+  --vsc-surface-2:   #222222;
+  --vsc-input:       #2a2a2a;
+  --vsc-hover:       #2e2e2e;
+  --vsc-hover-2:     #383838;
+  --vsc-divider:     #444444;
+  --vsc-code-bg:     #111111;
+  --vsc-text-2:      #6a6a6a;
+  --vsc-canvas-dot:  #2a2a2a;
+  --vsc-editor-bg:   #2b2b2b;
+}
+
+/* ── Light theme overrides ────────────────────────────────── */
+.theme-light {
+  --vsc-bg:          #f3f3f3;
+  --vsc-sidebar:     #e7e7e7;
+  --vsc-activity:    #d0d0d0;
+  --vsc-tab:         #ececec;
+  --vsc-tab-active:  #f3f3f3;
+  --vsc-border:      #c8c8c8;
+  --vsc-text:        #3c3c3c;
+  --vsc-text-active: #000000;
+  background: #f3f3f3;
+  color: #3c3c3c;
+  /* Extended semantic tokens */
+  --vsc-panel:       #e0e0e0;
+  --vsc-surface:     #ebebeb;
+  --vsc-surface-2:   #e4e4e4;
+  --vsc-input:       #dcdcdc;
+  --vsc-hover:       #d6d6d6;
+  --vsc-hover-2:     #cccccc;
+  --vsc-divider:     #bababa;
+  --vsc-code-bg:     #e8e8e8;
+  --vsc-text-2:      #888888;
+  --vsc-canvas-dot:  #d0d0d0;
+  --vsc-editor-bg:   #f5f5f5;
+}
+
 body {
   margin: 0;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
@@ -24,8 +74,7 @@ code {
 
 /* Split.js Gutter styling */
 .gutter {
-  background-color: #3c3c3c;
-  /* VSCode border color */
+  background-color: var(--vsc-border, #3c3c3c);
   background-repeat: no-repeat;
   background-position: 50%;
   transition: background-color 0.2s;
@@ -44,3 +93,65 @@ code {
   user-select: text;
   -webkit-user-select: text;
 }
+
+/* ── Themed scrollbars (WebKit / Electron) ─────────────────── */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--vsc-divider);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #007acc;
+}
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* ── No-scrollbar utility ────────────────────────────────── */
+.no-scrollbar::-webkit-scrollbar { display: none; }
+
+/* ── Themed range slider (Electron / Chrome) ──────────────── */
+.themed-slider {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 4px;
+  border-radius: 2px;
+  outline: none;
+  cursor: pointer;
+  /* filled portion = blue, rest = input track color */
+  background: linear-gradient(
+    to right,
+    #007acc var(--pct, 0%),
+    var(--vsc-input) var(--pct, 0%)
+  );
+  transition: background 0.05s;
+}
+
+.themed-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #007acc;
+  cursor: pointer;
+  border: none;
+  box-shadow: 0 0 0 0px #007acc40;
+  transition: transform 0.1s, box-shadow 0.1s;
+}
+
+.themed-slider::-webkit-slider-thumb:hover {
+  transform: scale(1.2);
+  box-shadow: 0 0 0 3px #007acc33;
+}
+
+.themed-slider:focus-visible::-webkit-slider-thumb {
+  box-shadow: 0 0 0 3px #007acc55;
+}
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }

@@ -14,9 +14,15 @@ globalThis.MonacoEnvironment = {
     }
 };
 
-// ── Custom Wokwi-Dark Theme ──
-// Colors extracted from the Wokwi editor reference image
+// ── Custom Editor Themes ──
 let themeRegistered = false;
+
+function getThemeName(): string {
+    return document.documentElement.classList.contains('theme-light')
+        ? 'wokwi-light'
+        : 'wokwi-dark';
+}
+
 function ensureTheme() {
     if (themeRegistered) return;
     themeRegistered = true;
@@ -100,19 +106,82 @@ function ensureTheme() {
             'minimap.background': '#2b2b2b',
         }
     });
+
+    monaco.editor.defineTheme('wokwi-light', {
+        base: 'vs',
+        inherit: true,
+        rules: [
+            { token: 'comment',              foreground: '7a7a7a', fontStyle: 'italic' },
+            { token: 'comment.line',          foreground: '7a7a7a', fontStyle: 'italic' },
+            { token: 'comment.block',         foreground: '7a7a7a', fontStyle: 'italic' },
+            { token: 'keyword',               foreground: '7b5ea7', fontStyle: 'bold' },
+            { token: 'keyword.control',       foreground: '7b5ea7', fontStyle: 'bold' },
+            { token: 'keyword.operator',      foreground: '7b5ea7' },
+            { token: 'keyword.directive',     foreground: '507a00' },
+            { token: 'keyword.directive.cpp', foreground: '507a00' },
+            { token: 'type',                  foreground: '7b5ea7', fontStyle: 'bold' },
+            { token: 'type.identifier',       foreground: '7b5ea7' },
+            { token: 'storage.type',          foreground: '7b5ea7' },
+            { token: 'entity.name.function',  foreground: '795e26' },
+            { token: 'support.function',      foreground: '795e26' },
+            { token: 'number',                foreground: '098658' },
+            { token: 'number.hex',            foreground: '098658' },
+            { token: 'number.float',          foreground: '098658' },
+            { token: 'string',                foreground: 'a31515' },
+            { token: 'string.escape',         foreground: 'ff0000' },
+            { token: 'identifier',            foreground: '001080' },
+            { token: 'variable',              foreground: '001080' },
+            { token: 'delimiter',             foreground: '383838' },
+            { token: 'operator',              foreground: '383838' },
+            { token: 'string.key.json',       foreground: '0451a5' },
+            { token: 'string.value.json',     foreground: 'a31515' },
+            { token: 'number.json',           foreground: '098658' },
+            { token: 'keyword.json',          foreground: '7b5ea7' },
+        ],
+        colors: {
+            'editor.background':                   '#f5f5f5',
+            'editor.foreground':                   '#383838',
+            'editorCursor.foreground':             '#333333',
+            'editor.lineHighlightBackground':      '#ebebeb',
+            'editor.selectionBackground':          '#add6ff',
+            'editorLineNumber.foreground':         '#aaaaaa',
+            'editorLineNumber.activeForeground':   '#666666',
+            'editorIndentGuide.background':        '#d3d3d3',
+            'editorIndentGuide.activeBackground':  '#bbbbbb',
+            'editorGutter.background':             '#f5f5f5',
+            'editor.selectionHighlightBackground': '#b3d4cc',
+            'scrollbar.shadow':                    '#00000018',
+            'scrollbarSlider.background':          '#c8c8c880',
+            'scrollbarSlider.hoverBackground':     '#b0b0b080',
+            'scrollbarSlider.activeBackground':    '#909090aa',
+            'editorWidget.background':             '#e8e8e8',
+            'editorWidget.border':                 '#cccccc',
+            'editorSuggestWidget.background':      '#e8e8e8',
+            'editorSuggestWidget.border':          '#cccccc',
+            'editorSuggestWidget.selectedBackground': '#d0e8ff',
+            'minimap.background':                  '#f5f5f5',
+        }
+    });
 }
 
 interface EditorProps {
     code: string;
     onChange?: (val: string) => void;
     language?: string;
+    fontSize?: number;
+    wordWrap?: 'on' | 'off';
 }
 
 const Editor = React.memo((
-    { code, onChange, language = 'cpp' }: EditorProps,
+    { code, onChange, language = 'cpp', fontSize = 15, wordWrap = 'off' }: EditorProps,
 ) => {
     const containerRef = useRef<HTMLDivElement>(null);
     const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
+    // Always holds the latest onChange so the Monaco event handler never goes stale
+    const onChangeRef = useRef(onChange);
+    useEffect(() => { onChangeRef.current = onChange; }, [onChange]);
+    // Flag to suppress onChange when setValue() is called programmatically (tab switch)
+    const settingValueRef = useRef(false);
 
     useEffect(() => {
         if (containerRef.current && !editorRef.current) {
@@ -121,10 +190,10 @@ const Editor = React.memo((
             editorRef.current = monaco.editor.create(containerRef.current, {
                 value: code,
                 language: language,
-                theme: 'wokwi-dark',
+                theme: getThemeName(),
                 automaticLayout: true,
                 minimap: { enabled: false },
-                fontSize: 15,
+                fontSize: fontSize,
                 fontFamily: "'Menlo', 'Consolas', 'Courier New', monospace",
                 fontLigatures: false,
                 lineHeight: 24,
@@ -139,7 +208,9 @@ const Editor = React.memo((
             });
 
             editorRef.current.onDidChangeModelContent(() => {
-                onChange?.(editorRef.current?.getValue() || '');
+                if (!settingValueRef.current) {
+                    onChangeRef.current?.(editorRef.current?.getValue() || '');
+                }
             });
         }
 
@@ -149,11 +220,28 @@ const Editor = React.memo((
         };
     }, []);
 
+    // Switch Monaco theme when app theme changes (dark ↔ light)
+    useEffect(() => {
+        const root = document.documentElement;
+        const apply = () => monaco.editor.setTheme(getThemeName());
+        apply();
+        const obs = new MutationObserver(apply);
+        obs.observe(root, { attributes: true, attributeFilter: ['class'] });
+        return () => obs.disconnect();
+    }, []);
+
+    // Handle fontSize/wordWrap changes at runtime
+    useEffect(() => {
+        editorRef.current?.updateOptions({ fontSize, wordWrap });
+    }, [fontSize, wordWrap]);
+
     // Handle code/language changes (tab switching)
     useEffect(() => {
         if (editorRef.current) {
             if (editorRef.current.getValue() !== code) {
+                settingValueRef.current = true;
                 editorRef.current.setValue(code);
+                settingValueRef.current = false;
             }
             const model = editorRef.current.getModel();
             if (model) {
@@ -162,7 +250,7 @@ const Editor = React.memo((
         }
     }, [code, language]);
 
-    return <div ref={containerRef} className="w-full h-full" style={{ backgroundColor: '#2b2b2b' }} />;
+    return <div ref={containerRef} className="w-full h-full" style={{ backgroundColor: 'var(--vsc-editor-bg, #2b2b2b)' }} />;
 });
 
 export default Editor;

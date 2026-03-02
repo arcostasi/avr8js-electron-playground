@@ -41,7 +41,7 @@ export default function ProjectSidebar({
                         <button
                             onClick={onImport}
                             title="Import Project"
-                            className="text-gray-500 hover:text-gray-300 p-0.5"
+                            className="text-vscode-text opacity-50 hover:opacity-100 p-0.5"
                         >
                             <Upload size={13} />
                         </button>
@@ -50,7 +50,7 @@ export default function ProjectSidebar({
                         <button
                             onClick={onExport}
                             title="Export Project"
-                            className="text-gray-500 hover:text-gray-300 p-0.5"
+                            className="text-vscode-text opacity-50 hover:opacity-100 p-0.5"
                         >
                             <Download size={13} />
                         </button>
@@ -63,7 +63,7 @@ export default function ProjectSidebar({
                 className={
                     'flex items-center gap-1 px-1 py-1 '
                     + 'cursor-pointer font-bold text-xs '
-                    + 'text-vscode-text hover:bg-[#2a2d2e] '
+                    + 'text-vscode-text hover:bg-vscode-hover '
                     + 'transition-colors uppercase outline-none'
                 }
                 onClick={() => setProjectsOpen(!projectsOpen)}
@@ -79,8 +79,8 @@ export default function ProjectSidebar({
                             onClick={() => onProjectSelect(proj.name)}
                             className={`flex items-center gap-2 px-6 py-1.5 text-[13px] transition-colors outline-none
                                 ${currentProject === proj.name
-                                    ? 'bg-[#37373d] text-blue-400 font-medium'
-                                    : 'text-vscode-text hover:bg-[#2a2d2e]'}`}
+                                    ? 'bg-vscode-hover2 text-blue-400 font-medium'
+                                    : 'text-vscode-text hover:bg-vscode-hover'}`}
                             title={`Load ${proj.name} (${proj.board})`}
                         >
                             <Package
@@ -88,7 +88,7 @@ export default function ProjectSidebar({
                                 className={
                                     currentProject === proj.name
                                         ? 'text-blue-400'
-                                        : 'text-gray-500'
+                                        : 'text-vscode-text opacity-50'
                                 }
                             />
                             <span className="truncate">
@@ -96,7 +96,7 @@ export default function ProjectSidebar({
                             </span>
                             <span className={
                                 'ml-auto text-[10px] '
-                                + 'text-gray-600 uppercase'
+                                + 'text-vscode-text opacity-40 uppercase'
                             }>
                                 {proj.board}
                             </span>
@@ -110,7 +110,7 @@ export default function ProjectSidebar({
                 className={
                     'flex items-center gap-1 px-1 py-1 '
                     + 'cursor-pointer font-bold text-xs '
-                    + 'text-vscode-text hover:bg-[#2a2d2e] '
+                    + 'text-vscode-text hover:bg-vscode-hover '
                     + 'transition-colors uppercase outline-none'
                 }
                 onClick={() => setEditorsOpen(!editorsOpen)}
@@ -127,10 +127,10 @@ export default function ProjectSidebar({
                             className={[
                                 'flex items-center gap-2 px-6 py-1',
                                 'text-[13px] text-vscode-text',
-                                'hover:bg-[#2a2d2e]',
+                                'hover:bg-vscode-hover',
                                 'transition-colors outline-none',
                                 activeFile === file.name
-                                    ? 'bg-[#37373d] text-vscode-textActive'
+                                    ? 'bg-vscode-hover2 text-vscode-textActive'
                                     : '',
                             ].join(' ')}
                             title={file.name}
@@ -151,7 +151,7 @@ export default function ProjectSidebar({
                 className={
                     'flex items-center gap-1 px-1 py-1 '
                     + 'cursor-pointer font-bold text-xs '
-                    + 'text-vscode-text hover:bg-[#2a2d2e] '
+                    + 'text-vscode-text hover:bg-vscode-hover '
                     + 'transition-colors uppercase outline-none'
                 }
                 onClick={() => setExplorerOpen(!explorerOpen)}
@@ -168,10 +168,10 @@ export default function ProjectSidebar({
                             className={[
                                 'flex items-center gap-2 px-6 py-1',
                                 'text-[13px] text-vscode-text',
-                                'hover:bg-[#2a2d2e]',
+                                'hover:bg-vscode-hover',
                                 'transition-colors outline-none',
                                 activeFile === file.name
-                                    ? 'bg-[#37373d] text-vscode-textActive'
+                                    ? 'bg-vscode-hover2 text-vscode-textActive'
                                     : '',
                             ].join(' ')}
                             title={file.name}

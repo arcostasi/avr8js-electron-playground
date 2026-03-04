@@ -84,6 +84,7 @@ export default function PartRenderer({
                 top: `${part.top}px`,
                 left: `${part.left}px`,
                 transform: part.rotate ? `rotate(${part.rotate}deg)` : undefined,
+                transformOrigin: 'top left',
                 filter: isDragging ? 'drop-shadow(0 4px 12px rgba(59,130,246,0.4))' : undefined,
             }}
             onPointerDown={handleInteractivePointerDown}

@@ -1,7 +1,7 @@
 /**
  * usePinPositions
  * Caches pin info from Wokwi custom elements and computes canvas-space pin positions.
- * Rotation is fully accounted for: pin offsets are rotated around the element centre.
+ * Rotation is fully accounted for: pin offsets are rotated around the element top-left.
  */
 import { useRef, useEffect, useMemo, useState } from 'react';
 import type { WokwiDiagram, PinPosition, PinInfo } from '../types/wokwi.types';
@@ -96,15 +96,10 @@ export function usePinPositions(diagram?: WokwiDiagram): Record<string, PinPosit
             const { pins, width, height } = cached;
             const angle = part.rotate ?? 0;
 
-            // CSS transform: rotate() rotates around the element's centre (50% 50%).
-            // Rotate each pin's offset from the centre, then add back the centre.
-            const cx = part.left + width / 2;
-            const cy = part.top + height / 2;
-
             pins.forEach(pin => {
-                const dx = pin.x - width / 2;
-                const dy = pin.y - height / 2;
-                const { x: rx, y: ry } = rotatePinOffset(dx, dy, angle);
+                // Must match PartRenderer transformOrigin ('top left') so pads stay
+                // attached to the component while rotating.
+                const { x: rx, y: ry } = rotatePinOffset(pin.x, pin.y, angle);
 
                 // Determine exit direction from pin position relative to element bounds.
                 // Threshold: within 18% of an edge → exits from that face.
@@ -121,8 +116,8 @@ export function usePinPositions(diagram?: WokwiDiagram): Record<string, PinPosit
                 const { x: rex, y: rey } = rotatePinOffset(edx, edy, angle);
 
                 positions[`${part.id}:${pin.name}`] = {
-                    x: cx + rx,
-                    y: cy + ry,
+                    x: part.left + rx,
+                    y: part.top + ry,
                     ex: rex,
                     ey: rey,
                 };

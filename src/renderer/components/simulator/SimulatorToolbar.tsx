@@ -110,14 +110,14 @@ export default function SimulatorToolbar({
 
             <div className="h-4 w-px bg-vscode-divider mx-0.5" />
 
-            {/* Build / Run / Stop — icon-only to save space */}
+            {/* Build / Run / Stop */}
             <button
                 onClick={onCompile}
                 disabled={isCompiling || isPlaying}
                 title="Build / Compile (F5)"
                 className={[
-                    'flex items-center justify-center',
-                    'w-7 h-7 rounded text-[12px]',
+                    'flex items-center gap-1',
+                    'px-2 py-1 rounded text-[12px]',
                     'font-medium transition-all',
                     isCompiling || isPlaying
                         ? 'text-vscode-border cursor-not-allowed'
@@ -125,6 +125,7 @@ export default function SimulatorToolbar({
                 ].join(' ')}
             >
                 <Wrench size={14} className={isCompiling ? 'animate-spin' : ''} />
+                Build
             </button>
 
             <button
@@ -132,8 +133,8 @@ export default function SimulatorToolbar({
                 disabled={isPlaying || !hex}
                 title="Run"
                 className={[
-                    'flex items-center justify-center',
-                    'w-7 h-7 rounded text-[12px]',
+                    'flex items-center gap-1',
+                    'px-2 py-1 rounded text-[12px]',
                     'font-medium transition-all',
                     isPlaying || !hex
                         ? 'text-vscode-border cursor-not-allowed'
@@ -141,6 +142,7 @@ export default function SimulatorToolbar({
                 ].join(' ')}
             >
                 <Play size={14} />
+                Run
             </button>
 
             <button
@@ -148,8 +150,8 @@ export default function SimulatorToolbar({
                 disabled={!isPlaying}
                 title="Stop"
                 className={[
-                    'flex items-center justify-center',
-                    'w-7 h-7 rounded text-[12px]',
+                    'flex items-center gap-1',
+                    'px-2 py-1 rounded text-[12px]',
                     'font-medium transition-all',
                     !isPlaying
                         ? 'text-vscode-border cursor-not-allowed'
@@ -157,6 +159,7 @@ export default function SimulatorToolbar({
                 ].join(' ')}
             >
                 <Square size={14} />
+                Stop
             </button>
 
             {/* Spacer */}

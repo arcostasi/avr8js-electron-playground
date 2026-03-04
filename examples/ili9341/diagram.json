@@ -13,8 +13,8 @@
     {
       "id": "tft1",
       "type": "wokwi-ili9341",
-      "top": 40,
-      "left": 20,
+      "top": 49,
+      "left": 148,
       "rotate": 0
     }
   ],
@@ -45,7 +45,7 @@
     },
     {
       "id": "conn-dc",
-      "from": "tft1:DC",
+      "from": "tft1:D/C",
       "to": "uno:9",
       "color": "yellow"
     },

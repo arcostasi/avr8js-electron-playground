@@ -13,8 +13,8 @@
     {
       "id": "stepper1",
       "type": "wokwi-stepper-motor",
-      "top": 80,
-      "left": 220,
+      "top": 49,
+      "left": 252,
       "rotate": 0,
       "attrs": {
         "stepsPerRev": "64"
@@ -24,39 +24,27 @@
   "connections": [
     {
       "id": "conn-0",
-      "from": "uno:8",
-      "to": "stepper1:IN1",
-      "color": "orange"
+      "from": "stepper1:A+",
+      "to": "uno:8",
+      "color": "green"
     },
     {
       "id": "conn-1",
-      "from": "uno:9",
-      "to": "stepper1:IN2",
-      "color": "orange"
+      "from": "stepper1:A-",
+      "to": "uno:10",
+      "color": "green"
     },
     {
       "id": "conn-2",
-      "from": "uno:10",
-      "to": "stepper1:IN3",
-      "color": "orange"
+      "from": "stepper1:B+",
+      "to": "uno:9",
+      "color": "green"
     },
     {
       "id": "conn-3",
-      "from": "uno:11",
-      "to": "stepper1:IN4",
-      "color": "orange"
-    },
-    {
-      "id": "conn-4",
-      "from": "stepper1:GND",
-      "to": "uno:GND.1",
-      "color": "black"
-    },
-    {
-      "id": "conn-5",
-      "from": "stepper1:5V",
-      "to": "uno:5V",
-      "color": "red"
+      "from": "stepper1:B-",
+      "to": "uno:11",
+      "color": "green"
     }
   ]
 }

@@ -71,9 +71,10 @@ const handlerMap: Record<string, ComponentHandler> = {
     'wokwi-ntc-temperature-sensor':  wireAnalogSensor,
     'wokwi-photoresistor-sensor':    wireAnalogDigitalSensor,
     'wokwi-flame-sensor':            wireAnalogDigitalSensor,
+    'wokwi-gas-sensor':              wireAnalogDigitalSensor,
     'wokwi-big-sound-sensor':        wireAnalogDigitalSensor,
     'wokwi-small-sound-sensor':      wireAnalogDigitalSensor,
-    'wokwi-heart-beat-sensor':       wireDigitalSensor,
+    'wokwi-heart-beat-sensor':       wireAnalogSensor,
     'wokwi-pir-motion-sensor':       wireDigitalSensor,
     'wokwi-rotary-dialer':           wireRotaryDialer,
 };
@@ -381,7 +382,9 @@ function wireSwitch({ el, conns, ports, cleanups }: HandlerCtx): void {
         if (!pi) continue;
         const readSwitch = () => {
             const val = Number((el as WokwiElement).value) || 0;
-            pi.port.setPin(pi.bit, val === 1);
+            // val=1 means switch is closed → pin connected to GND → LOW (false)
+            // val=0 means switch is open  → pin pulled HIGH by INPUT_PULLUP → HIGH (true)
+            pi.port.setPin(pi.bit, val !== 1);
         };
         readSwitch();
         const onChange = () => readSwitch();
@@ -398,13 +401,14 @@ function wireDipSwitch({ el, conns, ports, cleanups }: HandlerCtx): void {
     for (const c of conns) {
         const pi = getPortAndBit(c.arduinoPin, ports);
         if (!pi) continue;
-        const dipMatch = /^(\d+)(a?)$/.exec(c.componentPin);
+        const dipMatch = /^(\d+)(a?)$/i.exec(c.componentPin);
         if (!dipMatch) continue;
         const switchIndex = Number.parseInt(dipMatch[1], 10) - 1;
         const readDip = () => {
             const target = el as WokwiElement;
             if (target.values && Array.isArray(target.values)) {
-                pi.port.setPin(pi.bit, !!target.values[switchIndex]);
+                // switch ON (true) → connected to GND → LOW (false); OFF → pull-up HIGH (true)
+                pi.port.setPin(pi.bit, !target.values[switchIndex]);
             }
         };
         readDip();
@@ -474,32 +478,30 @@ function wireAnalogSensor({ conns, runner }: HandlerCtx): void {
  * Analog + Digital sensor (Photoresistor, Flame, Sound sensors).
  * AOUT/AO → ADC with configurable value, DOUT/DO → digital threshold.
  */
+function setupAnalogMirroredDigital(pi: PortBitInfo, ch: number, runner: AVRRunner): void {
+    pi.port.setPin(pi.bit, true); // default HIGH (no detection)
+    setInterval(() => {
+        pi.port.setPin(pi.bit, runner.adcRegistry.getChannel(ch) <= 512);
+    }, 50);
+}
+
 function wireAnalogDigitalSensor({ conns, ports, runner }: HandlerCtx): void {
+    // Pass 1: resolve ADC channel from AOUT/AO pin
     let adcChannel: number | null = null;
     for (const c of conns) {
         const pin = c.componentPin.toUpperCase();
         if (pin === 'AOUT' || pin === 'AO') {
             const ch = getADCChannel(c.arduinoPin);
-            if (ch !== null) {
-                runner.adcRegistry.setValue(ch, 512);
-                adcChannel = ch;
-            }
-        } else if (pin === 'DOUT' || pin === 'DO') {
+            if (ch !== null) { runner.adcRegistry.setValue(ch, 512); adcChannel = ch; }
+        }
+    }
+    // Pass 2: wire DOUT/DO — adcChannel is now resolved regardless of connection order
+    for (const c of conns) {
+        const pin = c.componentPin.toUpperCase();
+        if (pin === 'DOUT' || pin === 'DO') {
             const pi = getPortAndBit(c.arduinoPin, ports);
-            if (pi) {
-                // Digital output mirrors analog: LOW when analog > 512 (threshold)
-                pi.port.setPin(pi.bit, true);
-                if (adcChannel !== null) {
-                    const ch = adcChannel;
-                    // Periodic check — tied to ADC value
-                    const interval = setInterval(() => {
-                        const val = runner.adcRegistry.getChannel(ch);
-                        pi.port.setPin(pi.bit, val <= 512);
-                    }, 50);
-                    // No cleanup needed for interval since simulation stop destroys runner
-                    void interval;
-                }
-            }
+            if (pi && adcChannel !== null) { setupAnalogMirroredDigital(pi, adcChannel, runner); }
+            else if (pi) { pi.port.setPin(pi.bit, true); }
         }
     }
 }
@@ -771,7 +773,10 @@ function wireStepperMotor({ el, conns, ports }: HandlerCtx): void {
         }
     }
 
+    const stepsAttr = el.getAttribute('stepsperrev') ?? el.getAttribute('stepsPerRev');
+    const stepsPerRev = stepsAttr ? (parseInt(stepsAttr, 10) || 200) : 200;
     const stepper = new StepperController();
+    stepper.stepsPerRevolution = stepsPerRev;
     const readPin = (pi: PortBitInfo | null) => pi ? pi.port.pinState(pi.bit) === 1 : false;
 
     const updateStepper = () => {

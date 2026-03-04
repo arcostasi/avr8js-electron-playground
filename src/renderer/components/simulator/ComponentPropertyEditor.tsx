@@ -98,6 +98,16 @@ export const PROPERTY_CATALOG: Record<string, {
             },
         ],
     },
+    'wokwi-gas-sensor': {
+        label: 'Gas Sensor',
+        props: [
+            {
+                key: 'adc', label: 'Gas Level',
+                min: 0, max: 1023, step: 1, unit: '',
+                defaultValue: 512,
+            },
+        ],
+    },
     'wokwi-big-sound-sensor': {
         label: 'Big Sound Sensor',
         props: [
@@ -132,9 +142,9 @@ export const PROPERTY_CATALOG: Record<string, {
         label: 'Heartbeat Sensor',
         props: [
             {
-                key: 'beat', label: 'Beat Signal',
-                min: 0, max: 1, step: 1, unit: '',
-                defaultValue: 0,
+                key: 'adc', label: 'Pulse Signal',
+                min: 0, max: 1023, step: 1, unit: '',
+                defaultValue: 300,
             },
         ],
     },

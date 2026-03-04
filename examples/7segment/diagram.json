@@ -6,9 +6,9 @@
     {
       "id": "uno",
       "type": "wokwi-arduino-uno",
-      "top": 300,
-      "left": 200,
-      "rotate": 0
+      "top": 321,
+      "left": 178,
+      "rotate": 90
     },
     {
       "id": "seg1",

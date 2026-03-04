@@ -39,7 +39,7 @@
     },
     {
       "id": "conn-3",
-      "from": "joy1:HORIZ",
+      "from": "joy1:HORZ",
       "to": "uno:A1",
       "color": "green"
     },

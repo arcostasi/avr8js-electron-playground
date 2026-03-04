@@ -12,7 +12,7 @@
     },
     {
       "id": "relay1",
-      "type": "wokwi-relay-module",
+      "type": "wokwi-ks2e-m-dc5",
       "top": 120,
       "left": 160,
       "rotate": 0
@@ -37,31 +37,25 @@
   "connections": [
     {
       "id": "conn-0",
-      "from": "relay1:GND",
+      "from": "relay1:COIL2",
       "to": "uno:GND.1",
       "color": "black"
     },
     {
-      "id": "conn-1",
-      "from": "relay1:VCC",
-      "to": "uno:5V",
-      "color": "red"
-    },
-    {
       "id": "conn-2",
-      "from": "relay1:IN",
+      "from": "relay1:COIL1",
       "to": "uno:7",
       "color": "orange"
     },
     {
       "id": "conn-3",
-      "from": "relay1:COM",
+      "from": "relay1:P1",
       "to": "uno:5V",
       "color": "red"
     },
     {
       "id": "conn-4",
-      "from": "relay1:NO",
+      "from": "relay1:NO1",
       "to": "r1:1",
       "color": "orange"
     },

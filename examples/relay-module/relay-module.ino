@@ -4,11 +4,10 @@
   The relay's Normally-Open (NO) contact switches a load LED on and off.
 
   Wiring:
-    VCC -> 5V
-    GND -> GND
-    IN  -> Pin 7         (HIGH = relay ON)
-    COM -> 5V            (load power supply)
-    NO  -> 220 Ohm -> LED anode; LED cathode -> GND
+    COIL2 -> GND
+    COIL1 -> Pin 7       (HIGH = relay ON)
+    P1    -> 5V          (load power supply)
+    NO1   -> 220 Ohm -> LED anode; LED cathode -> GND
 */
 
 const int RELAY_PIN = 7; // Relay control signal (active-HIGH)

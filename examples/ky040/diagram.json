@@ -13,7 +13,7 @@
     {
       "id": "enc1",
       "type": "wokwi-ky-040",
-      "top": 219,
+      "top": 225,
       "left": 312,
       "rotate": 0
     }
@@ -27,7 +27,7 @@
     },
     {
       "id": "conn-1",
-      "from": "enc1:+",
+      "from": "enc1:VCC",
       "to": "uno:5V",
       "color": "red"
     },

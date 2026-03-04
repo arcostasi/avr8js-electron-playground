@@ -13,8 +13,8 @@
     {
       "id": "hcsr04",
       "type": "wokwi-hc-sr04",
-      "top": 80,
-      "left": 240,
+      "top": 157,
+      "left": 258,
       "rotate": 0
     }
   ],

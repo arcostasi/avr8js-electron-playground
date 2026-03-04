@@ -41,15 +41,21 @@
   "connections": [
     {
       "id": "conn-0",
-      "from": "tilt1:1",
+      "from": "tilt1:OUT",
       "to": "uno:2",
       "color": "green"
     },
     {
       "id": "conn-1",
-      "from": "tilt1:2",
+      "from": "tilt1:GND",
       "to": "uno:GND.1",
       "color": "black"
+    },
+    {
+      "id": "conn-1b",
+      "from": "tilt1:VCC",
+      "to": "uno:5V",
+      "color": "red"
     },
     {
       "id": "conn-2",

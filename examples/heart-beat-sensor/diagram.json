@@ -13,8 +13,8 @@
     {
       "id": "hbs1",
       "type": "wokwi-heart-beat-sensor",
-      "top": 80,
-      "left": 280,
+      "top": 198,
+      "left": 235,
       "rotate": 0
     }
   ],
@@ -33,7 +33,7 @@
     },
     {
       "id": "conn-2",
-      "from": "hbs1:SIG",
+      "from": "hbs1:OUT",
       "to": "uno:A0",
       "color": "orange"
     }

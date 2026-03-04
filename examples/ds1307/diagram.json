@@ -13,8 +13,8 @@
     {
       "id": "rtc1",
       "type": "wokwi-ds1307",
-      "top": 80,
-      "left": 260,
+      "top": 203,
+      "left": 361,
       "rotate": 0
     }
   ],

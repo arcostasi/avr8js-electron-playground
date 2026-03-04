@@ -13,105 +13,105 @@
     {
       "id": "dip1",
       "type": "wokwi-dip-switch-8",
-      "top": 100,
-      "left": 160,
+      "top": 425,
+      "left": 108,
       "rotate": 0
     }
   ],
   "connections": [
     {
       "id": "conn-0",
-      "from": "dip1:1A",
+      "from": "dip1:1a",
       "to": "uno:2",
-      "color": "blue"
+      "color": "orange"
     },
     {
       "id": "conn-1",
-      "from": "dip1:2A",
+      "from": "dip1:2a",
       "to": "uno:3",
-      "color": "blue"
+      "color": "orange"
     },
     {
       "id": "conn-2",
-      "from": "dip1:3A",
+      "from": "dip1:3a",
       "to": "uno:4",
-      "color": "blue"
+      "color": "orange"
     },
     {
       "id": "conn-3",
-      "from": "dip1:4A",
+      "from": "dip1:4a",
       "to": "uno:5",
-      "color": "blue"
+      "color": "orange"
     },
     {
       "id": "conn-4",
-      "from": "dip1:5A",
+      "from": "dip1:5a",
       "to": "uno:6",
-      "color": "blue"
+      "color": "orange"
     },
     {
       "id": "conn-5",
-      "from": "dip1:6A",
+      "from": "dip1:6a",
       "to": "uno:7",
-      "color": "blue"
+      "color": "orange"
     },
     {
       "id": "conn-6",
-      "from": "dip1:7A",
+      "from": "dip1:7a",
       "to": "uno:8",
-      "color": "blue"
+      "color": "orange"
     },
     {
       "id": "conn-7",
-      "from": "dip1:8A",
+      "from": "dip1:8a",
       "to": "uno:9",
-      "color": "blue"
+      "color": "orange"
     },
     {
       "id": "conn-8",
-      "from": "dip1:1B",
+      "from": "dip1:1b",
       "to": "uno:GND.1",
       "color": "black"
     },
     {
       "id": "conn-9",
-      "from": "dip1:2B",
+      "from": "dip1:2b",
       "to": "uno:GND.1",
       "color": "black"
     },
     {
       "id": "conn-10",
-      "from": "dip1:3B",
+      "from": "dip1:3b",
       "to": "uno:GND.1",
       "color": "black"
     },
     {
       "id": "conn-11",
-      "from": "dip1:4B",
+      "from": "dip1:4b",
       "to": "uno:GND.1",
       "color": "black"
     },
     {
       "id": "conn-12",
-      "from": "dip1:5B",
+      "from": "dip1:5b",
       "to": "uno:GND.2",
       "color": "black"
     },
     {
       "id": "conn-13",
-      "from": "dip1:6B",
+      "from": "dip1:6b",
       "to": "uno:GND.2",
       "color": "black"
     },
     {
       "id": "conn-14",
-      "from": "dip1:7B",
+      "from": "dip1:7b",
       "to": "uno:GND.2",
       "color": "black"
     },
     {
       "id": "conn-15",
-      "from": "dip1:8B",
+      "from": "dip1:8b",
       "to": "uno:GND.2",
       "color": "black"
     }

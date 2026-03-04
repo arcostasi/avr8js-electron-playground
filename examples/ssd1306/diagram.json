@@ -28,19 +28,19 @@
     {
       "id": "conn-1",
       "from": "uno:5V",
-      "to": "display:VCC",
+      "to": "display:VIN",
       "color": "red"
     },
     {
       "id": "conn-2",
       "from": "uno:A4",
-      "to": "display:SDA",
+      "to": "display:DATA",
       "color": "orange"
     },
     {
       "id": "conn-3",
       "from": "uno:A5",
-      "to": "display:SCL",
+      "to": "display:CLK",
       "color": "purple"
     }
   ]

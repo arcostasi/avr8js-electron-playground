@@ -13,8 +13,8 @@
     {
       "id": "gas1",
       "type": "wokwi-gas-sensor",
-      "top": 80,
-      "left": 260,
+      "top": 197,
+      "left": 149,
       "rotate": 0
     }
   ],

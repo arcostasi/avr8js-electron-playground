@@ -26,7 +26,7 @@
     {
       "id": "conn-0",
       "from": "uno:GND.1",
-      "to": "neopixels:VSS",
+      "to": "neopixels:GND",
       "color": "black"
     },
     {
@@ -38,7 +38,7 @@
     {
       "id": "conn-2",
       "from": "uno:5V",
-      "to": "neopixels:VDD",
+      "to": "neopixels:VCC",
       "color": "red"
     }
   ]

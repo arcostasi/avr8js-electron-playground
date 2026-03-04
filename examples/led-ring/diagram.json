@@ -13,8 +13,8 @@
     {
       "id": "ring1",
       "type": "wokwi-led-ring",
-      "top": 80,
-      "left": 240,
+      "top": 107,
+      "left": 268,
       "rotate": 0,
       "attrs": {
         "pixels": "16"
@@ -25,13 +25,13 @@
     {
       "id": "conn-0",
       "from": "uno:GND.1",
-      "to": "ring1:VSS",
+      "to": "ring1:GND",
       "color": "black"
     },
     {
       "id": "conn-1",
       "from": "uno:5V",
-      "to": "ring1:VDD",
+      "to": "ring1:VCC",
       "color": "red"
     },
     {

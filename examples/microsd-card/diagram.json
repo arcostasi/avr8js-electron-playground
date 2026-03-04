@@ -13,8 +13,8 @@
     {
       "id": "sd1",
       "type": "wokwi-microsd-card",
-      "top": 80,
-      "left": 240,
+      "top": 172,
+      "left": 220,
       "rotate": 0
     }
   ],
@@ -33,13 +33,13 @@
     },
     {
       "id": "conn-2",
-      "from": "sd1:MOSI",
+      "from": "sd1:DI",
       "to": "uno:11",
       "color": "orange"
     },
     {
       "id": "conn-3",
-      "from": "sd1:MISO",
+      "from": "sd1:DO",
       "to": "uno:12",
       "color": "green"
     },

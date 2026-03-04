@@ -13,8 +13,8 @@
     {
       "id": "ntc1",
       "type": "wokwi-ntc-temperature-sensor",
-      "top": 80,
-      "left": 300,
+      "top": 180,
+      "left": 262,
       "rotate": 0
     }
   ],

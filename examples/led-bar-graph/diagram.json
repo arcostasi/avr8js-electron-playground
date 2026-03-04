@@ -13,8 +13,8 @@
     {
       "id": "bar1",
       "type": "wokwi-led-bar-graph",
-      "top": 80,
-      "left": 160,
+      "top": 349,
+      "left": 491,
       "rotate": 0,
       "attrs": {
         "color": "red"
@@ -83,62 +83,8 @@
       "color": "orange"
     },
     {
-      "id": "conn-b1",
-      "from": "bar1:B1",
-      "to": "uno:GND.1",
-      "color": "black"
-    },
-    {
-      "id": "conn-b2",
-      "from": "bar1:B2",
-      "to": "uno:GND.1",
-      "color": "black"
-    },
-    {
-      "id": "conn-b3",
-      "from": "bar1:B3",
-      "to": "uno:GND.1",
-      "color": "black"
-    },
-    {
-      "id": "conn-b4",
-      "from": "bar1:B4",
-      "to": "uno:GND.1",
-      "color": "black"
-    },
-    {
-      "id": "conn-b5",
-      "from": "bar1:B5",
-      "to": "uno:GND.1",
-      "color": "black"
-    },
-    {
-      "id": "conn-b6",
-      "from": "bar1:B6",
-      "to": "uno:GND.2",
-      "color": "black"
-    },
-    {
-      "id": "conn-b7",
-      "from": "bar1:B7",
-      "to": "uno:GND.2",
-      "color": "black"
-    },
-    {
-      "id": "conn-b8",
-      "from": "bar1:B8",
-      "to": "uno:GND.2",
-      "color": "black"
-    },
-    {
-      "id": "conn-b9",
-      "from": "bar1:B9",
-      "to": "uno:GND.2",
-      "color": "black"
-    },
-    {
       "id": "conn-b10",
-      "from": "bar1:B10",
+      "from": "bar1:C10",
       "to": "uno:GND.2",
       "color": "black"
     }

@@ -13,8 +13,8 @@
     {
       "id": "mpu1",
       "type": "wokwi-mpu6050",
-      "top": 80,
-      "left": 260,
+      "top": 151,
+      "left": 254,
       "rotate": 0
     }
   ],

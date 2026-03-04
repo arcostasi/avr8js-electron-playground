@@ -40,7 +40,7 @@
     },
     {
       "id": "conn-2",
-      "from": "irrecv1:SIG",
+      "from": "irrecv1:DAT",
       "to": "uno:7",
       "color": "orange"
     }

@@ -13,15 +13,15 @@
     {
       "id": "flame1",
       "type": "wokwi-flame-sensor",
-      "top": 80,
-      "left": 140,
+      "top": 181,
+      "left": 131,
       "rotate": 0
     },
     {
       "id": "bz1",
       "type": "wokwi-buzzer",
-      "top": 80,
-      "left": 340,
+      "top": 139,
+      "left": 394,
       "rotate": 0,
       "attrs": {
         "volume": "0.5"
@@ -43,7 +43,7 @@
     },
     {
       "id": "conn-2",
-      "from": "flame1:DO",
+      "from": "flame1:DOUT",
       "to": "uno:4",
       "color": "orange"
     },

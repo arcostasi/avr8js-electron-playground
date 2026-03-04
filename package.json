@@ -15,7 +15,7 @@
   "dependencies": {
     "@panzoom/panzoom": "^4.6.1",
     "@types/react": "^19.2.14",
-    "@wokwi/elements": "^1.9.1",
+    "@wokwi/elements": "^1.9.2",
     "@wokwi/fastled-monaco": "git+https://github.com/wokwi/fastled-monaco.git",
     "avr8js": "^0.21.0",
     "custom-electron-titlebar": "^4.2.8",

@@ -16,6 +16,7 @@ import { DHT22Controller } from '../../shared/dht22';
 import { HCSR04Controller } from '../../shared/hc-sr04';
 import { IRController } from '../../shared/ir';
 import { DS1307Controller } from '../../shared/ds1307';
+import { ILI9341Controller } from '../../shared/ili9341';
 import { getPortAndBit } from '../utils/pin-mapping';
 import type { AVRIOPort } from 'avr8js';
 
@@ -157,6 +158,8 @@ export function createHardwareControllers(
             setupLCD2004(el, cpuMillis, i2cBus, controllers);
         } else if (part.type === 'wokwi-ssd1306') {
             setupSSD1306(el, cpuMillis, i2cBus, controllers);
+        } else if (part.type === 'wokwi-ili9341') {
+            setupILI9341(part, el, connections, arduinoId, runner, ports, controllers);
         }
 
         // ── NeoPixel (single, ring, matrix) ──
@@ -223,12 +226,13 @@ export function createHardwareControllers(
         'wokwi-ntc-temperature-sensor',
         'wokwi-photoresistor-sensor',
         'wokwi-flame-sensor',
+        'wokwi-gas-sensor',
         'wokwi-big-sound-sensor',
         'wokwi-small-sound-sensor',
+        'wokwi-heart-beat-sensor',
     ]);
     const DIGITAL_SENSOR_TYPES = new Set([
         'wokwi-pir-motion-sensor',
-        'wokwi-heart-beat-sensor',
     ]);
 
     for (const part of diagram.parts) {
@@ -309,7 +313,69 @@ function setupSSD1306(
 ): void {
     const oled = new SSD1306Controller(cpuMillis);
     i2cBus.registerDevice(0x3C, oled);
-    controllers.push({ element: el, update: () => oled.update(), type: 'oled' });
+    type OledEl = HTMLElement & { imageData: ImageData; redraw: () => void };
+    controllers.push({
+        element: el,
+        update: () => {
+            if (!oled.update()) { return null; }
+            const oledEl = el as OledEl;
+            oled.toImageData(oledEl.imageData);
+            oledEl.redraw();
+            return true;
+        },
+        type: 'oled',
+    });
+}
+
+function setupILI9341(
+    part: { id: string },
+    el: HTMLElement,
+    connections: WokwiConnection[],
+    arduinoId: string,
+    runner: AVRRunner,
+    ports: PortSet,
+    controllers: HardwareController[],
+): void {
+    // Resolve D/C pin (Data/Command select)
+    const compPins  = resolveComponentPins(connections, arduinoId, part.id);
+    const dcArduino = findArduinoPin(compPins, 'D/C');
+    if (!dcArduino) {
+        console.warn('[ILI9341] D/C pin not connected — display disabled');
+        return;
+    }
+    const dcPi = getPortAndBit(dcArduino, ports);
+    if (!dcPi) {
+        console.warn('[ILI9341] D/C pin could not be resolved — display disabled');
+        return;
+    }
+
+    const ctrl = new ILI9341Controller(dcPi);
+
+    // Attach the canvas — the element exposes it via a `canvas` getter,
+    // and fires a `canvas-ready` CustomEvent from firstUpdated().
+    type TFTEl = HTMLElement & { canvas: HTMLCanvasElement | null };
+    const attachCanvas = () => {
+        const canvas = (el as TFTEl).canvas;
+        if (canvas) ctrl.attachCanvas(canvas);
+    };
+    attachCanvas();                                          // canvas is usually ready by now
+    el.addEventListener('canvas-ready', attachCanvas, { once: true });
+
+    // Hook the SPI bus: receive every MOSI byte, return MISO = 0xFF
+    runner.spi.onByte = (value: number) => {
+        ctrl.receiveByte(value);
+        runner.spi.completeTransfer(0xFF);
+    };
+
+    // Push a controller that flushes dirty rows every simulation tick
+    controllers.push({
+        element: el,
+        update: () => {
+            ctrl.flush();
+            return true;
+        },
+        type: 'ili9341',
+    });
 }
 
 function setupNeopixel(
@@ -469,7 +535,12 @@ export function updateControllerStates(controllers: HardwareController[]): void 
             case 'neopixel-matrix':
                 updateNeopixelMatrix(ctrl.element, state as Uint32Array);
                 break;
-            // 'oled' — SSD1306 element handles its own rendering
+            case 'oled':
+                // rendering handled inside the update() closure via element.redraw()
+                break;
+            case 'ili9341':
+                // flush() is called inside the update() closure — nothing more to do here
+                break;
             default:
                 break;
         }

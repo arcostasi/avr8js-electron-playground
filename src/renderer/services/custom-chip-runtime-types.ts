@@ -20,9 +20,15 @@ export interface CustomChipControlBridge {
     setControl: (index: number, value: number) => void;
 }
 
+export interface CustomChipSpiSlaveBridge {
+    onSelect: (active: boolean) => void;
+    transfer: (value: number) => number;
+}
+
 export interface CustomChipRuntime {
     tick: () => void;
     dispose: () => void;
     i2c: CustomChipI2CBridge | null;
     controls: CustomChipControlBridge | null;
+    spiSlave: CustomChipSpiSlaveBridge | null;
 }

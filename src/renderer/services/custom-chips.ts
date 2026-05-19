@@ -11,6 +11,7 @@ import {
     type CustomChipControlBridge,
     type CustomChipI2CBridge,
     type CustomChipRuntime,
+    type CustomChipSpiSlaveBridge,
 } from './custom-chip-runtime';
 
 export interface CustomChipSource {
@@ -179,6 +180,13 @@ interface AdjustableRuntimeDevice {
     set: (key: string, value: number) => void;
 }
 
+type SpiMuxSession = {
+    id: string;
+    handleByte: (value: number) => boolean;
+};
+
+const SPI_MUX_KEY = '__avr8jsCustomChipSpiSlaveMux';
+
 export interface AttachCustomChipControllersOptions {
     diagram: WokwiDiagram;
     runner: AVRRunner;
@@ -307,6 +315,110 @@ function createFramebufferUpdater(partId: string) {
     };
 }
 
+function registerSpiMuxSession(runner: AVRRunner, session: SpiMuxSession): () => void {
+    const spiHost = runner.spi as typeof runner.spi & {
+        [SPI_MUX_KEY]?: {
+            previous: ((value: number) => void) | null;
+            sessions: SpiMuxSession[];
+        };
+    };
+
+    if (!spiHost[SPI_MUX_KEY]) {
+        const previous = typeof runner.spi.onByte === 'function' ? runner.spi.onByte : null;
+        spiHost[SPI_MUX_KEY] = { previous, sessions: [] };
+        runner.spi.onByte = (value: number) => {
+            const mux = spiHost[SPI_MUX_KEY];
+            if (!mux) {
+                runner.spi.completeTransfer(0xFF);
+                return;
+            }
+            for (const candidate of mux.sessions) {
+                if (candidate.handleByte(value)) {
+                    return;
+                }
+            }
+            if (mux.previous) {
+                mux.previous(value);
+            } else {
+                runner.spi.completeTransfer(0xFF);
+            }
+        };
+    }
+
+    const mux = spiHost[SPI_MUX_KEY];
+    if (mux) {
+        mux.sessions.push(session);
+    }
+
+    return () => {
+        const currentMux = spiHost[SPI_MUX_KEY];
+        if (!currentMux) return;
+        currentMux.sessions = currentMux.sessions.filter((candidate) => candidate.id !== session.id);
+        if (currentMux.sessions.length === 0) {
+            runner.spi.onByte = currentMux.previous;
+            delete spiHost[SPI_MUX_KEY];
+        }
+    };
+}
+
+function isSpiDeviceSelected(csPin: ChipPinBridge | null): boolean {
+    return csPin ? csPin.port.pinState(csPin.bit) === 0 : true;
+}
+
+interface AttachSpiSlaveControllerOptions {
+    cleanups: Array<() => void>;
+    onChipLog?: (text: string) => void;
+}
+
+function attachSpiSlaveController(
+    partId: string,
+    chipName: string,
+    pinBridge: ChipPinBridge[],
+    runner: AVRRunner,
+    spiSlave: CustomChipSpiSlaveBridge,
+    { cleanups, onChipLog }: AttachSpiSlaveControllerOptions,
+): void {
+    const csBridge = pinBridge.find((mapping) => /^(cs|ss)$/i.test(mapping.chipPinName)) ?? null;
+    let selected = false;
+
+    const syncSelectState = (): boolean => {
+        const nowSelected = isSpiDeviceSelected(csBridge);
+        if (nowSelected === selected) {
+            return nowSelected;
+        }
+        selected = nowSelected;
+        spiSlave.onSelect(selected);
+        return selected;
+    };
+
+    syncSelectState();
+    csBridge?.port.addListener(syncSelectState);
+
+    cleanups.push(registerSpiMuxSession(runner, {
+        id: `chip-spi-slave:${partId}`,
+        handleByte: (value: number) => {
+            const nowSelected = syncSelectState();
+
+            if (!nowSelected) {
+                return false;
+            }
+
+            runner.spi.completeTransfer(spiSlave.transfer(value));
+            return true;
+        },
+    }));
+
+    cleanups.push(() => {
+        if (!selected) {
+            return;
+        }
+        selected = false;
+        spiSlave.onSelect(false);
+    });
+
+    onChipLog?.(`[chip:${chipName}] SPI slave bridge enabled for ${partId}.\n`);
+}
+
 function attachRuntimeController(
     runtime: CustomChipRuntime,
     controllers: HardwareController[],
@@ -363,6 +475,7 @@ export function attachCustomChipControllers({
             });
             const controlsBridge = runtime.controls;
             const i2cBridge = runtime.i2c;
+            const spiSlave = runtime.spiSlave;
 
             if (manifest && manifest.controls.length > 0 && controlsBridge) {
                 addControlAdjustableDevice(manifest, part, controlsBridge, adjustableDevices, onChipLog);
@@ -378,6 +491,13 @@ export function attachCustomChipControllers({
                 i2cBus,
                 onChipLog,
             );
+
+            if (spiSlave) {
+                attachSpiSlaveController(part.id, chipName, pinBridge, runner, spiSlave, {
+                    cleanups,
+                    onChipLog,
+                });
+            }
 
             attachRuntimeController(runtime, controllers, cleanups);
             onChipLog?.(`[chip:${chipName}] runtime initialized for part ${part.id}.\n`);

@@ -17,6 +17,7 @@ import type {
 
 import * as path from "node:path";
 import * as fs from 'node:fs/promises';
+import { registerCanBridgeIpc } from './can-bridge-manager';
 
 process.env['ELECTRON_DISABLE_SECURITY_WARNINGS'] = 'true';
 
@@ -198,6 +199,8 @@ class Main {
     ipcMain.handle('app:get-root', async () => {
       return path.resolve(__dirname, '../..');
     });
+
+    registerCanBridgeIpc(ipcMain, path.resolve(__dirname, '../..'));
 
     ipcMain.handle('project:cancel', async (_event, { requestId }: { requestId: string }) => {
       const startTime = startedAt();

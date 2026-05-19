@@ -1,7 +1,15 @@
 import type { AVRRunner } from '../../shared/execute';
 import type { I2CBus } from '../../shared/i2c-bus';
+import type { CanBridgeFrame, CanBridgeStartOptions } from '../../shared/can-bridge';
 import type { CustomChipManifest } from './custom-chips';
 import type { ChipPinBridge } from './custom-chip-runtime-types';
+import {
+	ensureCanBridgeSession,
+	isCanBridgeReady,
+	pollCanBridgeFrame,
+	sendCanBridgeFrame,
+	stopCanBridgeSession,
+} from './can-bridge-client';
 import { installCoreRuntimeAbi } from './custom-chip-runtime-core-abi';
 import { installFramebufferRuntimeAbi } from './custom-chip-runtime-framebuffer-abi';
 import { installPeripheralRuntimeAbi } from './custom-chip-runtime-peripheral-abi';
@@ -94,6 +102,10 @@ export interface RuntimeFramebufferState {
 	dirty: boolean;
 }
 
+export interface RuntimeCanBridgeState {
+	sessionId: string;
+}
+
 export interface RuntimeCompatState {
 	readonly basePinCount: number;
 	readonly chipRuntimeId: string;
@@ -115,6 +127,9 @@ export interface RuntimeCompatState {
 	spiActive: RuntimeSpiTransferState | null;
 	unregisterSpiMux: (() => void) | null;
 	readonly uartUnsubscribers: Array<() => void>;
+	nextCanBridgeId: number;
+	readonly canBridgeState: Map<number, RuntimeCanBridgeState>;
+	readonly canBridgeUnsubscribers: Array<() => void>;
 	readonly framebuffer: RuntimeFramebufferState;
 }
 
@@ -142,6 +157,11 @@ export interface RuntimeAbiContext {
 	applyPinMode: (pin: number, mode: number) => void;
 	ensureSpiHook: () => void;
 	subscribeUsartByteSink: (id: string, onByte: (value: number) => void) => void;
+	startCanBridge: (options: Omit<CanBridgeStartOptions, 'sessionId'>) => number;
+	stopCanBridge: (bridgeId: number) => void;
+	canBridgeReady: (bridgeId: number) => boolean;
+	sendCanFrame: (bridgeId: number, frame: CanBridgeFrame) => boolean;
+	pollCanFrame: (bridgeId: number) => CanBridgeFrame | null;
 }
 
 export type RuntimeAbiInstaller = (
@@ -260,6 +280,9 @@ function createRuntimeState(
 		spiActive: null,
 		unregisterSpiMux: null,
 		uartUnsubscribers: [],
+		nextCanBridgeId: 1,
+		canBridgeState: new Map<number, RuntimeCanBridgeState>(),
+		canBridgeUnsubscribers: [],
 		framebuffer: {
 			handle: 1,
 			width,
@@ -479,6 +502,36 @@ export function createCustomChipCompatLayer(
 			const unsubscribe = registerUsartMuxSession(runner, { id, onByte });
 			state.uartUnsubscribers.push(unsubscribe);
 		},
+		startCanBridge: (options) => {
+			const bridgeId = state.nextCanBridgeId++;
+			const sessionId = `${state.chipRuntimeId}:can:${bridgeId}`;
+			const unsubscribe = ensureCanBridgeSession({ sessionId, ...options }, (event) => {
+				if (event.type === 'log' || event.type === 'error' || event.type === 'ready' || event.type === 'closed') {
+					onChipLog?.(`[chip:${bridge.chipName}] CAN ${event.type}: ${event.message}\n`);
+				}
+			});
+			state.canBridgeState.set(bridgeId, { sessionId });
+			state.canBridgeUnsubscribers.push(unsubscribe);
+			return bridgeId;
+		},
+		stopCanBridge: (bridgeId) => {
+			const bridgeState = state.canBridgeState.get(bridgeId);
+			if (!bridgeState) return;
+			stopCanBridgeSession(bridgeState.sessionId);
+			state.canBridgeState.delete(bridgeId);
+		},
+		canBridgeReady: (bridgeId) => {
+			const bridgeState = state.canBridgeState.get(bridgeId);
+			return bridgeState ? isCanBridgeReady(bridgeState.sessionId) : false;
+		},
+		sendCanFrame: (bridgeId, frame) => {
+			const bridgeState = state.canBridgeState.get(bridgeId);
+			return bridgeState ? sendCanBridgeFrame(bridgeState.sessionId, frame) : false;
+		},
+		pollCanFrame: (bridgeId) => {
+			const bridgeState = state.canBridgeState.get(bridgeId);
+			return bridgeState ? pollCanBridgeFrame(bridgeState.sessionId) : null;
+		},
 	};
 
 	const installers: RuntimeAbiInstaller[] = [
@@ -534,10 +587,17 @@ export function createCustomChipCompatLayer(
 			};
 		},
 		dispose: () => {
+			for (const bridgeId of Array.from(state.canBridgeState.keys())) {
+				context.stopCanBridge(bridgeId);
+			}
 			if (state.unregisterSpiMux) {
 				state.unregisterSpiMux();
 				state.unregisterSpiMux = null;
 			}
+			for (const unsubscribe of state.canBridgeUnsubscribers) {
+				unsubscribe();
+			}
+			state.canBridgeUnsubscribers.length = 0;
 			for (const unsubscribe of state.uartUnsubscribers) {
 				unsubscribe();
 			}

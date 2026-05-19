@@ -7,6 +7,7 @@ import type {
     CustomChipControlBridge,
     CustomChipI2CBridge,
     CustomChipRuntime,
+    CustomChipSpiSlaveBridge,
 } from './custom-chip-runtime-types';
 
 export type {
@@ -14,6 +15,7 @@ export type {
     CustomChipControlBridge,
     CustomChipI2CBridge,
     CustomChipRuntime,
+    CustomChipSpiSlaveBridge,
 } from './custom-chip-runtime-types';
 
 export interface CreateCustomChipRuntimeOptions {
@@ -85,6 +87,8 @@ export function createCustomChipRuntime({
     const chipControlGet =
         (exportsObj.chip_control_get as ((index?: number) => number) | undefined)
         ?? (exportsObj.chip_get_control as ((index?: number) => number) | undefined);
+    const chipSpiSelect = exportsObj.chip_spi_select as ((active?: number) => void) | undefined;
+    const chipSpiTransfer = exportsObj.chip_spi_transfer as ((value?: number) => number) | undefined;
 
     if (typeof chipInit === 'function') {
         chipInit();
@@ -157,6 +161,23 @@ export function createCustomChipRuntime({
         }
         : null;
 
+    const spiSlave: CustomChipSpiSlaveBridge | null = typeof chipSpiTransfer === 'function'
+        ? {
+            onSelect: (active) => {
+                if (typeof chipSpiSelect === 'function') {
+                    chipSpiSelect(active ? 1 : 0);
+                }
+            },
+            transfer: (value) => {
+                try {
+                    return chipSpiTransfer(value & 0xFF) & 0xFF;
+                } catch {
+                    return 0xFF;
+                }
+            },
+        }
+        : null;
+
     return {
         tick: () => {
             compat.poll();
@@ -175,5 +196,6 @@ export function createCustomChipRuntime({
         },
         i2c,
         controls,
+        spiSlave,
     };
 }

@@ -1,5 +1,30 @@
 import type { I2CDevice } from '../../shared/i2c-bus';
+import type { CanBridgeFrame } from '../../shared/can-bridge';
 import type { RuntimeAbiContext, RuntimeImportModule } from './custom-chip-runtime-compat';
+
+function readCanFrame(context: RuntimeAbiContext, framePtr: number): CanBridgeFrame {
+    const data: number[] = [];
+    for (let index = 0; index < 8; index++) {
+        data.push(context.readU8(framePtr + 16 + index));
+    }
+    return {
+        id: context.readU32(framePtr),
+        dlc: context.readU32(framePtr + 4),
+        flags: context.readU32(framePtr + 8),
+        timestamp: context.readU32(framePtr + 12),
+        data,
+    };
+}
+
+function writeCanFrame(context: RuntimeAbiContext, framePtr: number, frame: CanBridgeFrame): void {
+    context.writeU32(framePtr, frame.id >>> 0);
+    context.writeU32(framePtr + 4, frame.dlc >>> 0);
+    context.writeU32(framePtr + 8, frame.flags >>> 0);
+    context.writeU32(framePtr + 12, frame.timestamp >>> 0);
+    for (let index = 0; index < 8; index++) {
+        context.writeU8(framePtr + 16 + index, frame.data[index] ?? 0);
+    }
+}
 
 export function installPeripheralRuntimeAbi(
     importName: string,
@@ -141,6 +166,39 @@ export function installPeripheralRuntimeAbi(
                 if (done) {
                     context.callIndirect(done, [user, bufferPtr, transferred]);
                 }
+            };
+            return true;
+
+        case 'can_bridge_open':
+            mod[importName] = (configPtr: number) => context.startCanBridge({
+                channelIndex: Math.max(0, Math.trunc(context.readU32(configPtr))),
+                bitrate: Math.trunc(context.readU32(configPtr + 4)) || 500000,
+                acceptVirtual: context.readU32(configPtr + 8) !== 0,
+                ledCommandId: Math.trunc(context.readU32(configPtr + 12)) || 0x200,
+                autoLedIntervalMs: Math.max(0, Math.trunc(context.readU32(configPtr + 16))),
+            });
+            return true;
+
+        case 'can_bridge_close':
+            mod[importName] = (bridgeId: number) => {
+                context.stopCanBridge(bridgeId);
+            };
+            return true;
+
+        case 'can_bridge_ready':
+            mod[importName] = (bridgeId: number) => context.canBridgeReady(bridgeId) ? 1 : 0;
+            return true;
+
+        case 'can_bridge_send':
+            mod[importName] = (bridgeId: number, framePtr: number) => context.sendCanFrame(bridgeId, readCanFrame(context, framePtr)) ? 1 : 0;
+            return true;
+
+        case 'can_bridge_receive':
+            mod[importName] = (bridgeId: number, framePtr: number) => {
+                const frame = context.pollCanFrame(bridgeId);
+                if (!frame) return 0;
+                writeCanFrame(context, framePtr, frame);
+                return 1;
             };
             return true;
 

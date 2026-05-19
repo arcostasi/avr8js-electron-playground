@@ -409,8 +409,9 @@ const Editor = React.memo((
         const nextModel = getOrCreateModel(fileKey, code, language);
         const previousFileKey = activeFileKeyRef.current;
         const currentModel = editor.getModel();
+        const fileChanged = previousFileKey !== null && previousFileKey !== fileKey;
 
-        if (previousFileKey && currentModel && previousFileKey !== fileKey) {
+        if (fileChanged && currentModel) {
             modelViewStates.set(previousFileKey, editor.saveViewState());
         }
 
@@ -434,14 +435,16 @@ const Editor = React.memo((
             monaco.editor.setModelLanguage(nextModel, language);
         }
 
-        const savedViewState = modelViewStates.get(fileKey);
-        if (savedViewState) {
-            editor.restoreViewState(savedViewState);
-        } else {
-            editor.setScrollTop(0);
-            editor.setScrollLeft(0);
+        if (fileChanged) {
+            const savedViewState = modelViewStates.get(fileKey);
+            if (savedViewState) {
+                editor.restoreViewState(savedViewState);
+            } else {
+                editor.setScrollTop(0);
+                editor.setScrollLeft(0);
+            }
+            editor.focus();
         }
-        editor.focus();
     }, [fileKey, code, language, languageReady]);
 
     // Apply diagnostics markers to the active Monaco model

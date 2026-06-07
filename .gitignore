@@ -5,12 +5,13 @@
 lib/
 examples/can-mcp2515-virtual/
 tools/canlib-bridge/
-src/main/can-bridge-manager.ts
-src/renderer/services/can-bridge-client.ts
-src/shared/can-bridge.ts
 node_modules
-package-lock.json
 dist
+build/
+examples/**/build/
 sketch
 *.log
 *.hex
+*.bin
+*.eep
+*.elf

@@ -2,8 +2,11 @@
   "compilerOptions": {
     "target": "es2020",
     "module": "commonjs",
-    "moduleResolution": "node",
+    "moduleResolution": "bundler",
     "jsx": "react-jsx",
+    "types": [
+      "node"
+    ],
     "resolveJsonModule": true,
     "noImplicitAny": true,
     "removeComments": false,
@@ -18,10 +21,9 @@
     "allowJs": true,
     "rootDir": "src",
     "outDir": "dist",
-    "baseUrl": ".",
     "paths": {
       "@/*": [
-        "src/renderer/*"
+        "./src/renderer/*"
       ]
     },
     "lib": [

@@ -1,12 +1,12 @@
 import React, { useRef, useEffect } from 'react';
-import * as monaco from 'monaco-editor/esm/vs/editor/editor.api';
+import * as monaco from 'monaco-editor/editor/editor.api';
 import type { EditorDiagnostic } from '../types/editor-diagnostics';
 import { measureAsync, measureSync, startPerfMeasure } from '../utils/perf';
-import 'monaco-editor/esm/vs/editor/contrib/clipboard/browser/clipboard';
-import 'monaco-editor/esm/vs/editor/contrib/find/browser/findController';
-import 'monaco-editor/esm/vs/editor/contrib/contextmenu/browser/contextmenu';
-import 'monaco-editor/esm/vs/editor/contrib/suggest/browser/suggestController';
-import editorWorker from 'monaco-editor/esm/vs/editor/editor.worker?worker';
+import 'monaco-editor/features/clipboard/register';
+import 'monaco-editor/features/find/register';
+import 'monaco-editor/features/contextmenu/register';
+import 'monaco-editor/features/suggest/register';
+import editorWorker from 'monaco-editor/editor/editor.worker?worker';
 
 const monacoGlobal = globalThis as typeof globalThis & {
     MonacoEnvironment: {
@@ -193,14 +193,14 @@ const loadedLanguageContributions = new Set<string>();
 const languageContributionLoads = new Map<string, Promise<void>>();
 
 async function loadCppContribution(): Promise<void> {
-    await import('monaco-editor/esm/vs/basic-languages/cpp/cpp.contribution');
+    await import('monaco-editor/languages/definitions/cpp/register');
     loadedLanguageContributions.add('cpp');
     loadedLanguageContributions.add('c');
     loadedLanguageContributions.add('h');
 }
 
 async function loadJsonContribution(): Promise<void> {
-    await import('monaco-editor/esm/vs/language/json/monaco.contribution');
+    await import('monaco-editor/languages/features/json/register');
     loadedLanguageContributions.add('json');
 }
 

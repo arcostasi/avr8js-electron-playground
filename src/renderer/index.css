@@ -1,6 +1,23 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import "tailwindcss";
+
+@theme inline {
+  --color-vscode-bg: var(--vsc-bg);
+  --color-vscode-sidebar: var(--vsc-sidebar);
+  --color-vscode-activity: var(--vsc-activity);
+  --color-vscode-tab: var(--vsc-tab);
+  --color-vscode-tabActive: var(--vsc-tab-active);
+  --color-vscode-border: var(--vsc-border);
+  --color-vscode-text: var(--vsc-text);
+  --color-vscode-textActive: var(--vsc-text-active);
+  --color-vscode-panel: var(--vsc-panel);
+  --color-vscode-surface: var(--vsc-surface);
+  --color-vscode-surface2: var(--vsc-surface-2);
+  --color-vscode-input: var(--vsc-input);
+  --color-vscode-hover: var(--vsc-hover);
+  --color-vscode-hover2: var(--vsc-hover-2);
+  --color-vscode-divider: var(--vsc-divider);
+  --color-vscode-codeBg: var(--vsc-code-bg);
+}
 
 /* ── Default (dark) theme ─────────────────────────────────── */
 :root {

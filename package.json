@@ -1,6 +1,6 @@
 {
   "name": "avr8js-electron-playground",
-  "version": "0.21.0",
+  "version": "0.21.1",
   "author": "arcostasi",
   "license": "MIT",
   "description": "An AVR8js and Wokwi Elements playground implemented with Electron.",
@@ -15,41 +15,29 @@
     "lint:fix": "eslint \"src/**/*.ts\" \"src/**/*.tsx\" --fix"
   },
   "dependencies": {
-    "@panzoom/panzoom": "^4.6.1",
-    "@types/react": "^19.2.14",
     "@wokwi/elements": "^1.9.2",
-    "@wokwi/fastled-monaco": "git+https://github.com/wokwi/fastled-monaco.git",
-    "avr8js": "^0.21.0",
-    "custom-electron-titlebar": "^4.2.8",
-    "interactjs": "^1.10.27",
-    "lit-html": "^3.3.2",
-    "lucide-react": "^0.575.0",
-    "monaco-editor": "^0.53.0",
-    "react": "^19.2.4",
-    "react-dom": "^19.2.4",
+    "avr8js": "^0.21.1",
+    "custom-electron-titlebar": "^4.4.1",
+    "lucide-react": "^1.80.0",
+    "monaco-editor": "^0.58.0",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
     "split.js": "^1.6.5",
-    "zustand": "^5.0.11"
+    "zustand": "^5.1.0"
   },
   "devDependencies": {
-    "@tailwindcss/postcss": "^4.2.0",
-    "@types/node": "^25.3.0",
-    "@types/react-dom": "^19.2.3",
-    "@typescript-eslint/eslint-plugin": "^8.56.0",
-    "@typescript-eslint/parser": "^8.56.0",
-    "@vitejs/plugin-react": "^5.1.4",
-    "autoprefixer": "^10.4.24",
-    "electron": "^40.6.0",
-    "eslint": "^9.39.3",
-    "eslint-plugin-react": "^7.37.5",
-    "postcss": "^8.5.6",
-    "tailwindcss": "^3.4.19",
-    "typescript": "^5.9.3",
-    "typescript-eslint": "^8.56.0",
-    "vite": "^7.3.1",
-    "vitest": "^4.0.18"
-  },
-  "overrides": {
-    "minimatch": "^10.2.1",
-    "global-agent": "^4.1.2"
+    "@eslint/js": "^10.0.1",
+    "@tailwindcss/vite": "^4.3.5",
+    "@types/node": "^26.6.10",
+    "@types/react": "^19.3.2",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.3.0",
+    "electron": "^45.5.0",
+    "eslint": "^10.15.0",
+    "tailwindcss": "^4.3.5",
+    "typescript": "^6.0.3",
+    "typescript-eslint": "^8.74.0",
+    "vite": "^8.3.8",
+    "vitest": "^5.1.1"
   }
 }

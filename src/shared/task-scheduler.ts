@@ -16,7 +16,7 @@ export class MicroTaskScheduler {
   private stopped = true;
 
   start() {
-    if (this.stopped) {
+    if (this.stopped && typeof window !== 'undefined') {
       this.stopped = false;
       window.addEventListener('message', this.handleMessage, true);
     }
@@ -24,11 +24,14 @@ export class MicroTaskScheduler {
 
   stop() {
     this.stopped = true;
-    window.removeEventListener('message', this.handleMessage, true);
+    this.executionQueue.length = 0;
+    if (typeof window !== 'undefined') {
+      window.removeEventListener('message', this.handleMessage, true);
+    }
   }
 
   postTask(fn: IMicroTaskCallback) {
-    if (!this.stopped) {
+    if (!this.stopped && typeof window !== 'undefined') {
       this.executionQueue.push(fn);
       window.postMessage(this.messageName, '*');
     }

@@ -42,6 +42,9 @@ export async function buildHex(
     headers: {
       'Content-Type': 'application/json'
     },
+    signal: typeof AbortSignal !== 'undefined' && typeof AbortSignal.timeout === 'function'
+      ? AbortSignal.timeout(30_000)
+      : undefined,
     body: JSON.stringify({
       sketch: source,
       files,
@@ -51,7 +54,7 @@ export async function buildHex(
   });
 
   if (!resp.ok) {
-    const message = `An error has occured: ${resp.status}`;
+    const message = `An error has occurred: ${resp.status}`;
     throw new Error(message);
   }
 

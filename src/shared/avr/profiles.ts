@@ -71,6 +71,8 @@ const timer3Config: AVRTimerConfig = {
   OCRA: 0x98,
   OCRB: 0x9a,
   OCRC: 0x9c,
+  OCFC: 8,
+  OCIEC: 8,
   ICR: 0x96,
   TCNT: 0x94,
   TCCRA: 0x90,
@@ -98,6 +100,8 @@ const timer4Config: AVRTimerConfig = {
   OCRA: 0xa8,
   OCRB: 0xaa,
   OCRC: 0xac,
+  OCFC: 8,
+  OCIEC: 8,
   ICR: 0xa6,
   TCNT: 0xa4,
   TCCRA: 0xa0,
@@ -125,6 +129,8 @@ const timer5Config: AVRTimerConfig = {
   OCRA: 0x128,
   OCRB: 0x12a,
   OCRC: 0x12c,
+  OCFC: 8,
+  OCIEC: 8,
   ICR: 0x126,
   TCNT: 0x124,
   TCCRA: 0x120,
@@ -141,10 +147,72 @@ const timer5Config: AVRTimerConfig = {
   externalClockPin: 2,
 };
 
+const megaTimer0Config: AVRTimerConfig = {
+  ...timer0Config,
+  compAInterrupt: 0x2a,
+  compBInterrupt: 0x2c,
+  ovfInterrupt: 0x2e,
+  compPortA: portBConfig.PORT,
+  compPinA: 7,
+  compPortB: portGConfig.PORT,
+  compPinB: 5,
+  externalClockPort: portDConfig.PORT,
+  externalClockPin: 7,
+};
+
+const megaTimer1Config: AVRTimerConfig = {
+  ...timer1Config,
+  captureInterrupt: 0x20,
+  compAInterrupt: 0x22,
+  compBInterrupt: 0x24,
+  compCInterrupt: 0x26,
+  ovfInterrupt: 0x28,
+  OCRC: 0x8c,
+  OCFC: 8,
+  OCIEC: 8,
+  compPortA: portBConfig.PORT,
+  compPinA: 5,
+  compPortB: portBConfig.PORT,
+  compPinB: 6,
+  compPortC: portBConfig.PORT,
+  compPinC: 7,
+  externalClockPort: portDConfig.PORT,
+  externalClockPin: 6,
+};
+
+const megaTimer2Config: AVRTimerConfig = {
+  ...timer2Config,
+  compAInterrupt: 0x1a,
+  compBInterrupt: 0x1c,
+  ovfInterrupt: 0x1e,
+  compPortA: portBConfig.PORT,
+  compPinA: 4,
+  compPortB: portHConfig.PORT,
+  compPinB: 6,
+};
+
+const megaUsart0Config: USARTConfig = {
+  ...usart0Config,
+  rxCompleteInterrupt: 0x32,
+  dataRegisterEmptyInterrupt: 0x34,
+  txCompleteInterrupt: 0x36,
+};
+
+const megaSpiConfig: SPIConfig = {
+  ...spiConfig,
+  spiInterrupt: 0x30,
+};
+
+const megaTwiConfig: TWIConfig = {
+  ...twiConfig,
+  twiInterrupt: 0x4e,
+};
+
 export interface McuCpuProfile {
   flashWords: number;
   frequencyHz: number;
   sramBytes?: number;
+  ioSpaceBytes?: number;
   largeHexThreshold?: number;
   largeHexSramBytes?: number;
 }
@@ -330,6 +398,7 @@ export const atmega2560Profile: McuProfile = {
     flashWords: 0x20000,
     frequencyHz: 16e6,
     sramBytes: 0x2000,
+    ioSpaceBytes: 0x200,
   },
   ports: {
     A: { id: 'A', label: 'PORTA', config: portAConfig },
@@ -345,24 +414,24 @@ export const atmega2560Profile: McuProfile = {
     L: { id: 'L', label: 'PORTL', config: portLConfig },
   },
   timers: {
-    timer0: { id: 'timer0', config: timer0Config },
-    timer1: { id: 'timer1', config: timer1Config },
-    timer2: { id: 'timer2', config: timer2Config },
+    timer0: { id: 'timer0', config: megaTimer0Config },
+    timer1: { id: 'timer1', config: megaTimer1Config },
+    timer2: { id: 'timer2', config: megaTimer2Config },
     timer3: { id: 'timer3', config: timer3Config },
     timer4: { id: 'timer4', config: timer4Config },
     timer5: { id: 'timer5', config: timer5Config },
   },
   usarts: {
-    usart0: { id: 'usart0', config: usart0Config },
+    usart0: { id: 'usart0', config: megaUsart0Config },
     usart1: { id: 'usart1', config: usart1Config },
     usart2: { id: 'usart2', config: usart2Config },
     usart3: { id: 'usart3', config: usart3Config },
   },
   spis: {
-    spi0: { id: 'spi0', config: spiConfig },
+    spi0: { id: 'spi0', config: megaSpiConfig },
   },
   twis: {
-    twi0: { id: 'twi0', config: twiConfig },
+    twi0: { id: 'twi0', config: megaTwiConfig },
   },
   adc: {
     channelCount: 16,

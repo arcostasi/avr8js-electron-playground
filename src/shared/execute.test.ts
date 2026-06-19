@@ -80,6 +80,9 @@ function getPortByRegisterAddress(runner: AVRRunner, portAddress: number) {
   return port;
 }
 
+let audioContextConstructions = 0;
+let audioBufferStarts = 0;
+
 beforeAll(() => {
   const fakeWindow = {
     addEventListener: vi.fn(),
@@ -90,14 +93,24 @@ beforeAll(() => {
   class FakeAudioContext {
     sampleRate = 48_000;
     destination = {};
+    state = 'running';
+    currentTime = 0;
+    resume = vi.fn().mockResolvedValue(undefined);
+    close = vi.fn().mockResolvedValue(undefined);
+
+    constructor() {
+      audioContextConstructions += 1;
+    }
   }
 
   class FakeAudioBuffer {
     readonly length: number;
+    readonly duration: number;
     private readonly channelData: Float32Array;
 
-    constructor(options: { length: number }) {
+    constructor(options: { length: number; sampleRate?: number }) {
       this.length = options.length;
+      this.duration = options.length / (options.sampleRate ?? 48_000);
       this.channelData = new Float32Array(options.length);
     }
 
@@ -120,6 +133,7 @@ beforeAll(() => {
     }
 
     start(): void {
+      audioBufferStarts += 1;
       return undefined;
     }
   }
@@ -227,5 +241,97 @@ describe('AVRRunner', () => {
       externalClockPort.setPin(timerConfig.externalClockPin, true);
       expect(runner.timers[timerId].debugTCNT, `${timerId} should count a rising external clock edge`).toBe(2);
     }
+  });
+
+  it('lazily initializes Speaker AudioContext and cleans up listeners/resources on stop()', () => {
+    const beforeCount = audioContextConstructions;
+    const runner = new AVRRunner(EMPTY_HEX);
+
+    expect(audioContextConstructions).toBe(beforeCount);
+
+    runner.adcRegistry.setValue(0, 777);
+    expect(runner.adcRegistry.getChannel(0)).toBe(777);
+
+    runner.speaker.feed(1);
+    expect(audioContextConstructions).toBe(beforeCount + 1);
+
+    const removeListenerSpy = vi.mocked(window.removeEventListener);
+    removeListenerSpy.mockClear();
+
+    runner.stop();
+
+    expect(removeListenerSpy).toHaveBeenCalledWith('message', expect.any(Function), true);
+    expect(runner.adcRegistry.getChannel(0)).toBe(0);
+  });
+
+  it('plays Speaker audio buffers after >1000ms startup delay, after >500ms silence gaps, and via flush()', () => {
+    const runner = new AVRRunner(EMPTY_HEX);
+    const cyclesPerMs = runner.frequency / 1000;
+    const startsBefore = audioBufferStarts;
+
+    // Simulate ~1082ms delay (e.g. lcd.init()) before first tone()
+    runner.cpu.cycles = Math.floor(1082 * cyclesPerMs);
+    for (let i = 0; i < 60; i++) {
+      runner.cpu.cycles += Math.floor(1.5 * cyclesPerMs);
+      runner.speaker.feed(i % 2 === 0 ? 0.5 : 0);
+    }
+    const startsAfterFirstNote = audioBufferStarts;
+    expect(startsAfterFirstNote).toBeGreaterThan(startsBefore);
+
+    // Silence gap > 500ms between notes
+    runner.speaker.feed(0);
+    runner.cpu.cycles += Math.floor(600 * cyclesPerMs);
+    for (let i = 0; i < 40; i++) {
+      runner.cpu.cycles += Math.floor(1.2 * cyclesPerMs);
+      runner.speaker.feed(i % 2 === 0 ? 0.5 : 0);
+    }
+    const startsAfterSecondNote = audioBufferStarts;
+    expect(startsAfterSecondNote).toBeGreaterThan(startsAfterFirstNote);
+
+    // Flush trailing chunk once >50ms elapses after noTone()
+    runner.speaker.feed(0);
+    runner.cpu.cycles += Math.floor(60 * cyclesPerMs);
+    runner.speaker.flush();
+    expect(audioBufferStarts).toBeGreaterThan(startsAfterSecondNote);
+
+    runner.stop();
+  });
+
+  it('caps CPU execution to maxFrameTimeMs wall-clock budget per frame', () => {
+    let calls = 0;
+    const nowSpy = vi.spyOn(performance, 'now').mockImplementation(() => {
+      calls += 1;
+      if (calls === 1) return 100; // prime lastTime on initial frame
+      if (calls === 2) return 150; // 50ms delta -> requests ~800k cycles at 16MHz
+      return 170; // exceed 5ms wall-clock budget at first 4096-cycle check
+    });
+    const rafStub = vi.fn().mockReturnValue(1);
+    vi.stubGlobal('requestAnimationFrame', rafStub);
+    vi.stubGlobal('cancelAnimationFrame', vi.fn());
+
+    try {
+      const runner = new AVRRunner(EMPTY_HEX);
+      runner.maxFrameTimeMs = 5;
+
+      runner.execute(() => undefined);
+      const startCycles = runner.cpu.cycles;
+      runner.execute(() => undefined);
+      const ranCycles = runner.cpu.cycles - startCycles;
+
+      runner.stop();
+
+      expect(ranCycles).toBeGreaterThanOrEqual(4096);
+      expect(ranCycles).toBeLessThan(800_000);
+    } finally {
+      nowSpy.mockRestore();
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('allocates full register + extended I/O + SRAM space and RAMEND SP for ATmega2560', () => {
+    const runner = new AVRRunner(EMPTY_HEX, atmega2560Profile);
+
+    expect(runner.cpu.data.length).toBe(0x2200);
+    expect(runner.cpu.SP).toBe(0x21ff);
   });
 });

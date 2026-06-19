@@ -10,6 +10,7 @@ const REG_ACCEL_CONFIG2 = 0x1d;
 const REG_INT_PIN_CFG = 0x37;
 const REG_INT_STATUS = 0x3a;
 const REG_ACCEL_XOUT_H = 0x3b;
+const REG_SIGNAL_PATH_RESET = 0x68;
 const REG_USER_CTRL = 0x6a;
 const REG_PWR_MGMT_1 = 0x6b;
 const REG_PWR_MGMT_2 = 0x6c;
@@ -50,6 +51,7 @@ export class MPU6050Controller implements I2CDevice {
     private userCtrl = 0x00;
     private pwrMgmt1 = 0x40;
     private pwrMgmt2 = 0x00;
+    private readonly extraRegisters = new Map<number, number>();
     private readonly tuning: MPU6050TuningState = {
         accel: { x: 0, y: 0, z: 1 },
         gyro: { x: 0, y: 0, z: 0 },
@@ -122,6 +124,7 @@ export class MPU6050Controller implements I2CDevice {
         this.userCtrl = 0x00;
         this.pwrMgmt1 = 0x40;
         this.pwrMgmt2 = 0x00;
+        this.extraRegisters.clear();
     }
 
     private measurementRegisters(): Uint8Array {
@@ -181,7 +184,7 @@ export class MPU6050Controller implements I2CDevice {
             case REG_WHO_AM_I:
                 return MPU6050_ADDR;
             default:
-                return 0x00;
+                return this.extraRegisters.get(register) ?? 0x00;
         }
     }
 
@@ -205,6 +208,8 @@ export class MPU6050Controller implements I2CDevice {
             case REG_INT_PIN_CFG:
                 this.intPinCfg = value;
                 return true;
+            case REG_SIGNAL_PATH_RESET:
+                return true;
             case REG_USER_CTRL:
                 this.userCtrl = value;
                 return true;
@@ -219,7 +224,8 @@ export class MPU6050Controller implements I2CDevice {
                 this.pwrMgmt2 = value;
                 return true;
             default:
-                return false;
+                this.extraRegisters.set(register, value);
+                return true;
         }
     }
 }

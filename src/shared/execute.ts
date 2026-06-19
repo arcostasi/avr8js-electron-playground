@@ -49,10 +49,21 @@ export class AVRRunner {
 
   /** Simulation speed multiplier: 0.1 = 10 % speed, 2.0 = 200 % speed */
   speedMultiplier = 1;
+  /** Wall-clock budget per animation frame (ms) to keep the UI responsive under heavy load */
+  maxFrameTimeMs = 12;
 
   private readonly serialBuffers: Record<string, number[]>;
+  private readonly usartEntries: Array<{ id: string; UCSRA: number; rxCompleteInterrupt: number }>;
+  private pendingRxCount = 0;
   private stopped = false;
-  private lastTime = 0;
+  private lastTime = -1;
+  private animationFrameId: number | null = null;
+  private executeCallback: ((cpu: CPU) => void) | null = null;
+  private readonly runNextFrame = () => {
+    if (this.executeCallback) {
+      this.execute(this.executeCallback);
+    }
+  };
   private readonly primaryUsartId: string;
 
   constructor(hex: string, mcuProfile: McuProfile = atmega328PProfile) {
@@ -64,14 +75,16 @@ export class AVRRunner {
     // Load program
     loadHex(hex, new Uint8Array(this.program.buffer));
 
+    const extraIoBytes = Math.max(0, (this.mcuProfile.cpu.ioSpaceBytes ?? 0x100) - 0x100);
+    const largeHexSramBytes = this.mcuProfile.cpu.largeHexSramBytes;
     const needsLargeHexSram = typeof this.mcuProfile.cpu.largeHexThreshold === 'number'
-      && typeof this.mcuProfile.cpu.largeHexSramBytes === 'number'
+      && typeof largeHexSramBytes === 'number'
       && hex.length > this.mcuProfile.cpu.largeHexThreshold;
 
     if (typeof this.mcuProfile.cpu.sramBytes === 'number') {
-      this.cpu = new CPU(this.program, this.mcuProfile.cpu.sramBytes);
-    } else if (needsLargeHexSram) {
-      this.cpu = new CPU(this.program, this.mcuProfile.cpu.largeHexSramBytes);
+      this.cpu = new CPU(this.program, this.mcuProfile.cpu.sramBytes + extraIoBytes);
+    } else if (needsLargeHexSram && typeof largeHexSramBytes === 'number') {
+      this.cpu = new CPU(this.program, largeHexSramBytes + extraIoBytes);
     } else {
       this.cpu = new CPU(this.program);
     }
@@ -110,6 +123,11 @@ export class AVRRunner {
         new AVRUSART(this.cpu, usartProfile.config, this.frequency),
       ]),
     );
+    this.usartEntries = Object.entries(this.mcuProfile.usarts).map(([id, usartProfile]) => ({
+      id,
+      UCSRA: usartProfile.config.UCSRA,
+      rxCompleteInterrupt: usartProfile.config.rxCompleteInterrupt,
+    }));
     this.usart = this.requireUsart(this.primaryUsartId);
     this.spi = new AVRSPI(this.cpu, this.requireSpiConfig(this.mcuProfile.defaults.spi), this.frequency);
     this.twi = new AVRTWI(this.cpu, this.requireTwiConfig(this.mcuProfile.defaults.twi), this.frequency);
@@ -141,6 +159,7 @@ export class AVRRunner {
       const codePoint = c.codePointAt(0);
       if (typeof codePoint === 'number') {
         serialBuffer.push(codePoint);
+        this.pendingRxCount += 1;
       }
     });
   }
@@ -153,15 +172,19 @@ export class AVRRunner {
   }
 
   rxCompleteInterrupt() {
-    for (const [usartId, usartProfile] of Object.entries(this.mcuProfile.usarts)) {
-      const serialBuffer = this.serialBuffers[usartId];
+    if (this.pendingRxCount === 0) {
+      return;
+    }
+
+    for (const entry of this.usartEntries) {
+      const serialBuffer = this.serialBuffers[entry.id];
       if (!serialBuffer?.length) {
         continue;
       }
 
-      const UCSRA = this.cpu.data[usartProfile.config.UCSRA];
+      const UCSRA = this.cpu.data[entry.UCSRA];
       if (UCSRA & 0x20) {
-        avrInterrupt(this.cpu, usartProfile.config.rxCompleteInterrupt);
+        avrInterrupt(this.cpu, entry.rxCompleteInterrupt);
       }
     }
   }
@@ -172,10 +195,11 @@ export class AVRRunner {
       return;
     }
 
+    this.executeCallback = callback;
     const { cpu } = this;
     const now = performance.now();
 
-    if (this.lastTime === 0) {
+    if (this.lastTime < 0) {
       this.lastTime = now;
     }
 
@@ -188,22 +212,42 @@ export class AVRRunner {
     if (cyclesToRun > 0) {
       this.lastTime = now;
       const deadline = cpu.cycles + cyclesToRun;
+      const frameStart = now;
+      let batch = 0;
 
       while (cpu.cycles <= deadline) {
         avrInstruction(cpu);
         cpu.tick();
+        if (++batch >= 4096) {
+          batch = 0;
+          if (performance.now() - frameStart >= this.maxFrameTimeMs) {
+            break;
+          }
+        }
       }
 
       // Notify the CPU if there's data waiting in the serial RX buffer
       this.rxCompleteInterrupt();
+      this.speaker.flush();
     }
 
     callback(this.cpu);
-    requestAnimationFrame(() => this.execute(callback));
+    if (!this.stopped) {
+      this.animationFrameId = requestAnimationFrame(this.runNextFrame);
+    }
   }
 
   stop() {
     this.stopped = true;
+    this.executeCallback = null;
+    this.pendingRxCount = 0;
+    if (this.animationFrameId !== null && typeof cancelAnimationFrame === 'function') {
+      cancelAnimationFrame(this.animationFrameId);
+      this.animationFrameId = null;
+    }
+    this.taskScheduler.stop();
+    this.speaker.close();
+    this.adcRegistry.reset();
   }
 
   getPortOutputValue(portId: string): number {
@@ -276,7 +320,12 @@ export class AVRRunner {
   }
 
   private shiftSerialBuffer(usartId: string): number {
-    return this.serialBuffers[usartId]?.shift() || 0;
+    const buffer = this.serialBuffers[usartId];
+    if (!buffer || buffer.length === 0) {
+      return 0;
+    }
+    this.pendingRxCount = Math.max(0, this.pendingRxCount - 1);
+    return buffer.shift() || 0;
   }
 
   private requireSpiConfig(spiId: string) {

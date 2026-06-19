@@ -165,12 +165,22 @@ export class SSD1306Controller implements I2CDevice {
   }
 
   toImageData(target: ImageData) {
-    const { pixels, invert, scrollOffset, width, height } = this;
+    const { pixels, invert, scrollOffset, startLine, displayOn, width, height } = this;
     const { data } = target;
+
+    if (!displayOn) {
+      for (let i = 0; i < data.length; i += 4) {
+        data[i] = 0;
+        data[i + 1] = 0;
+        data[i + 2] = 0;
+        data[i + 3] = 0xff;
+      }
+      return;
+    }
 
     for (let y = 0; y < height; y++) {
       for (let x = 0; x < width; x++) {
-        const virtualY = (y + scrollOffset) % height;
+        const virtualY = (y + startLine + scrollOffset) % height;
         const pixIndex = Math.floor(virtualY / 8) * width + x;
         const pixValue = pixels[pixIndex] & (1 << virtualY % 8) ? !invert : invert;
         const dataOffset = (y * target.width + x) * 4;
@@ -276,15 +286,15 @@ export class SSD1306Controller implements I2CDevice {
         break;
 
       case CMD_COLUMN_ADDR:
-        this.activeColumn = this.columnStart;
         this.columnStart = this.currentCommand[1] & 0x7f;
         this.columnEnd = this.currentCommand[2] & 0x7f;
+        this.activeColumn = this.columnStart;
         break;
 
       case CMD_PAGE_ADDR:
-        this.activePage = this.pageStart;
         this.pageStart = this.currentCommand[1] & 0x7;
         this.pageEnd = this.currentCommand[2] & 0x7;
+        this.activePage = this.pageStart;
         break;
 
       case CMD_DEACTIVATE_SCROLL:
@@ -379,7 +389,9 @@ export class SSD1306Controller implements I2CDevice {
 
   processData(value: number) {
     const target = this.activePage * this.width + this.activeColumn;
-    this.pixels[target] = value;
+    if (target >= 0 && target < this.pixels.length) {
+      this.pixels[target] = value;
+    }
 
     // Memory modes are explained in pages 34-35 of the datasheet,
     // and determine how the order of writing the pixels to the
@@ -414,9 +426,9 @@ export class SSD1306Controller implements I2CDevice {
       default:
         this.activeColumn++;
 
-        if (this.activeColumn > this.width) {
+        if (this.activeColumn >= this.width) {
           this.activeColumn = 0;
-          this.activePage++;
+          this.activePage = (this.activePage + 1) & 0x7;
         }
 
         break;

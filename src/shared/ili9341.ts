@@ -28,12 +28,14 @@ export class ILI9341Controller {
     // ── Canvas ────────────────────────────────────────────────────────────
     private ctx: CanvasRenderingContext2D | null = null;
     private imageData: ImageData | null = null;
+    private readonly frameBuffer = new Uint8ClampedArray(240 * 320 * 4);
 
-    // ── Address window (CASET / PASET) ────────────────────────────────────
+    // ── Address window (CASET / PASET) & orientation (MADCTL) ─────────────
     private colStart = 0;
     private colEnd   = 239;
     private rowStart = 0;
     private rowEnd   = 319;
+    private madctl   = 0x48;             // Portrait default (MX | BGR)
 
     // ── Command state machine ─────────────────────────────────────────────
     private cmd       = -1;              // -1 = idle
@@ -49,7 +51,11 @@ export class ILI9341Controller {
     private dirtyMin = 320;
     private dirtyMax = -1;
 
-    constructor(private readonly dcPin: PinState) {}
+    constructor(private readonly dcPin: PinState) {
+        for (let i = 3; i < this.frameBuffer.length; i += 4) {
+            this.frameBuffer[i] = 255;
+        }
+    }
 
     // ── Public API ─────────────────────────────────────────────────────────
 
@@ -61,12 +67,10 @@ export class ILI9341Controller {
         this.ctx = canvas.getContext('2d');
         if (!this.ctx) return;
         this.imageData = this.ctx.createImageData(240, 320);
-        // Pre-fill alpha channel to fully opaque
-        const data = this.imageData.data;
-        for (let i = 3; i < data.length; i += 4) {
-            data[i] = 255;
-        }
+        this.imageData.data.set(this.frameBuffer);
         this.ctx.putImageData(this.imageData, 0, 0);
+        this.dirtyMin = 320;
+        this.dirtyMax = -1;
     }
 
     /**
@@ -81,7 +85,14 @@ export class ILI9341Controller {
             this.dataBytes = [];
             this.inRAMWR   = (value === 0x2C);
 
-            if (this.inRAMWR) {
+            if (value === 0x01) {
+                // SWRESET — restore default orientation and address window
+                this.madctl   = 0x48;
+                this.colStart = 0;
+                this.colEnd   = 239;
+                this.rowStart = 0;
+                this.rowEnd   = 319;
+            } else if (this.inRAMWR) {
                 // Start pixel stream at top-left of the address window
                 this.curCol      = this.colStart;
                 this.curRow      = this.rowStart;
@@ -129,13 +140,16 @@ export class ILI9341Controller {
                     this.rowEnd   = (d[2] << 8) | d[3];
                 }
                 break;
-            // All other commands (MADCTL, COLMOD, DISPON, etc.) are ignored.
+            case 0x36: // MADCTL — memory access control (orientation / mirroring)
+                if (d.length === 1) {
+                    this.madctl = d[0] & 0xff;
+                }
+                break;
+            // All other commands (COLMOD, DISPON, etc.) are ignored.
         }
     }
 
     private writePixelByte(value: number): void {
-        if (!this.ctx || !this.imageData) return;
-
         // Accumulate 2 bytes to form one RGB565 pixel
         if (this.pixelHiByte === -1) {
             this.pixelHiByte = value;
@@ -150,26 +164,45 @@ export class ILI9341Controller {
         const g = Math.trunc(((pixel >>  5) & 0x3F) * 255 / 63);
         const b = Math.trunc( (pixel        & 0x1F) * 255 / 31);
 
+        const mv = (this.madctl & 0x20) !== 0;
+        const mx = (this.madctl & 0x40) !== 0;
+        const my = (this.madctl & 0x80) !== 0;
+        const logicalW = mv ? 320 : 240;
+        const logicalH = mv ? 240 : 320;
+
         const col = this.curCol;
         const row = this.curRow;
+        const physX = mv
+            ? (mx ? row : (239 - row))
+            : (mx ? col : (239 - col));
+        const physY = mv
+            ? (my ? (319 - col) : col)
+            : (my ? (319 - row) : row);
 
-        if (col >= 0 && col < 240 && row >= 0 && row < 320) {
-            const idx          = (row * 240 + col) * 4;
-            const data         = this.imageData.data;
-            data[idx    ]      = r;
-            data[idx + 1]      = g;
-            data[idx + 2]      = b;
-            data[idx + 3]      = 255;
+        if (physX >= 0 && physX < 240 && physY >= 0 && physY < 320) {
+            const idx = (physY * 240 + physX) * 4;
+            this.frameBuffer[idx]     = r;
+            this.frameBuffer[idx + 1] = g;
+            this.frameBuffer[idx + 2] = b;
+            this.frameBuffer[idx + 3] = 255;
 
-            // Track dirty region for incremental flush
-            if (row < this.dirtyMin) this.dirtyMin = row;
-            if (row > this.dirtyMax) this.dirtyMax = row;
+            if (this.imageData) {
+                const data = this.imageData.data;
+                data[idx]     = r;
+                data[idx + 1] = g;
+                data[idx + 2] = b;
+                data[idx + 3] = 255;
+            }
+
+            // Track dirty region in physical canvas coordinates
+            if (physY < this.dirtyMin) this.dirtyMin = physY;
+            if (physY > this.dirtyMax) this.dirtyMax = physY;
         }
 
         // Advance horizontally, wrap at colEnd, then advance row
         this.curCol++;
-        const maxCol = Math.min(this.colEnd, 239);
-        const maxRow = Math.min(this.rowEnd, 319);
+        const maxCol = Math.min(this.colEnd, logicalW - 1);
+        const maxRow = Math.min(this.rowEnd, logicalH - 1);
 
         if (this.curCol > maxCol) {
             this.curCol = this.colStart;

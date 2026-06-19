@@ -24,8 +24,15 @@ describe('avr profiles', () => {
   it('defines an ATmega2560 profile with extended GPIO ports and ADC channels', () => {
     expect(atmega2560Profile.id).toBe('atmega2560');
     expect(atmega2560Profile.cpu.sramBytes).toBe(0x2000);
+    expect(atmega2560Profile.cpu.ioSpaceBytes).toBe(0x200);
     expect(Object.keys(atmega2560Profile.ports)).toEqual(['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'J', 'K', 'L']);
     expect(Object.keys(atmega2560Profile.timers)).toEqual(['timer0', 'timer1', 'timer2', 'timer3', 'timer4', 'timer5']);
+    expect(atmega2560Profile.timers.timer0.config.ovfInterrupt).toBe(0x2e);
+    expect(atmega2560Profile.timers.timer1.config.ovfInterrupt).toBe(0x28);
+    expect(atmega2560Profile.timers.timer2.config.ovfInterrupt).toBe(0x1e);
+    expect(atmega2560Profile.usarts.usart0.config.rxCompleteInterrupt).toBe(0x32);
+    expect(atmega2560Profile.spis.spi0.config.spiInterrupt).toBe(0x30);
+    expect(atmega2560Profile.twis.twi0.config.twiInterrupt).toBe(0x4e);
     expect(Object.keys(atmega2560Profile.usarts)).toEqual(['usart0', 'usart1', 'usart2', 'usart3']);
     expect(atmega2560Profile.adc?.channelCount).toBe(16);
     expect(atmega2560Profile.simulationSupport?.status).toBe('partial');

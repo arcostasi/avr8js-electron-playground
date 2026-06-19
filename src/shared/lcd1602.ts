@@ -31,6 +31,10 @@ const LCD_CMD_SET_DRAM_ADDR = 0x80;
 
 // Extra
 
+function wrapMod(value: number, mod: number): number {
+  return ((value % mod) + mod) % mod;
+}
+
 export class LCD1602Controller implements I2CDevice {
   // RAM settings
   private cgram = new Uint8Array(64);
@@ -55,11 +59,13 @@ export class LCD1602Controller implements I2CDevice {
   private incrementMode = true;
   private shiftMode = false;
   private is8bit = true;
+  private lastEn = false;
   private updated = false;
 
   constructor(
     private cpuMillis: () => number,
   ) {
+    this.ddram.fill(0x20);
     this.render();
   }
 
@@ -76,11 +82,10 @@ export class LCD1602Controller implements I2CDevice {
     const characters = new Uint8Array(32);
 
     if (this.displayOn) {
-      const r1 = this.shift % 64;
-      const r2 = 64 + this.shift % 64;
-      // Set characters
-      characters.set(this.ddram.slice(r1, r1 + 16));
-      characters.set(this.ddram.slice(r2, r2 + 16), 16);
+      for (let i = 0; i < 16; i++) {
+        characters[i] = this.ddram[wrapMod(this.shift + i, 40)];
+        characters[16 + i] = this.ddram[64 + wrapMod(this.shift + i, 40)];
+      }
     } else {
       characters.fill(32);
     }
@@ -104,6 +109,7 @@ export class LCD1602Controller implements I2CDevice {
   backlightOn(value: boolean) {
     if (this.backlight !== value) {
       this.backlight = value;
+      this.updated = true;
     }
   }
 
@@ -121,16 +127,18 @@ export class LCD1602Controller implements I2CDevice {
     const data = value & 0xF0;
     const rs = (value & 0x01) ? true : false; // Register Select
     const bl = (value & LCD_CMD_DISPLAY_CONTROL) ? true : false;
+    const en = (value & 0x04) !== 0;
 
     // Turn on/off backlight
     this.backlightOn(bl);
 
-    // Check data write
-    if ((value & 0x04) && !(value & 0x02)) {
+    // Latch nibble on Enable rising edge when RW=0
+    if (en && !this.lastEn && !(value & 0x02)) {
       this.writeData(data, rs);
     }
+    this.lastEn = en;
 
-    return this.updated = true;
+    return true;
   }
 
   writeData(value: number, rs: boolean) {
@@ -171,10 +179,10 @@ export class LCD1602Controller implements I2CDevice {
       const shiftRight = (value & LCD_CMD_SHIFT_RIGHT) ? 1 : -1;
 
       this.cgramMode = false;
-      this.addr = (this.addr + shiftRight) % 128;
+      this.addr = wrapMod(this.addr + shiftRight, 128);
 
       if (shiftDisplay) {
-        this.shift = (this.shift + shiftRight) % 64;
+        this.shift = wrapMod(this.shift + shiftRight, 40);
       }
     } else if (value & LCD_CMD_DISPLAY_CONTROL) {
       this.displayOn = (value & LCD_CMD_DISPLAY_ENABLE) ? true : false;
@@ -209,16 +217,16 @@ export class LCD1602Controller implements I2CDevice {
       const data = (value & 0x01) << 4 | (value & 0x02) << 2 | (value & 0x04) | (value & 0x08) >> 2 | (value & 0x10) >> 4;
 
       this.cgram[this.addr] = data;
-      this.addr = (this.addr + 1) % 64;
+      this.addr = wrapMod(this.addr + 1, 64);
       this.cgramUpdated = true;
     } else {
       // DRAM
       const mode = this.incrementMode ? 1 : -1;
 
       this.ddram[this.addr] = value;
-      this.addr = (this.addr + mode) % 128;
+      this.addr = wrapMod(this.addr + mode, 128);
       if (this.shiftMode) {
-        this.shift = (this.shift + mode) % 40;
+        this.shift = wrapMod(this.shift + mode, 40);
       }
     }
   }

@@ -29,6 +29,10 @@ const LCD_CMD_FUNCTION = 0x20;
 const LCD_CMD_SET_CGRAM_ADDR = 0x40;
 const LCD_CMD_SET_DRAM_ADDR = 0x80;
 
+function wrapMod(value: number, mod: number): number {
+    return ((value % mod) + mod) % mod;
+}
+
 export class LCD2004Controller implements I2CDevice {
     private cgram = new Uint8Array(64);
     private ddram = new Uint8Array(128);
@@ -46,9 +50,11 @@ export class LCD2004Controller implements I2CDevice {
     private incrementMode = true;
     private shiftMode = false;
     private is8bit = true;
+    private lastEn = false;
     private updated = false;
 
     constructor(private cpuMillis: () => number) {
+        this.ddram.fill(0x20);
         this.render();
     }
 
@@ -66,22 +72,38 @@ export class LCD2004Controller implements I2CDevice {
         if (this.displayOn) {
             const s = this.shift;
             // Row 0: DDRAM 0x00+ (first 20 of lower bank)
-            for (let i = 0; i < 20; i++) characters[i] = this.ddram[(0 + s + i) % 40];
+            for (let i = 0; i < 20; i++) characters[i] = this.ddram[wrapMod(s + i, 40)];
             // Row 1: DDRAM 0x40+ (first 20 of upper bank)
-            for (let i = 0; i < 20; i++) characters[20 + i] = this.ddram[64 + (0 + s + i) % 40];
+            for (let i = 0; i < 20; i++) characters[20 + i] = this.ddram[64 + wrapMod(s + i, 40)];
             // Row 2: DDRAM 0x14+ (next 20 of lower bank)
-            for (let i = 0; i < 20; i++) characters[40 + i] = this.ddram[(20 + s + i) % 40];
+            for (let i = 0; i < 20; i++) characters[40 + i] = this.ddram[wrapMod(20 + s + i, 40)];
             // Row 3: DDRAM 0x54+ (next 20 of upper bank)
-            for (let i = 0; i < 20; i++) characters[60 + i] = this.ddram[64 + (20 + s + i) % 40];
+            for (let i = 0; i < 20; i++) characters[60 + i] = this.ddram[64 + wrapMod(20 + s + i, 40)];
         } else {
             characters.fill(32);
+        }
+
+        let cursorX = this.addr % 64;
+        let cursorY = Math.floor(this.addr / 64);
+        if (this.addr >= 0x00 && this.addr < 0x14) {
+            cursorY = 0;
+            cursorX = this.addr;
+        } else if (this.addr >= 0x40 && this.addr < 0x54) {
+            cursorY = 1;
+            cursorX = this.addr - 0x40;
+        } else if (this.addr >= 0x14 && this.addr < 0x28) {
+            cursorY = 2;
+            cursorX = this.addr - 0x14;
+        } else if (this.addr >= 0x54 && this.addr < 0x68) {
+            cursorY = 3;
+            cursorX = this.addr - 0x54;
         }
 
         const result = {
             blink: this.blinkOn,
             cursor: this.cursorOn,
-            cursorX: this.addr % 64,
-            cursorY: Math.floor(this.addr / 64),
+            cursorX,
+            cursorY,
             characters,
             backlight: this.backlight,
             cgram: this.cgram,
@@ -95,6 +117,7 @@ export class LCD2004Controller implements I2CDevice {
     backlightOn(value: boolean) {
         if (this.backlight !== value) {
             this.backlight = value;
+            this.updated = true;
         }
     }
 
@@ -106,11 +129,13 @@ export class LCD2004Controller implements I2CDevice {
         const data = value & 0xF0;
         const rs = (value & 0x01) ? true : false;
         const bl = (value & LCD_CMD_DISPLAY_CONTROL) ? true : false;
+        const en = (value & 0x04) !== 0;
         this.backlightOn(bl);
-        if ((value & 0x04) && !(value & 0x02)) {
+        if (en && !this.lastEn && !(value & 0x02)) {
             this.writeData(data, rs);
         }
-        return this.updated = true;
+        this.lastEn = en;
+        return true;
     }
 
     writeData(value: number, rs: boolean) {
@@ -144,9 +169,9 @@ export class LCD2004Controller implements I2CDevice {
             const shiftRight = (value & LCD_CMD_SHIFT_RIGHT) ? 1 : -1;
             const shiftDisplay = (value & LCD_CMD_SHIFT_DISPLAY) ? true : false;
             this.cgramMode = false;
-            this.addr = (this.addr + shiftRight) % 128;
+            this.addr = wrapMod(this.addr + shiftRight, 128);
             if (shiftDisplay) {
-                this.shift = (this.shift + shiftRight) % 40;
+                this.shift = wrapMod(this.shift + shiftRight, 40);
             }
         } else if (value & LCD_CMD_DISPLAY_CONTROL) {
             this.displayOn = (value & LCD_CMD_DISPLAY_ENABLE) ? true : false;
@@ -173,14 +198,14 @@ export class LCD2004Controller implements I2CDevice {
         if (this.cgramMode) {
             const data = (value & 0x01) << 4 | (value & 0x02) << 2 | (value & 0x04) | (value & 0x08) >> 2 | (value & 0x10) >> 4;
             this.cgram[this.addr] = data;
-            this.addr = (this.addr + 1) % 64;
+            this.addr = wrapMod(this.addr + 1, 64);
             this.cgramUpdated = true;
         } else {
             const mode = this.incrementMode ? 1 : -1;
             this.ddram[this.addr] = value;
-            this.addr = (this.addr + mode) % 128;
+            this.addr = wrapMod(this.addr + mode, 128);
             if (this.shiftMode) {
-                this.shift = (this.shift + mode) % 40;
+                this.shift = wrapMod(this.shift + mode, 40);
             }
         }
     }

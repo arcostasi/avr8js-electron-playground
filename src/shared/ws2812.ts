@@ -14,7 +14,7 @@ const MARGIN = 160; // 160 gives extra margin for FastLED
 const RESET_TIME = 50000;
 
 export class WS2812Controller {
-  readonly pixels = new Uint32Array(this.numPixels);
+  private _pixels: Uint32Array;
 
   private pixelIndex = 0;
   private currentValue = 0;
@@ -26,7 +26,27 @@ export class WS2812Controller {
   private overflow = false;
   private updated = true;
 
-  constructor(private numPixels = 0) {}
+  constructor(private numPixels = 0) {
+    this._pixels = new Uint32Array(Math.max(0, Math.floor(numPixels)));
+  }
+
+  get pixels(): Uint32Array {
+    return this._pixels;
+  }
+
+  resize(nextNumPixels: number) {
+    const safeCount = Math.max(0, Math.floor(nextNumPixels));
+    if (safeCount === this.numPixels) {
+      return;
+    }
+
+    const nextPixels = new Uint32Array(safeCount);
+    nextPixels.set(this._pixels.subarray(0, Math.min(this._pixels.length, safeCount)));
+    this.numPixels = safeCount;
+    this._pixels = nextPixels;
+    this.resetState();
+    this.updated = true;
+  }
 
   feedValue(pinState: PinState, cpuNanos: number) {
     if (pinState !== this.lastState) {
@@ -74,7 +94,7 @@ export class WS2812Controller {
     // may not go back HIGH for a long time. Thus, we update the LED based on the predicted
     // value of the last bit
     if (this.bitIndex === 23) {
-      this.pixels[this.pixelIndex] = this.currentValue | (this.detectOne ? 1 : 0);
+      this._pixels[this.pixelIndex] = this.currentValue | (this.detectOne ? 1 : 0);
       this.updated = true;
     }
   }
@@ -87,7 +107,7 @@ export class WS2812Controller {
     this.bitIndex++;
 
     if (this.bitIndex === 24) {
-      this.pixels[this.pixelIndex++] = this.currentValue;
+      this._pixels[this.pixelIndex++] = this.currentValue;
       this.updated = true;
       this.bitIndex = 0;
       this.currentValue = 0;
@@ -120,10 +140,10 @@ export class WS2812Controller {
         this.lastState === PinState.Low &&
         delta >= ZERO_LOW - MARGIN
       ) {
-        this.pixels[this.pixelIndex] = this.currentValue;
+        this._pixels[this.pixelIndex] = this.currentValue;
       }
 
-      result = this.pixels;
+      result = this._pixels;
 
       this.updated = false;
     }

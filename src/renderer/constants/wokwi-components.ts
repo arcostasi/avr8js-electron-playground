@@ -18,6 +18,7 @@ export const COMMON_COMPONENTS: WokwiComponentDef[] = [
     { type: 'wokwi-buzzer', label: 'Buzzer' },
     { type: 'wokwi-dht22', label: 'DHT22' },
     { type: 'wokwi-dip-switch-8', label: 'DIP Switch 8' },
+    { type: 'dot-matrix-react', label: 'Dot Matrix RGB', attrs: { rows: '16', cols: '16', dotSize: '24', dotGap: '4' } },
     { type: 'wokwi-ds1307', label: 'DS1307' },
     { type: 'wokwi-esp32-devkit-v1', label: 'ESP32 Devkit V1' },
     { type: 'wokwi-flame-sensor', label: 'Flame Sensor' },
@@ -29,7 +30,7 @@ export const COMMON_COMPONENTS: WokwiComponentDef[] = [
     { type: 'wokwi-ili9341', label: 'ILI9341' },
     { type: 'wokwi-ir-receiver', label: 'IR Receiver' },
     { type: 'wokwi-ir-remote', label: 'IR Remote' },
-    { type: 'wokwi-relay-module', label: 'KS2E-M-DC5' },
+    { type: 'wokwi-ks2e-m-dc5', label: 'KS2E-M-DC5 Relay' },
     { type: 'wokwi-ky-040', label: 'KY040' },
     { type: 'wokwi-lcd1602', label: 'LCD1602', attrs: { pins: 'i2c' } },
     { type: 'wokwi-lcd2004', label: 'LCD2004', attrs: { pins: 'i2c' } },
@@ -42,6 +43,7 @@ export const COMMON_COMPONENTS: WokwiComponentDef[] = [
     { type: 'wokwi-nano-rp2040-connect', label: 'Nano RP2040 Connect' },
     { type: 'wokwi-neopixel', label: 'Neopixel' },
     { type: 'wokwi-neopixel-matrix', label: 'NeoPixel Matrix' },
+    { type: 'wokwi-neopixel-strip', label: 'NeoPixel Strip', attrs: { pixels: '16' } },
     { type: 'wokwi-ntc-temperature-sensor', label: 'NTC Temperature Sensor' },
     { type: 'wokwi-photoresistor-sensor', label: 'Photoresistor Sensor' },
     { type: 'wokwi-pir-motion-sensor', label: 'PIR Motion Sensor' },
@@ -62,5 +64,5 @@ export const COMMON_COMPONENTS: WokwiComponentDef[] = [
     { type: 'wokwi-label', label: 'Text Label', attrs: { text: 'Label', color: '#ffffff', 'font-size': '14' } },
 ];
 
-/** Wire color palette for the toolbar */
-export const WIRE_COLORS = ['green', 'red', 'blue', 'black', 'orange', 'purple'] as const;
+/** Wire color palette for the toolbar and wire color picker */
+export { WIRE_COLORS } from './wire-colors';

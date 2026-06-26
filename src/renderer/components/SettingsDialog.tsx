@@ -5,14 +5,15 @@
  *
  * Uses local draft state so the user can discard changes with Cancel.
  */
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { X, Wrench, FileCode2, Cpu, Info, RotateCcw } from 'lucide-react';
 import {
     useSettingsStore,
     DEFAULT_SETTINGS,
 } from '../store/settingsStore';
 import type { AppSettings, BuildBackend, ChipBuildBackend, FQBNMap } from '../store/settingsStore';
-import { WIRE_COLORS } from '../constants/wokwi-components';
+import { WIRE_COLOR_DEFINITIONS } from '../constants/wire-colors';
+import WirePhysicsSettingsSection from './WirePhysicsSettingsSection';
 
 // ── Tab definition ──────────────────────────────────────────────────────────
 
@@ -109,17 +110,63 @@ function NumberInput({
     step?: number;
     disabled?: boolean;
 }>) {
+    const [isEditing, setIsEditing] = useState(false);
+    const [draftText, setDraftText] = useState(() => String(value));
+
+    useEffect(() => {
+        if (!isEditing) {
+            setDraftText(String(value));
+        }
+    }, [isEditing, value]);
+
+    const commitDraft = () => {
+        const trimmed = draftText.trim();
+        const n = Number(trimmed);
+        if (trimmed === '' || !Number.isFinite(n)) {
+            setDraftText(String(value));
+            return;
+        }
+        const lo = min ?? -Infinity;
+        const hi = max ?? Infinity;
+        const clamped = Math.min(hi, Math.max(lo, n));
+        onChange(clamped);
+        setDraftText(String(clamped));
+    };
+
     return (
         <input
             type="number"
-            value={value}
+            value={draftText}
             min={min}
             max={max}
             step={step ?? 1}
             disabled={disabled}
+            onFocus={() => setIsEditing(true)}
+            onBlur={() => {
+                setIsEditing(false);
+                commitDraft();
+            }}
+            onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                    commitDraft();
+                    e.currentTarget.blur();
+                } else if (e.key === 'Escape') {
+                    setDraftText(String(value));
+                    e.currentTarget.blur();
+                }
+            }}
             onChange={(e) => {
-                const n = Number(e.target.value);
-                if (!Number.isNaN(n)) onChange(n);
+                const raw = e.target.value;
+                setDraftText(raw);
+                const trimmed = raw.trim();
+                if (trimmed !== '' && trimmed !== '-') {
+                    const n = Number(trimmed);
+                    const lo = min ?? -Infinity;
+                    const hi = max ?? Infinity;
+                    if (Number.isFinite(n) && n >= lo && n <= hi) {
+                        onChange(n);
+                    }
+                }
             }}
             className={[
                 'w-28 px-3 py-1.5 rounded-md text-[13px]',
@@ -142,6 +189,8 @@ function Toggle({
     return (
         <button
             type="button"
+            role="switch"
+            aria-checked={checked}
             onClick={() => onChange(!checked)}
             className="flex items-center gap-3 group"
         >
@@ -202,7 +251,7 @@ function BuildTab({
                 {([ ['cloud', 'Wokwi Cloud (Hexi)', 'Fast cloud compilation, no local tools required.'],
                     ['local', 'Local arduino-cli',   'Use an arduino-cli installation on this machine.'],
                 ] as [BuildBackend, string, string][]).map(([val, lbl, help]) => (
-                    <div
+                    <label
                         key={val}
                         className={[
                             'flex items-start gap-3 p-3 rounded-lg cursor-pointer border transition-colors',
@@ -224,7 +273,7 @@ function BuildTab({
                             <div className="text-[13px] font-medium text-vscode-textActive">{lbl}</div>
                             <div className="text-[11px] text-vscode-text opacity-65 mt-0.5">{help}</div>
                         </div>
-                    </div>
+                    </label>
                 ))}
             </div>
 
@@ -319,7 +368,7 @@ function BuildTab({
                     ['external', 'External toolchain (IPC)', 'Uses configured command template in Electron main process.'],
                     ['embedded-experimental', 'Embedded experimental (Worker)', 'Runs an in-app experimental builder pipeline.'],
                 ] as [ChipBuildBackend, string, string][]).map(([val, lbl, help]) => (
-                    <div
+                    <label
                         key={val}
                         className={[
                             'flex items-start gap-3 p-3 rounded-lg cursor-pointer border transition-colors',
@@ -341,7 +390,7 @@ function BuildTab({
                             <div className="text-[13px] font-medium text-vscode-textActive">{lbl}</div>
                             <div className="text-[11px] text-vscode-text opacity-65 mt-0.5">{help}</div>
                         </div>
-                    </div>
+                    </label>
                 ))}
 
                 {draft.chipBuildBackend === 'external' && (
@@ -416,30 +465,6 @@ function EditorTab({
                 />
             </div>
 
-            <SectionDivider title="Auto-Save" />
-            <div>
-                <Label>Auto-save delay (ms)</Label>
-                <div className="flex items-center gap-3">
-                    <NumberInput
-                        value={draft.autoSaveDelay}
-                        onChange={(v) =>
-                            update({ autoSaveDelay: Math.max(0, Math.min(30000, v)) })
-                        }
-                        min={0}
-                        max={30000}
-                        step={500}
-                    />
-                    <span className="text-[12px] text-vscode-text opacity-65">
-                        {draft.autoSaveDelay === 0
-                            ? 'disabled'
-                            : `saves ${(draft.autoSaveDelay / 1000).toFixed(1)} s after last change`}
-                    </span>
-                </div>
-                <HelpText>
-                    Set to 0 to disable auto-save. Changes are always saved when switching projects.
-                </HelpText>
-            </div>
-
             <SectionDivider title="Performance" />
             <div>
                 <Toggle
@@ -480,26 +505,41 @@ function SimulatorTab({
             <div>
                 <Label>Default wire color</Label>
                 <div className="flex flex-wrap gap-2 mt-1">
-                    {WIRE_COLORS.map((c) => (
-                        <button
-                            key={c}
-                            title={c}
-                            onClick={() => update({ defaultWireColor: c })}
-                            className={[
-                                'w-7 h-7 rounded-full border-2 transition-all',
-                                draft.defaultWireColor === c
-                                    ? 'border-vscode-textActive scale-110 shadow-md shadow-white/20'
-                                    : 'border-vscode-border opacity-70 hover:opacity-100 hover:scale-110',
-                            ].join(' ')}
-                            style={{ backgroundColor: c }}
-                        />
-                    ))}
+                    {WIRE_COLOR_DEFINITIONS.map((def) => {
+                        const isActive = draft.defaultWireColor.toLowerCase() === def.id;
+                        return (
+                            <button
+                                key={def.id}
+                                type="button"
+                                title={def.label}
+                                aria-label={def.label}
+                                onClick={() => update({ defaultWireColor: def.id })}
+                                className={[
+                                    'w-7 h-7 rounded-full border-2 transition-all',
+                                    isActive
+                                        ? 'border-vscode-textActive scale-110 shadow-md shadow-white/20'
+                                        : 'opacity-80 hover:opacity-100 hover:scale-110',
+                                ].join(' ')}
+                                style={{
+                                    backgroundColor: def.jacket,
+                                    borderColor: isActive ? undefined : def.outline,
+                                }}
+                            />
+                        );
+                    })}
                 </div>
                 <HelpText>
                     The color used for newly drawn wires. Individual wires can be
                     recolored by clicking on them in edit mode.
                 </HelpText>
             </div>
+
+            <SectionDivider title="Wire Physics" />
+            <WirePhysicsSettingsSection
+                value={draft.wirePhysics}
+                wireColor={draft.defaultWireColor}
+                onChange={(wirePhysics) => update({ wirePhysics })}
+            />
 
             <SectionDivider title="Interaction" />
             <div>
@@ -521,7 +561,7 @@ function AboutTab() {
                 <div>
                     <div className="text-[16px] font-bold text-vscode-textActive">AVR8js Electron Playground</div>
                     <div className="text-[12px] text-vscode-text opacity-65 mt-0.5">
-                        v0.21.0 · Electron + React + Vite + Wokwi Elements
+                        v0.21.1 · Electron + React + Vite + Wokwi Elements
                     </div>
                 </div>
             </div>
@@ -542,10 +582,15 @@ function AboutTab() {
             <SectionDivider title="Keyboard Shortcuts" />
             <div className="grid grid-cols-2 gap-y-2 text-[12px]">
                 {([
-                    ['Ctrl+Z',        'Undo diagram change'],
-                    ['Ctrl+Y',        'Redo diagram change'],
+                    ['Ctrl+P',        'Open command palette'],
+                    ['Ctrl+S',        'Save project (code & diagram)'],
+                    ['F5',            'Build / Compile firmware'],
+                    ['F6',            'Build custom chips (WASM)'],
+                    ['Ctrl+,',        'Open settings'],
+                    ['Ctrl+D',        'Duplicate selected component'],
+                    ['Ctrl+Z / Y',    'Undo / Redo diagram change'],
                     ['R',             'Rotate selected component'],
-                    ['Delete / ⌫',   'Delete selected wire'],
+                    ['Delete / ⌫',   'Delete selected wire or component'],
                     ['Esc',           'Deselect wire / component'],
                     ['Ctrl + Scroll', 'Zoom canvas'],
                     ['Middle drag',   'Pan canvas'],
@@ -581,7 +626,10 @@ export default function SettingsDialog({ onClose }: Readonly<SettingsDialogProps
             const fqbnMap = patch.fqbnMap
                 ? { ...prev.fqbnMap, ...patch.fqbnMap }
                 : prev.fqbnMap;
-            return { ...prev, ...patch, fqbnMap };
+            const wirePhysics = patch.wirePhysics
+                ? { ...prev.wirePhysics, ...patch.wirePhysics }
+                : prev.wirePhysics;
+            return { ...prev, ...patch, fqbnMap, wirePhysics };
         });
     }, []);
 
@@ -591,8 +639,23 @@ export default function SettingsDialog({ onClose }: Readonly<SettingsDialogProps
     };
 
     const handleReset = () => {
-        setDraft({ ...DEFAULT_SETTINGS });
+        setDraft({
+            ...DEFAULT_SETTINGS,
+            fqbnMap: { ...DEFAULT_SETTINGS.fqbnMap },
+            wirePhysics: { ...DEFAULT_SETTINGS.wirePhysics },
+        });
     };
+
+    useEffect(() => {
+        const onKeyDown = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') {
+                e.preventDefault();
+                onClose();
+            }
+        };
+        globalThis.addEventListener('keydown', onKeyDown);
+        return () => globalThis.removeEventListener('keydown', onKeyDown);
+    }, [onClose]);
 
     // Close on backdrop click
     const handleBackdrop = (e: React.MouseEvent<HTMLDivElement>) => {
@@ -607,6 +670,9 @@ export default function SettingsDialog({ onClose }: Readonly<SettingsDialogProps
         >
             {/* ── Dialog card ── */}
             <div
+                role="dialog"
+                aria-modal="true"
+                aria-label="Settings"
                 className="flex flex-col w-[780px] max-h-[85vh] bg-vscode-bg border border-vscode-border rounded-xl shadow-2xl shadow-black/70 overflow-hidden"
                 onPointerDown={(e) => e.stopPropagation()}
             >
@@ -616,6 +682,8 @@ export default function SettingsDialog({ onClose }: Readonly<SettingsDialogProps
                         <span className="text-vscode-textActive font-semibold text-[15px]">⚙ Settings</span>
                     </div>
                     <button
+                        type="button"
+                        aria-label="Close"
                         onClick={onClose}
                         className="text-vscode-text opacity-60 hover:opacity-100 transition-colors p-1 rounded"
                     >

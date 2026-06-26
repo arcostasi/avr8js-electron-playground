@@ -5,6 +5,10 @@
  */
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
+import {
+    DEFAULT_WIRE_PHYSICS_SETTINGS,
+    type WirePhysicsSettings,
+} from '../services/wire-physics-engine';
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -70,6 +74,8 @@ export interface AppSettings {
     defaultWireColor: string;
     /** Show pin-name tooltip on hover in edit mode */
     showPinTooltips: boolean;
+    /** Physics simulation & realistic cable rendering settings */
+    wirePhysics: WirePhysicsSettings;
 
     // ── Appearance ──
     /** Application colour theme */
@@ -94,7 +100,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
 
     // Editor
     editorFontSize: 15,
-    autoSaveDelay: 1000,
+    autoSaveDelay: 0,
     wordWrap: 'off',
     performanceMode: false,
     performanceThresholdsJson: DEFAULT_PERF_THRESHOLDS_JSON,
@@ -102,6 +108,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
     // Simulator
     defaultWireColor: 'green',
     showPinTooltips: true,
+    wirePhysics: { ...DEFAULT_WIRE_PHYSICS_SETTINGS },
 
     // Appearance
     theme: 'dark',
@@ -121,15 +128,22 @@ export const useSettingsStore = create<SettingsState>()(
 
             updateSettings: (patch) =>
                 set((prev) => {
-                    // Deep-merge fqbnMap if present in patch
+                    // Deep-merge fqbnMap and wirePhysics if present in patch
                     const fqbnMap = patch.fqbnMap
                         ? { ...prev.fqbnMap, ...patch.fqbnMap }
                         : prev.fqbnMap;
-                    return { ...prev, ...patch, fqbnMap };
+                    const wirePhysics = patch.wirePhysics
+                        ? { ...prev.wirePhysics, ...patch.wirePhysics }
+                        : prev.wirePhysics;
+                    return { ...prev, ...patch, fqbnMap, wirePhysics };
                 }),
 
             resetSettings: () =>
-                set({ ...DEFAULT_SETTINGS }),
+                set({
+                    ...DEFAULT_SETTINGS,
+                    fqbnMap: { ...DEFAULT_SETTINGS.fqbnMap },
+                    wirePhysics: { ...DEFAULT_WIRE_PHYSICS_SETTINGS },
+                }),
         }),
         {
             name: 'avr8js-electron-settings', // localStorage key
@@ -143,11 +157,16 @@ export const useSettingsStore = create<SettingsState>()(
                         ...currentState.fqbnMap,
                         ...persisted.fqbnMap,
                     },
+                    wirePhysics: {
+                        ...currentState.wirePhysics,
+                        ...persisted.wirePhysics,
+                    },
                 } as SettingsState;
 
                 if (merged.chipBuildCommand === LEGACY_DEFAULT_CHIP_BUILD_COMMAND) {
                     merged.chipBuildCommand = DEFAULT_CHIP_BUILD_COMMAND;
                 }
+                merged.autoSaveDelay = 0;
 
                 return merged;
             },

@@ -21,4 +21,26 @@ describe('wokwi-components', () => {
         expect(new Set(catalogBoardTypes).size).toBe(registeredBoardTypes.size);
         expect(catalogBoardTypes.length).toBe(registeredBoardTypes.size);
     });
+
+    it('registers the customizable Dot Matrix RGB component with default dimensions', () => {
+        expect(COMMON_COMPONENTS).toContainEqual(
+            expect.objectContaining({
+                type: 'dot-matrix-react',
+                label: 'Dot Matrix RGB',
+                attrs: {
+                    rows: '16',
+                    cols: '16',
+                    dotSize: '24',
+                    dotGap: '4',
+                },
+            }),
+        );
+    });
+
+    it('registers valid wokwi-ks2e-m-dc5 relay tag and removes nonexistent wokwi-relay-module', () => {
+        expect(COMMON_COMPONENTS).toContainEqual(
+            expect.objectContaining({ type: 'wokwi-ks2e-m-dc5' }),
+        );
+        expect(COMMON_COMPONENTS.some((c) => c.type === 'wokwi-relay-module')).toBe(false);
+    });
 });

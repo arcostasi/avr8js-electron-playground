@@ -11,7 +11,7 @@ import type {
     WokwiDiagram, WokwiPart, WokwiConnection, WireWaypoint,
 } from '../types/wokwi.types';
 
-const MAX_HISTORY = 100;
+const MAX_HISTORY = 40;
 
 export interface DiagramStateReturn {
     diagram: WokwiDiagram;
@@ -49,9 +49,47 @@ function generateConnectionId(connections: WokwiConnection[]): string {
     return `conn-${maxNum}`;
 }
 
-/** Deep-clone a diagram (shallow structuredClone) */
-function snap(d: WokwiDiagram): WokwiDiagram {
-    return JSON.parse(JSON.stringify(d));
+/**
+ * Builds a lightweight Undo/Redo snapshot containing only component state
+ * (positions, rotations, attrs) and wire connections/colors — intentionally
+ * omitting wire positioning metadata (`waypoints` and `routeHints`) so repeated
+ * wire drags never bloat undo memory.
+ */
+export function createUndoHistorySnapshot(diagram: WokwiDiagram): WokwiDiagram {
+    return {
+        version: diagram.version,
+        ...(diagram.author !== undefined ? { author: diagram.author } : {}),
+        editor: diagram.editor,
+        ...(diagram.customView !== undefined ? { customView: diagram.customView } : {}),
+        parts: diagram.parts.map((part) => ({
+            id: part.id,
+            type: part.type,
+            top: part.top,
+            left: part.left,
+            rotate: part.rotate,
+            ...(part.attrs ? { attrs: { ...part.attrs } } : {}),
+            ...(part.hide !== undefined ? { hide: part.hide } : {}),
+        })),
+        connections: diagram.connections.map((conn) => ({
+            id: conn.id,
+            from: conn.from,
+            to: conn.to,
+            color: conn.color,
+        })),
+    };
+}
+
+/**
+ * Returns a canonical string key for an Undo/Redo snapshot so wire-position-only
+ * edits do not push duplicate history entries.
+ */
+export function getUndoSnapshotKey(snapshot: WokwiDiagram): string {
+    return JSON.stringify(snapshot);
+}
+
+/** Deep-clone a diagram snapshot for state restoration */
+function cloneSnapshot(snapshot: WokwiDiagram): WokwiDiagram {
+    return createUndoHistorySnapshot(snapshot);
 }
 
 export function useDiagramState(initialDiagram: WokwiDiagram): DiagramStateReturn {
@@ -59,7 +97,9 @@ export function useDiagramState(initialDiagram: WokwiDiagram): DiagramStateRetur
     const diagramRef = useRef<WokwiDiagram>(diagram);
 
     // ── History stack ──
-    const historyRef = useRef<WokwiDiagram[]>([snap(initialDiagram)]);
+    const initialSnap = createUndoHistorySnapshot(initialDiagram);
+    const historyRef = useRef<WokwiDiagram[]>([initialSnap]);
+    const historyKeysRef = useRef<string[]>([getUndoSnapshotKey(initialSnap)]);
     const indexRef = useRef(0);
     // Flag to skip pushing history when undo/redo set the diagram
     const skipHistoryRef = useRef(false);
@@ -71,13 +111,15 @@ export function useDiagramState(initialDiagram: WokwiDiagram): DiagramStateRetur
 
     // Re-sync when external diagram changes (e.g., project switch)
     useEffect(() => {
+        const nextSnap = createUndoHistorySnapshot(initialDiagram);
         setDiagramRaw(initialDiagram);
-        historyRef.current = [snap(initialDiagram)];
+        historyRef.current = [nextSnap];
+        historyKeysRef.current = [getUndoSnapshotKey(nextSnap)];
         indexRef.current = 0;
     }, [initialDiagram]);
 
     /**
-     * Wraps setDiagramRaw to record undo history.
+     * Wraps setDiagramRaw to record undo history (components + wire colors/topology only).
      * Accepts value or updater function, same as React.Dispatch.
      */
     const setDiagram: React.Dispatch<React.SetStateAction<WokwiDiagram>> = useCallback(
@@ -86,12 +128,21 @@ export function useDiagramState(initialDiagram: WokwiDiagram): DiagramStateRetur
                 const next = typeof action === 'function' ? action(prev) : action;
 
                 if (!skipHistoryRef.current) {
-                    // Truncate any redo entries beyond current index
-                    const h = historyRef.current;
-                    h.length = indexRef.current + 1;
-                    h.push(snap(next));
-                    if (h.length > MAX_HISTORY) h.shift();
-                    indexRef.current = h.length - 1;
+                    const historySnap = createUndoHistorySnapshot(next);
+                    const nextKey = getUndoSnapshotKey(historySnap);
+                    if (nextKey !== historyKeysRef.current[indexRef.current]) {
+                        const history = historyRef.current;
+                        const keys = historyKeysRef.current;
+                        history.length = indexRef.current + 1;
+                        keys.length = indexRef.current + 1;
+                        history.push(historySnap);
+                        keys.push(nextKey);
+                        if (history.length > MAX_HISTORY) {
+                            history.shift();
+                            keys.shift();
+                        }
+                        indexRef.current = history.length - 1;
+                    }
                 } else {
                     skipHistoryRef.current = false;
                 }
@@ -105,14 +156,14 @@ export function useDiagramState(initialDiagram: WokwiDiagram): DiagramStateRetur
         if (indexRef.current <= 0) return;
         indexRef.current -= 1;
         skipHistoryRef.current = true;
-        setDiagramRaw(snap(historyRef.current[indexRef.current]));
+        setDiagramRaw(cloneSnapshot(historyRef.current[indexRef.current]));
     }, []);
 
     const redo = useCallback(() => {
         if (indexRef.current >= historyRef.current.length - 1) return;
         indexRef.current += 1;
         skipHistoryRef.current = true;
-        setDiagramRaw(snap(historyRef.current[indexRef.current]));
+        setDiagramRaw(cloneSnapshot(historyRef.current[indexRef.current]));
     }, []);
 
     /**
@@ -121,22 +172,33 @@ export function useDiagramState(initialDiagram: WokwiDiagram): DiagramStateRetur
      * Ctrl+Z cannot cross project boundaries.
      */
     const resetDiagram = useCallback((newDiagram: WokwiDiagram) => {
-        const s = snap(newDiagram);
-        historyRef.current = [s];
+        const nextSnap = createUndoHistorySnapshot(newDiagram);
+        historyRef.current = [nextSnap];
+        historyKeysRef.current = [getUndoSnapshotKey(nextSnap)];
         indexRef.current = 0;
         skipHistoryRef.current = false;
-        setDiagramRaw(s);
+        setDiagramRaw(newDiagram);
     }, []);
 
-    // Keyboard shortcuts: Ctrl+Z / Ctrl+Y
+    // Keyboard shortcuts: Ctrl+Z / Ctrl+Y (skip when typing inside Monaco or form controls)
     useEffect(() => {
         const handler = (e: KeyboardEvent) => {
-            if ((e.ctrlKey || e.metaKey) && e.key === 'z' && !e.shiftKey) {
+            const active = document.activeElement as HTMLElement | null;
+            const tag = active?.tagName?.toLowerCase();
+            const isEditable = tag === 'input'
+                || tag === 'textarea'
+                || tag === 'select'
+                || Boolean(active?.isContentEditable)
+                || Boolean(active?.closest?.('.monaco-editor'));
+            if (isEditable) return;
+
+            const key = e.key.toLowerCase();
+            if ((e.ctrlKey || e.metaKey) && key === 'z' && !e.shiftKey) {
                 e.preventDefault();
                 undo();
             } else if (
                 (e.ctrlKey || e.metaKey) &&
-                (e.key === 'y' || (e.key === 'z' && e.shiftKey))
+                (key === 'y' || (key === 'z' && e.shiftKey))
             ) {
                 e.preventDefault();
                 redo();
@@ -204,13 +266,14 @@ export function useDiagramState(initialDiagram: WokwiDiagram): DiagramStateRetur
     const updateWaypoints = useCallback((
         connId: string, waypoints: WireWaypoint[],
     ) => {
-        setDiagram(prev => ({
+        // Wire positioning is excluded from undo/redo history to keep drags lightweight
+        setDiagramRaw(prev => ({
             ...prev,
             connections: prev.connections.map(c =>
                 c.id === connId ? { ...c, waypoints } : c
             ),
         }));
-    }, [setDiagram]);
+    }, []);
 
     const updateConnectionColor = useCallback((
         connId: string, color: string,

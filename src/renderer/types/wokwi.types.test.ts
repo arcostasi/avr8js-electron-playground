@@ -53,4 +53,29 @@ describe('Wokwi Schema Migrations', () => {
         );
         expect(result).toStrictEqual(v2Src);
     });
+
+    it('should preserve customView on V1 migration and V2 diagrams', () => {
+        const v1WithView: Record<string, unknown> = {
+            version: 1,
+            author: 'Uri Shaked',
+            editor: 'wokwi',
+            customView: 'http://localhost:3000/?size=8',
+            parts: [
+                { id: 'uno', type: 'wokwi-arduino-mega', top: 390, left: 60 },
+            ],
+            connections: [],
+        };
+
+        const migrated = parseDiagram(v1WithView);
+        expect(migrated.customView).toBe('http://localhost:3000/?size=8');
+
+        const v2WithView: Record<string, unknown> = {
+            version: 2,
+            editor: 'wokwi',
+            customView: 'https://wokwi.github.io/led-3d-cube/?size=8',
+            parts: [],
+            connections: [],
+        };
+        expect(parseDiagram(v2WithView).customView).toBe('https://wokwi.github.io/led-3d-cube/?size=8');
+    });
 });

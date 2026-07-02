@@ -22,6 +22,34 @@ export interface LoadedProjectPayload {
   board: string;
   files: ProjectFileRecord[];
   hex: string | null;
+  customChipArtifacts?: Record<string, string>;
+}
+
+export interface ProjectBuildChipArtifactInput {
+  wasmFile: string;
+  wasmBase64: string;
+}
+
+export interface SaveProjectBuildArtifactsInput {
+  hex?: string | null;
+  board?: string;
+  backend?: string;
+  chipWasms?: ProjectBuildChipArtifactInput[];
+}
+
+export interface SaveProjectBuildArtifactsResult {
+  buildDir: string;
+  hexPath: string | null;
+  savedFiles: string[];
+}
+
+export interface ProjectBuildManifest {
+  version: 1;
+  builtAt: string;
+  board?: string;
+  backend?: string;
+  hexFile: string | null;
+  chipFiles: string[];
 }
 
 export interface ProjectArchive {
@@ -79,6 +107,69 @@ export class ProjectIoCancelledError extends Error {
 
 const PROJECT_DISCOVERY_INDEX_VERSION = 1;
 const PROJECT_DISCOVERY_INDEX_FILE = 'project-discovery-index.json';
+export const PROJECT_BUILD_DIR = 'build';
+export const BUILD_FIRMWARE_FILENAME = 'firmware.hex';
+export const BUILD_MANIFEST_FILENAME = 'build-manifest.json';
+const IGNORED_PROJECT_DIRS = new Set(['build', 'node_modules', '.git', 'dist', '.cache']);
+
+function isSafeSingleSegmentWasmFilename(filename: string): boolean {
+  const safeName = path.basename(filename);
+  return Boolean(safeName) && safeName === filename && safeName.endsWith('.wasm');
+}
+
+export async function saveProjectBuildArtifacts(
+  projectDir: string,
+  input: SaveProjectBuildArtifactsInput,
+): Promise<SaveProjectBuildArtifactsResult> {
+  const buildDir = path.join(projectDir, PROJECT_BUILD_DIR);
+  await fs.mkdir(buildDir, { recursive: true });
+
+  const manifestPath = path.join(buildDir, BUILD_MANIFEST_FILENAME);
+  const existingManifest = await tryReadJson<Partial<ProjectBuildManifest>>(manifestPath);
+  const savedFiles: string[] = [];
+  let hexPath: string | null = null;
+  let hexFile: string | null = typeof existingManifest?.hexFile === 'string'
+    ? existingManifest.hexFile
+    : null;
+  const chipFileSet = new Set<string>(
+    Array.isArray(existingManifest?.chipFiles)
+      ? existingManifest.chipFiles.filter((item): item is string => typeof item === 'string')
+      : [],
+  );
+
+  if (typeof input.hex === 'string' && input.hex.length > 0) {
+    hexPath = path.join(buildDir, BUILD_FIRMWARE_FILENAME);
+    await fs.writeFile(hexPath, input.hex, 'utf-8');
+    hexFile = BUILD_FIRMWARE_FILENAME;
+    savedFiles.push(BUILD_FIRMWARE_FILENAME);
+  }
+
+  for (const chip of input.chipWasms ?? []) {
+    if (!chip?.wasmBase64 || typeof chip.wasmFile !== 'string') continue;
+    if (!isSafeSingleSegmentWasmFilename(chip.wasmFile)) continue;
+
+    const targetWasmPath = path.join(buildDir, chip.wasmFile);
+    await fs.writeFile(targetWasmPath, Buffer.from(chip.wasmBase64, 'base64'));
+    chipFileSet.add(chip.wasmFile);
+    savedFiles.push(chip.wasmFile);
+  }
+
+  const nextManifest: ProjectBuildManifest = {
+    version: 1,
+    builtAt: new Date().toISOString(),
+    board: input.board ?? existingManifest?.board,
+    backend: input.backend ?? existingManifest?.backend,
+    hexFile,
+    chipFiles: Array.from(chipFileSet).sort((a, b) => a.localeCompare(b)),
+  };
+  await fs.writeFile(manifestPath, JSON.stringify(nextManifest, null, 2), 'utf-8');
+
+  return {
+    buildDir,
+    hexPath,
+    savedFiles,
+  };
+}
 
 function detectLanguage(filename: string): string {
   const ext = path.extname(filename).toLowerCase();
@@ -382,7 +473,7 @@ export function createProjectIoService(options: { userDataPath: string }) {
     const entries = await fs.readdir(rootDir, { withFileTypes: true });
     for (const entry of entries) {
       throwIfCancelled(operationOptions, 'discover');
-      if (!entry.isDirectory()) continue;
+      if (!entry.isDirectory() || IGNORED_PROJECT_DIRS.has(entry.name.toLowerCase())) continue;
 
       const entryPath = path.join(rootDir, entry.name);
       await pushProject(entryPath, defaultCategory);
@@ -390,7 +481,7 @@ export function createProjectIoService(options: { userDataPath: string }) {
       const subEntries = await fs.readdir(entryPath, { withFileTypes: true });
       for (const sub of subEntries) {
         throwIfCancelled(operationOptions, 'discover');
-        if (sub.isDirectory()) {
+        if (sub.isDirectory() && !IGNORED_PROJECT_DIRS.has(sub.name.toLowerCase())) {
           await pushProject(path.join(entryPath, sub.name), entry.name);
         }
       }
@@ -421,12 +512,41 @@ export function createProjectIoService(options: { userDataPath: string }) {
     return { projects, stats };
   }
 
+  async function loadBuildArtifactsFromDir(
+    buildDir: string,
+    customChipArtifacts: Record<string, string>,
+  ): Promise<string | null> {
+    let hex: string | null = null;
+    try {
+      const buildEntries = await fs.readdir(buildDir, { withFileTypes: true });
+      const hexFiles = buildEntries.filter(
+        (entry) => entry.isFile() && path.extname(entry.name).toLowerCase() === '.hex',
+      );
+      const preferredHex = hexFiles.find((entry) => entry.name === BUILD_FIRMWARE_FILENAME) ?? hexFiles[0];
+      if (preferredHex) {
+        hex = await fs.readFile(path.join(buildDir, preferredHex.name), 'utf-8');
+      }
+
+      for (const entry of buildEntries) {
+        if (!entry.isFile() || !entry.name.endsWith('.chip.wasm')) continue;
+        const chipName = entry.name.slice(0, -'.chip.wasm'.length);
+        const wasmBase64 = (await fs.readFile(path.join(buildDir, entry.name))).toString('base64');
+        customChipArtifacts[chipName] = wasmBase64;
+        customChipArtifacts[entry.name] = wasmBase64;
+      }
+    } catch {
+      return hex;
+    }
+    return hex;
+  }
+
   async function loadProjectFromDisk(
     project: Pick<ProjectDiscoveryItem, 'name' | 'board' | 'dirPath'>,
     operationOptions?: ProjectIoOperationOptions,
   ): Promise<LoadedProjectPayload> {
     const { name, board, dirPath } = project;
     const files: ProjectFileRecord[] = [];
+    const customChipArtifacts: Record<string, string> = {};
     let hex: string | null = null;
 
     emitProgress(operationOptions, {
@@ -437,10 +557,14 @@ export function createProjectIoService(options: { userDataPath: string }) {
     });
 
     if (!(await pathExists(dirPath))) {
-      return { name, board, files, hex };
+      return { name, board, files, hex, customChipArtifacts };
     }
 
     const dirEntries = await fs.readdir(dirPath, { withFileTypes: true });
+    if (dirEntries.some((entry) => entry.isDirectory() && entry.name === PROJECT_BUILD_DIR)) {
+      hex = await loadBuildArtifactsFromDir(path.join(dirPath, PROJECT_BUILD_DIR), customChipArtifacts);
+    }
+
     const fileEntries = dirEntries.filter((entry) => entry.isFile());
     let completed = 0;
     for (const entry of fileEntries) {
@@ -450,7 +574,28 @@ export function createProjectIoService(options: { userDataPath: string }) {
       const fullPath = path.join(dirPath, entry.name);
 
       if (ext === '.hex') {
-        hex = await fs.readFile(fullPath, 'utf-8');
+        if (!hex) {
+          hex = await fs.readFile(fullPath, 'utf-8');
+        }
+        completed += 1;
+        emitProgress(operationOptions, {
+          kind: 'load',
+          phase: 'progress',
+          message: `Read ${entry.name}`,
+          completed,
+          total: fileEntries.length,
+          target: fullPath,
+        });
+        continue;
+      }
+
+      if (entry.name.endsWith('.chip.wasm')) {
+        const chipName = entry.name.slice(0, -'.chip.wasm'.length);
+        if (!(chipName in customChipArtifacts)) {
+          const wasmBase64 = (await fs.readFile(fullPath)).toString('base64');
+          customChipArtifacts[chipName] = wasmBase64;
+          customChipArtifacts[entry.name] = wasmBase64;
+        }
         completed += 1;
         emitProgress(operationOptions, {
           kind: 'load',
@@ -492,7 +637,7 @@ export function createProjectIoService(options: { userDataPath: string }) {
       target: dirPath,
     });
 
-    return { name, board, files: sortProjectFiles(files), hex };
+    return { name, board, files: sortProjectFiles(files), hex, customChipArtifacts };
   }
 
   return {

@@ -3,10 +3,9 @@
  * Saves and loads project archives as `.avr8js` JSON bundles.
  * Delegates dialogs and disk I/O to the Electron main process.
  */
-/* eslint-disable @typescript-eslint/no-require-imports */
 import type { ProjectFile } from './project-loader';
 
-const { ipcRenderer } = require('electron') as typeof import('electron');
+const { ipcRenderer } = window.require('electron') as typeof import('electron');
 
 /**
  * Export the current project to a user-chosen .avr8js file.

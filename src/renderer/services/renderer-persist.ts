@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-require-imports */
 type ElectronIpcRenderer = typeof import('electron').ipcRenderer;
 
 interface StorageReadJsonResponse<T> {
@@ -15,7 +14,10 @@ interface StorageWriteResponse {
 
 function getIpcRenderer(): ElectronIpcRenderer | null {
     try {
-        const electron = require('electron') as typeof import('electron');
+        if (typeof window === 'undefined' || !window.require) {
+            return null;
+        }
+        const electron = window.require('electron') as typeof import('electron');
         return electron.ipcRenderer ?? null;
     } catch {
         return null;

@@ -6,6 +6,9 @@
  * V1 compatibility is maintained via migrateV1toV2().
  */
 
+import type { BuildOverlayState } from '../components/simulator/build-overlay-utils';
+import type { WirePhysicsSettings } from '../services/wire-physics-engine';
+
 // ── Diagram Model (V1 — legacy) ──
 
 export interface WokwiPartV1 {
@@ -22,6 +25,7 @@ export interface WokwiDiagramV1 {
     version: number;
     author?: string;
     editor?: string;
+    customView?: string;
     parts: WokwiPartV1[];
     connections: [string, string, string, string[]][];
 }
@@ -56,6 +60,7 @@ export interface WokwiDiagram {
     version: 2;
     author?: string;
     editor: string;
+    customView?: string;
     parts: WokwiPart[];
     connections: WokwiConnection[];
 }
@@ -71,6 +76,7 @@ export function migrateV1toV2(diagram: WokwiDiagramV1): WokwiDiagram {
         version: 2,
         author: diagram.author,
         editor: diagram.editor ?? 'avr8js-electron-playground',
+        ...(diagram.customView ? { customView: diagram.customView } : {}),
         parts: diagram.parts.map(p => ({
             ...p,
             rotate: p.rotate ?? 0,
@@ -123,14 +129,17 @@ export interface PinInfo {
 // ── Hardware Controllers ──
 
 export interface HardwareController {
-    element: HTMLElement;
+    element: HTMLElement | null;
     update: () => unknown;
     type: string;
 }
 
+export type ProjectSaveStatus = 'idle' | 'saving' | 'saved' | 'error';
+
 // ── Component Props ──
 
 export interface WokwiSimulatorProps {
+    projectKey?: string;
     diagram?: WokwiDiagram;
     hex?: string | null;
     customChipArtifacts?: Record<string, string>;
@@ -149,19 +158,32 @@ export interface WokwiSimulatorProps {
         }>;
     }>;
     isCompiling: boolean;
+    hasOpenProject?: boolean;
+    canCompile?: boolean;
     onCompile: () => void;
+    onSaveProject?: () => void;
+    canSaveProject?: boolean;
+    hasUnsavedChanges?: boolean;
+    saveStatus?: ProjectSaveStatus;
     onSerialOutput: (text: string, usartId?: string) => void;
     onChipOutput?: (text: string) => void;
     onAddComponent?: (part: WokwiPart) => void;
     onDiagramChange?: (newDiagram: WokwiDiagram) => void;
     serialWriteRef?: { current: ((text: string, usartId?: string) => void) | null };
+    stopSimulationRef?: { current: (() => void) | null };
     /** Undo/redo passthrough from the parent diagram state manager */
     onUndo?: () => void;
     onRedo?: () => void;
     canUndo?: boolean;
     canRedo?: boolean;
+    /** Live build HUD state rendered centered over the circuit canvas */
+    buildOverlay?: BuildOverlayState | null;
+    /** Dismiss callback for the build HUD */
+    onDismissBuildOverlay?: () => void;
     /** Default colour of new wires (from settings) */
     defaultWireColor?: string;
+    /** Wire physics and realistic cable rendering settings */
+    wirePhysics?: WirePhysicsSettings;
     /** Whether to show pin-name tooltip on hover in edit mode */
     showPinTooltips?: boolean;
 }

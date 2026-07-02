@@ -3,9 +3,13 @@ import * as path from 'node:path';
 import * as fs from 'node:fs/promises';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import {
+  BUILD_FIRMWARE_FILENAME,
+  BUILD_MANIFEST_FILENAME,
   createProjectIoService,
   parseProjectArchive,
+  PROJECT_BUILD_DIR,
   ProjectIoCancelledError,
+  saveProjectBuildArtifacts,
 } from './project-io';
 
 describe('project-io', () => {
@@ -149,5 +153,90 @@ describe('project-io', () => {
       version: 1,
       files: [{ name: 'bad.json', content: '{}' }],
     }), 'bad.avr8js')).toThrow(/invalid project archive files/i);
+  });
+
+  it('persists firmware hex and chip wasm into build/ and loads them on reopen', async () => {
+    const projectDir = path.join(tempRoot, 'built-project');
+    await fs.mkdir(projectDir, { recursive: true });
+    await fs.writeFile(path.join(projectDir, 'sketch.ino'), 'void setup() {}\n');
+    await fs.writeFile(path.join(projectDir, 'diagram.json'), JSON.stringify({ version: 2, editor: 'wokwi', parts: [], connections: [] }));
+
+    const chipBytes = Buffer.from([0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00]);
+    const saved = await saveProjectBuildArtifacts(projectDir, {
+      hex: ':100000000C9434000C9449000C9449000C9449000C\n:00000001FF\n',
+      board: 'uno',
+      backend: 'cloud',
+      chipWasms: [{
+        wasmFile: 'sensor.chip.wasm',
+        wasmBase64: chipBytes.toString('base64'),
+      }],
+    });
+
+    expect(saved.buildDir).toBe(path.join(projectDir, PROJECT_BUILD_DIR));
+    expect(saved.hexPath).toBe(path.join(projectDir, PROJECT_BUILD_DIR, BUILD_FIRMWARE_FILENAME));
+    expect(saved.savedFiles).toEqual([BUILD_FIRMWARE_FILENAME, 'sensor.chip.wasm']);
+
+    const manifestRaw = await fs.readFile(path.join(saved.buildDir, BUILD_MANIFEST_FILENAME), 'utf-8');
+    const manifest = JSON.parse(manifestRaw) as { hexFile: string; chipFiles: string[]; board: string; backend: string };
+    expect(manifest.hexFile).toBe(BUILD_FIRMWARE_FILENAME);
+    expect(manifest.chipFiles).toEqual(['sensor.chip.wasm']);
+    expect(manifest.board).toBe('uno');
+    expect(manifest.backend).toBe('cloud');
+
+    const service = createProjectIoService({ userDataPath: userDataDir });
+    const loaded = await service.loadProjectFromDisk({
+      name: 'Built Project',
+      board: 'uno',
+      dirPath: projectDir,
+    });
+
+    expect(loaded.hex).toContain(':100000000C943400');
+    expect(loaded.customChipArtifacts?.sensor).toBe(chipBytes.toString('base64'));
+    expect(loaded.customChipArtifacts?.['sensor.chip.wasm']).toBe(chipBytes.toString('base64'));
+  });
+
+  it('prefers build/ artifacts over legacy root artifacts while falling back cleanly', async () => {
+    const projectDir = path.join(tempRoot, 'precedence-project');
+    await fs.mkdir(path.join(projectDir, PROJECT_BUILD_DIR), { recursive: true });
+    await fs.writeFile(path.join(projectDir, 'diagram.json'), JSON.stringify({ version: 2, editor: 'wokwi', parts: [], connections: [] }));
+    await fs.writeFile(path.join(projectDir, 'legacy.hex'), ':00000001FF\n');
+    await fs.writeFile(path.join(projectDir, 'legacy-chip.chip.wasm'), Buffer.from('root-chip'));
+    await fs.writeFile(path.join(projectDir, PROJECT_BUILD_DIR, BUILD_FIRMWARE_FILENAME), ':020000040000FA\n:00000001FF\n');
+    await fs.writeFile(path.join(projectDir, PROJECT_BUILD_DIR, 'legacy-chip.chip.wasm'), Buffer.from('build-chip'));
+
+    const service = createProjectIoService({ userDataPath: userDataDir });
+    const loaded = await service.loadProjectFromDisk({
+      name: 'Precedence',
+      board: 'uno',
+      dirPath: projectDir,
+    });
+
+    expect(loaded.hex).toContain(':020000040000FA');
+    expect(loaded.customChipArtifacts?.['legacy-chip']).toBe(Buffer.from('build-chip').toString('base64'));
+  });
+
+  it('ignores build directories during project discovery and skips traversal wasm filenames', async () => {
+    const examplesRoot = path.join(tempRoot, 'examples');
+    const projectDir = path.join(examplesRoot, 'blink');
+    const buildDir = path.join(projectDir, PROJECT_BUILD_DIR);
+    await fs.mkdir(buildDir, { recursive: true });
+    await fs.writeFile(path.join(projectDir, 'diagram.json'), JSON.stringify({ version: 2, editor: 'wokwi', parts: [], connections: [] }));
+    await fs.writeFile(path.join(buildDir, 'diagram.json'), JSON.stringify({ version: 2, editor: 'wokwi', parts: [], connections: [] }));
+
+    const service = createProjectIoService({ userDataPath: userDataDir });
+    const discovered = await service.discoverProjectsFromRoot(examplesRoot, 'external');
+    expect(discovered.projects).toHaveLength(1);
+    expect(discovered.projects[0]?.dirPath).toBe(projectDir);
+
+    const saved = await saveProjectBuildArtifacts(projectDir, {
+      hex: ':00000001FF\n',
+      chipWasms: [{
+        wasmFile: '../escape.chip.wasm',
+        wasmBase64: Buffer.from('nope').toString('base64'),
+      }],
+    });
+
+    expect(saved.savedFiles).toEqual([BUILD_FIRMWARE_FILENAME]);
+    await expect(fs.access(path.join(projectDir, 'escape.chip.wasm'))).rejects.toThrow();
   });
 });

@@ -6,8 +6,7 @@ import { parseDiagram } from '../types/wokwi.types';
 import type { WokwiDiagram } from '../types/wokwi.types';
 import { markPerf, measureAsync, measureSync } from '../utils/perf';
 
-/* eslint-disable @typescript-eslint/no-require-imports */
-const { ipcRenderer } = require('electron') as typeof import('electron');
+const { ipcRenderer } = window.require('electron') as typeof import('electron');
 
 export interface DiscoveredProject {
     name: string;
@@ -30,6 +29,7 @@ export interface LoadedProject {
     board: string;
     files: ProjectFile[];
     hex: string | null;
+    customChipArtifacts: Record<string, string>;
     diagram: WokwiDiagram | null;
 }
 
@@ -158,6 +158,7 @@ function cloneLoadedProject(project: LoadedProject): LoadedProject {
     return {
         ...project,
         files: project.files.map((file) => ({ ...file })),
+        customChipArtifacts: { ...project.customChipArtifacts },
         diagram: project.diagram
             ? structuredClone(project.diagram)
             : null,
@@ -171,7 +172,13 @@ async function fetchProjectFromMainCancellable(
     const result = await invokeCancellableProjectOperation<{
         ok?: boolean;
         success: boolean;
-        loaded?: { name: string; board: string; files: ProjectFile[]; hex: string | null };
+        loaded?: {
+            name: string;
+            board: string;
+            files: ProjectFile[];
+            hex: string | null;
+            customChipArtifacts?: Record<string, string>;
+        };
         error?: string;
     }>('project:load', projectInfo, options);
 
@@ -182,11 +189,12 @@ async function fetchProjectFromMainCancellable(
             board: projectInfo.board,
             files: [],
             hex: null,
+            customChipArtifacts: {},
             diagram: null,
         };
     }
 
-    const { name, board, files, hex } = result.loaded;
+    const { name, board, files, hex, customChipArtifacts } = result.loaded;
     let diagram: WokwiDiagram | null = null;
     const normalizedFiles = files.map((file) => {
         if (file.name !== 'diagram.json') return file;
@@ -202,7 +210,14 @@ async function fetchProjectFromMainCancellable(
         }
     });
 
-    return { name, board, files: normalizedFiles, hex, diagram };
+    return {
+        name,
+        board,
+        files: normalizedFiles,
+        hex,
+        customChipArtifacts: customChipArtifacts ? { ...customChipArtifacts } : {},
+        diagram,
+    };
 }
 
 function loadProjectFresh(projectInfo: ProjectDescriptor, options: LoadProjectOptions = {}): Promise<LoadedProject> {
@@ -215,6 +230,66 @@ function loadProjectFresh(projectInfo: ProjectDescriptor, options: LoadProjectOp
         });
     projectLoadCache.set(cacheKey, pending);
     return pending;
+}
+
+export interface SaveProjectBuildPayload {
+    hex?: string | null;
+    board?: string;
+    backend?: string;
+    chipWasms?: Array<{ wasmFile: string; wasmBase64: string }>;
+}
+
+export interface SaveProjectBuildResponse {
+    success: boolean;
+    buildDir?: string;
+    hexPath?: string | null;
+    savedFiles?: string[];
+    error?: string;
+}
+
+export async function saveProjectBuild(
+    projectPath: string,
+    payload: SaveProjectBuildPayload,
+): Promise<SaveProjectBuildResponse> {
+    try {
+        return await ipcRenderer.invoke('project:save-build', {
+            projectPath,
+            ...payload,
+        }) as SaveProjectBuildResponse;
+    } catch (error) {
+        return {
+            success: false,
+            error: error instanceof Error ? error.message : String(error),
+        };
+    }
+}
+
+export function invalidateProjectLoadCache(dirPath: string): void {
+    projectLoadCache.delete(projectCacheKey({ dirPath }));
+}
+
+export function updateProjectLoadCacheBuild(
+    dirPath: string,
+    update: { hex?: string | null; customChipArtifacts?: Record<string, string> },
+): void {
+    const cacheKey = projectCacheKey({ dirPath });
+    const existing = projectLoadCache.get(cacheKey);
+    if (!existing) return;
+
+    const updated = existing
+        .then((loaded) => ({
+            ...loaded,
+            hex: update.hex !== undefined ? update.hex : loaded.hex,
+            customChipArtifacts: update.customChipArtifacts
+                ? { ...loaded.customChipArtifacts, ...update.customChipArtifacts }
+                : loaded.customChipArtifacts,
+        }))
+        .catch((error) => {
+            projectLoadCache.delete(cacheKey);
+            throw error;
+        });
+
+    projectLoadCache.set(cacheKey, updated);
 }
 
 export function preloadProject(projectInfo: ProjectDescriptor): void {

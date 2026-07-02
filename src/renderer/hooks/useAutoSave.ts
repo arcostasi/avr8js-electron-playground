@@ -6,14 +6,14 @@
 import { useEffect, useRef } from 'react';
 import type { WokwiDiagram } from '../types/wokwi.types';
 
-/* eslint-disable @typescript-eslint/no-require-imports */
-const { ipcRenderer } = require('electron') as typeof import('electron');
+const { ipcRenderer } = window.require('electron') as typeof import('electron');
 
 interface AutoSaveOptions {
     diagram: WokwiDiagram;
     projectPath: string | null;
     delay?: number;
     enabled?: boolean;
+    onSaved?: (serializedDiagram: string) => void;
 }
 
 function fnv1aHash(input: string): string {
@@ -61,17 +61,23 @@ export function useAutoSave({
     projectPath,
     delay = 1000,
     enabled = true,
+    onSaved,
 }: AutoSaveOptions): void {
     const isFirstRender = useRef(true);
+    const lastProjectPathRef = useRef<string | null>(projectPath);
     const lastSavedHashRef = useRef<string | null>(null);
     const lastScheduledHashRef = useRef<string | null>(null);
     const lastChangeAtRef = useRef<number>(0);
     const lastStructureHashRef = useRef<string | null>(null);
+    const onSavedRef = useRef(onSaved);
+    onSavedRef.current = onSaved;
 
     useEffect(() => {
-        // Don't auto-save on initial mount (would overwrite with defaults)
-        if (isFirstRender.current) {
+        // Don't auto-save on initial mount or project switch (would overwrite loaded diagram)
+        if (isFirstRender.current || lastProjectPathRef.current !== projectPath) {
             isFirstRender.current = false;
+            lastProjectPathRef.current = projectPath;
+            lastScheduledHashRef.current = null;
             lastSavedHashRef.current = fnv1aHash(serializeDiagram(diagram));
             lastStructureHashRef.current = fnv1aHash(buildStructureFingerprint(diagram));
             return;
@@ -101,6 +107,7 @@ export function useAutoSave({
                 .then((result: { ok?: boolean; success?: boolean }) => {
                     if (result.ok ?? result.success) {
                         lastSavedHashRef.current = contentHash;
+                        onSavedRef.current?.(serializedDiagram);
                     }
                 })
                 .catch((err: Error) => console.error('[useAutoSave] Save failed:', err))

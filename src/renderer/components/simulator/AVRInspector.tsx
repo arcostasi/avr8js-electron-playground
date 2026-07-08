@@ -79,6 +79,9 @@ export default function AVRInspector({ isPlaying, getCpuSnapshot }: Readonly<AVR
     useEffect(() => {
         if (!isPlaying || paused) return;
 
+        const initial = getCpuSnapshot();
+        if (initial) setSnapshot(initial);
+
         const iv = setInterval(() => {
             const snap = getCpuSnapshot();
             if (snap) setSnapshot(snap);
@@ -86,11 +89,6 @@ export default function AVRInspector({ isPlaying, getCpuSnapshot }: Readonly<AVR
 
         return () => clearInterval(iv);
     }, [isPlaying, paused, getCpuSnapshot]);
-
-    // Clear snapshot when stopped
-    useEffect(() => {
-        if (!isPlaying) setSnapshot(null);
-    }, [isPlaying]);
 
     if (!isPlaying && !snapshot) {
         return (
@@ -107,24 +105,41 @@ export default function AVRInspector({ isPlaying, getCpuSnapshot }: Readonly<AVR
     const ports = snapshot?.ports ?? [];
 
     return (
-        <div className="flex flex-col h-full overflow-y-auto bg-vscode-panel text-[12px] font-mono">
+        <div className="flex flex-col h-full overflow-hidden bg-vscode-panel text-[12px] font-mono">
             {/* Header */}
             <div className="flex items-center gap-2 px-3 py-2 border-b border-vscode-border bg-vscode-surface shrink-0">
                 <span className="text-purple-400 font-bold text-[11px] uppercase tracking-wider">
                     AVR Inspector
                 </span>
+                {!isPlaying && snapshot && (
+                    <span className="rounded border border-amber-500/40 bg-amber-500/15 px-1.5 py-0.5 text-[10px] text-amber-300">
+                        Stopped
+                    </span>
+                )}
                 <div className="flex-1" />
+                {!isPlaying && snapshot && (
+                    <button
+                        type="button"
+                        onClick={() => setSnapshot(null)}
+                        title="Clear captured snapshot"
+                        className="px-2 py-0.5 rounded text-[11px] text-vscode-text opacity-60 hover:opacity-100 hover:bg-vscode-hover"
+                    >
+                        Clear
+                    </button>
+                )}
                 <button
+                    type="button"
+                    aria-pressed={paused}
                     onClick={() => setPaused(p => !p)}
                     title={paused ? 'Resume updates' : 'Pause updates'}
                     className={[
                         'flex items-center gap-1 px-2 py-0.5 rounded text-[11px]',
                         paused
                             ? 'bg-amber-600/30 text-amber-300'
-                            : 'text-vscode-text opacity-50 hover:opacity-100',
+                            : 'text-vscode-text opacity-60 hover:opacity-100',
                     ].join(' ')}
                 >
-                    <RefreshCw size={11} className={paused ? '' : 'animate-spin'} />
+                    <RefreshCw size={11} className={!paused && isPlaying ? 'animate-spin' : ''} />
                     {paused ? 'Paused' : 'Live'}
                 </button>
             </div>

@@ -1,17 +1,21 @@
 /**
  * SerialMonitor
- * Enhanced terminal panel with 3 tabs:
- *  - Monitor  — raw serial output with send capability
- *  - Plotter  — real-time numeric chart
- *  - History  — compilation run history
+ * Multi-tab bottom console panel ordered by workflow:
+ *  - Monitor     — raw serial output, search filter, word-wrap, stable timestamps, and command history
+ *  - Plotter     — real-time multi-channel numeric chart
+ *  - Chips       — custom chip runtime logs with severity/tag styling and search
+ *  - Diagnostics — build diagnostics filterable by severity, chip, and text
+ *  - History     — compilation run history with status filtering and copyable logs
  */
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import {
-    Copy, Trash2, EyeOff, Send,
-    Terminal as TerminalIcon,
-    Clock, ArrowDownToLine, LineChart, History, Cpu, AlertTriangle, ChevronDown, ChevronRight,
+    Copy, Check, Trash2, EyeOff, Send,
+    Terminal as TerminalIcon, Clock, ArrowDownToLine, LineChart,
+    History, Cpu, AlertTriangle, ChevronDown, ChevronRight,
+    Search, WrapText, ChevronsUpDown, ChevronsDownUp, ArrowDown, X,
 } from 'lucide-react';
 import SerialPlotter from './SerialPlotter';
+import { useProjectStore } from '../store/projectStore';
 import type { CompileHistoryEntry } from '../store/projectStore';
 import type { EditorDiagnostic } from '../types/editor-diagnostics';
 import type { UiDiagnosticsSeverityFilter, UiRestoredLogWarning } from '../services/ui-session';
@@ -23,7 +27,7 @@ interface ChipDiagnosticItem {
 }
 
 interface SerialMonitorProps {
-    outputChunks: string[];
+    outputChunks?: string[];
     chipOutput?: string;
     selectedTab: ExtendedTab;
     autoScroll: boolean;
@@ -74,8 +78,12 @@ const LINE_ENDINGS: { label: string; value: string }[] = [
     { label: 'None',   value: ''     },
 ];
 
+const MAX_COMMAND_HISTORY = 50;
+
 type Tab = 'monitor' | 'plotter' | 'history';
 type ExtendedTab = Tab | 'chips' | 'diagnostics';
+type HistoryStatusFilter = 'all' | 'success' | 'failed';
+type SeverityFilter = UiDiagnosticsSeverityFilter;
 
 const severityRank: Record<EditorDiagnostic['severity'], number> = {
     error: 0,
@@ -91,7 +99,14 @@ const severityClass: Record<EditorDiagnostic['severity'], string> = {
     hint: 'text-vscode-text opacity-90',
 };
 
-type SeverityFilter = UiDiagnosticsSeverityFilter;
+function formatNowTime(): string {
+    return new Date().toLocaleTimeString('en-US', {
+        hour12: false,
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+    });
+}
 
 function diagnosticsEmptyState(
     chipDiagnostics: ChipDiagnosticItem[],
@@ -128,6 +143,11 @@ function getDiagnosticItemId(item: ChipDiagnosticItem): string {
     ].join('::');
 }
 
+function formatDiagnosticSummary(item: ChipDiagnosticItem): string {
+    const d = item.diagnostic;
+    return `[${d.severity.toUpperCase()}] ${item.chipName} ${item.fileName}:${d.startLineNumber}:${d.startColumn} - ${d.message}`;
+}
+
 function formatCount(value: number, singular: string, plural: string): string {
     return `${value} ${value === 1 ? singular : plural}`;
 }
@@ -146,7 +166,9 @@ function buildRestoredWarningDetails(warning: UiRestoredLogWarning): string[] {
     const details: string[] = [];
 
     if (warning.terminalOutput) {
-        details.push(`Terminal output: ${formatCount(warning.terminalOutput.truncatedChunks, 'chunk', 'chunks')} and ${formatCount(warning.terminalOutput.truncatedChars, 'character', 'characters')} were discarded.`);
+        const chunks = formatCount(warning.terminalOutput.truncatedChunks, 'chunk', 'chunks');
+        const chars = formatCount(warning.terminalOutput.truncatedChars, 'character', 'characters');
+        details.push(`Terminal output: ${chunks} and ${chars} were discarded.`);
     }
     if (warning.chipOutput) {
         details.push(`Chip console: ${formatCount(warning.chipOutput.truncatedChars, 'character', 'characters')} were discarded.`);
@@ -162,10 +184,51 @@ function buildRestoredWarningDetails(warning: UiRestoredLogWarning): string[] {
     return details;
 }
 
-export default function SerialMonitor({
+function syncLineTimestamps(prev: string[], lines: string[]): string[] {
+    if (lines.length === 0) {
+        return prev.length === 0 ? prev : [];
+    }
+    const base = lines.length < prev.length ? [] : prev;
+    let changed = base !== prev || base.length !== lines.length;
+    const nowStamp = formatNowTime();
+    const next = base.slice(0, lines.length);
+
+    for (let i = 0; i < lines.length; i++) {
+        const hasContent = lines[i].trim() !== '';
+        if (i >= next.length) {
+            next.push(hasContent ? nowStamp : '');
+            changed = true;
+        } else if (hasContent && !next[i]) {
+            next[i] = nowStamp;
+            changed = true;
+        } else if (!hasContent && next[i]) {
+            next[i] = '';
+            changed = true;
+        }
+    }
+
+    return changed ? next : prev;
+}
+
+function classifyChipLine(line: string): { toneClass: string; chipTag: string | null; body: string } {
+    const isError = /\b(error|err|fatal|fail(?:ed)?)\b/i.test(line);
+    const isWarn = !isError && /\bwarn(?:ing)?\b/i.test(line);
+    let toneClass = 'text-vscode-text';
+    if (isError) toneClass = 'text-red-400';
+    else if (isWarn) toneClass = 'text-amber-300';
+
+    const tagMatch = /^(\[[^\]]+\])\s*(.*)$/.exec(line);
+    if (tagMatch) {
+        return { toneClass, chipTag: tagMatch[1], body: tagMatch[2] };
+    }
+    return { toneClass, chipTag: null, body: line };
+}
+
+const SerialMonitor = React.memo(function SerialMonitor({
     outputChunks, chipOutput = '',
     selectedTab, autoScroll, showTimestamps, lineEnding, scrollTop, historyScrollTop, diagnosticsScrollTop,
-    onTabChange, onAutoScrollChange, onShowTimestampsChange, onLineEndingChange, onScrollTopChange, onHistoryScrollTopChange, onDiagnosticsScrollTopChange,
+    onTabChange, onAutoScrollChange, onShowTimestampsChange, onLineEndingChange,
+    onScrollTopChange, onHistoryScrollTopChange, onDiagnosticsScrollTopChange,
     diagnosticsSeverityFilter, diagnosticsChipFilter,
     onDiagnosticsSeverityFilterChange, onDiagnosticsChipFilterChange,
     diagnosticsExpandedIds = [], onDiagnosticsExpandedIdsChange,
@@ -177,28 +240,165 @@ export default function SerialMonitor({
     chipDiagnostics = [], onOpenChipDiagnostic, onClearChipDiagnostics,
 }: Readonly<SerialMonitorProps>) {
     const [input, setInput] = useState('');
+    const [wordWrap, setWordWrap] = useState(true);
+    const [monitorSearchOpen, setMonitorSearchOpen] = useState(false);
+    const [monitorSearch, setMonitorSearch] = useState('');
+    const [chipSearchOpen, setChipSearchOpen] = useState(false);
+    const [chipSearch, setChipSearch] = useState('');
+    const [diagnosticsSearch, setDiagnosticsSearch] = useState('');
+    const [historyStatusFilter, setHistoryStatusFilter] = useState<HistoryStatusFilter>('all');
+    const [copiedKey, setCopiedKey] = useState<string | null>(null);
+    const [isAtBottom, setIsAtBottom] = useState(true);
     const [showRestoredLogDetails, setShowRestoredLogDetails] = useState(false);
-    const scrollRef = useRef<HTMLDivElement>(null);
-    const output = outputChunks.join('');
+    const [monitorLineStamps, setMonitorLineStamps] = useState<string[]>([]);
+    const [chipLineStamps, setChipLineStamps] = useState<string[]>([]);
 
-    const chipFilterOptions = ['all', ...Array.from(new Set(chipDiagnostics.map((d) => d.chipName))).sort((left, right) => left.localeCompare(right))];
+    const scrollRef = useRef<HTMLDivElement>(null);
+    const copyTimerRef = useRef<ReturnType<typeof globalThis.setTimeout> | null>(null);
+    const commandHistoryRef = useRef<string[]>([]);
+    const historyCursorRef = useRef(-1);
+    const draftInputRef = useRef('');
+
+    const storeTerminalChunks = useProjectStore((state) => state.terminalChunks);
+    const resolvedOutputChunks = outputChunks ?? storeTerminalChunks;
+    const tab = selectedTab;
+    const output = useMemo(
+        () => (tab === 'monitor' || tab === 'plotter' ? resolvedOutputChunks.join('') : ''),
+        [resolvedOutputChunks, tab],
+    );
+
+    const rawMonitorLines = useMemo(() => (output ? output.split('\n') : []), [output]);
+    const rawChipLines = useMemo(() => (chipOutput ? chipOutput.split('\n') : []), [chipOutput]);
+
+    useEffect(() => () => {
+        if (copyTimerRef.current !== null) {
+            globalThis.clearTimeout(copyTimerRef.current);
+        }
+    }, []);
+
+    useEffect(() => {
+        setMonitorLineStamps((prev) => syncLineTimestamps(prev, rawMonitorLines));
+    }, [rawMonitorLines]);
+
+    useEffect(() => {
+        setChipLineStamps((prev) => syncLineTimestamps(prev, rawChipLines));
+    }, [rawChipLines]);
+
+    const triggerCopy = useCallback((key: string, text: string) => {
+        if (!text) return;
+        void navigator.clipboard.writeText(text);
+        setCopiedKey(key);
+        if (copyTimerRef.current !== null) {
+            globalThis.clearTimeout(copyTimerRef.current);
+        }
+        copyTimerRef.current = globalThis.setTimeout(() => {
+            setCopiedKey(null);
+            copyTimerRef.current = null;
+        }, 1500);
+    }, []);
+
+    const monitorEntries = useMemo(() => {
+        return rawMonitorLines.map((line, index) => {
+            const stamp = monitorLineStamps[index];
+            const text = showTimestamps && stamp && line.trim() !== '' ? `[${stamp}] ${line}` : line;
+            return { index, raw: line, text };
+        });
+    }, [monitorLineStamps, rawMonitorLines, showTimestamps]);
+
+    const normalizedMonitorSearch = monitorSearch.trim().toLowerCase();
+    const filteredMonitorEntries = useMemo(() => {
+        if (!normalizedMonitorSearch) return monitorEntries;
+        return monitorEntries.filter((entry) => entry.raw.toLowerCase().includes(normalizedMonitorSearch));
+    }, [monitorEntries, normalizedMonitorSearch]);
+
+    const monitorNonEmptyCount = useMemo(
+        () => rawMonitorLines.filter((line) => line.trim() !== '').length,
+        [rawMonitorLines],
+    );
+
+    const chipEntries = useMemo(() => {
+        return rawChipLines.map((line, index) => {
+            const stamp = chipLineStamps[index];
+            return { index, raw: line, stamp: showTimestamps && stamp && line.trim() !== '' ? stamp : '' };
+        });
+    }, [chipLineStamps, rawChipLines, showTimestamps]);
+
+    const normalizedChipSearch = chipSearch.trim().toLowerCase();
+    const filteredChipEntries = useMemo(() => {
+        if (!normalizedChipSearch) return chipEntries;
+        return chipEntries.filter((entry) => entry.raw.toLowerCase().includes(normalizedChipSearch));
+    }, [chipEntries, normalizedChipSearch]);
+
+    const chipNonEmptyCount = useMemo(
+        () => rawChipLines.filter((line) => line.trim() !== '').length,
+        [rawChipLines],
+    );
+
+    const chipFilterOptions = useMemo(
+        () => ['all', ...Array.from(new Set(chipDiagnostics.map((d) => d.chipName))).sort((left, right) => left.localeCompare(right))],
+        [chipDiagnostics],
+    );
     const chipFilter = chipFilterOptions.includes(diagnosticsChipFilter) ? diagnosticsChipFilter : 'all';
     const severityFilter: SeverityFilter = diagnosticsSeverityFilter;
-    const filteredDiagnostics = chipDiagnostics.filter((item) => {
-        const severityOk = severityFilter === 'all' || item.diagnostic.severity === severityFilter;
-        const chipOk = chipFilter === 'all' || item.chipName === chipFilter;
-        return severityOk && chipOk;
-    });
-    const sortedDiagnostics = [...filteredDiagnostics].sort((a, b) => {
-        const sev = severityRank[a.diagnostic.severity] - severityRank[b.diagnostic.severity];
-        if (sev !== 0) return sev;
-        if (a.fileName !== b.fileName) return a.fileName.localeCompare(b.fileName);
-        if (a.diagnostic.startLineNumber !== b.diagnostic.startLineNumber) {
-            return a.diagnostic.startLineNumber - b.diagnostic.startLineNumber;
+    const normalizedDiagnosticsSearch = diagnosticsSearch.trim().toLowerCase();
+
+    const diagnosticCounts = useMemo(() => {
+        let errors = 0;
+        let warnings = 0;
+        for (const item of chipDiagnostics) {
+            if (item.diagnostic.severity === 'error') errors += 1;
+            else if (item.diagnostic.severity === 'warning') warnings += 1;
         }
-        return a.diagnostic.startColumn - b.diagnostic.startColumn;
-    });
-    const tab = selectedTab;
+        return { errors, warnings };
+    }, [chipDiagnostics]);
+
+    const filteredDiagnostics = useMemo(
+        () => chipDiagnostics.filter((item) => {
+            const severityOk = severityFilter === 'all' || item.diagnostic.severity === severityFilter;
+            const chipOk = chipFilter === 'all' || item.chipName === chipFilter;
+            if (!severityOk || !chipOk) return false;
+            if (!normalizedDiagnosticsSearch) return true;
+            const d = item.diagnostic;
+            return (
+                d.message.toLowerCase().includes(normalizedDiagnosticsSearch)
+                || item.fileName.toLowerCase().includes(normalizedDiagnosticsSearch)
+                || item.chipName.toLowerCase().includes(normalizedDiagnosticsSearch)
+                || (d.source ?? '').toLowerCase().includes(normalizedDiagnosticsSearch)
+            );
+        }),
+        [chipDiagnostics, chipFilter, normalizedDiagnosticsSearch, severityFilter],
+    );
+
+    const sortedDiagnostics = useMemo(
+        () => [...filteredDiagnostics].sort((a, b) => {
+            const sev = severityRank[a.diagnostic.severity] - severityRank[b.diagnostic.severity];
+            if (sev !== 0) return sev;
+            if (a.fileName !== b.fileName) return a.fileName.localeCompare(b.fileName);
+            if (a.diagnostic.startLineNumber !== b.diagnostic.startLineNumber) {
+                return a.diagnostic.startLineNumber - b.diagnostic.startLineNumber;
+            }
+            return a.diagnostic.startColumn - b.diagnostic.startColumn;
+        }),
+        [filteredDiagnostics],
+    );
+
+    const historyCounts = useMemo(() => {
+        let success = 0;
+        let failed = 0;
+        for (const entry of compileHistory) {
+            if (entry.success) success += 1;
+            else failed += 1;
+        }
+        return { success, failed };
+    }, [compileHistory]);
+
+    const filteredHistory = useMemo(() => {
+        if (historyStatusFilter === 'all') return compileHistory;
+        return compileHistory.filter((entry) => (
+            historyStatusFilter === 'success' ? entry.success : !entry.success
+        ));
+    }, [compileHistory, historyStatusFilter]);
+
     const serialTarget = serialTargetOptions.some((option) => option.value === selectedSerialTarget)
         ? selectedSerialTarget
         : serialTargetOptions[0]?.value ?? 'usart0';
@@ -213,8 +413,9 @@ export default function SerialMonitor({
     useEffect(() => {
         if ((tab === 'monitor' || tab === 'chips') && autoScroll && scrollRef.current) {
             scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+            setIsAtBottom(true);
         }
-    }, [outputChunks, chipOutput, autoScroll, tab]);
+    }, [resolvedOutputChunks, chipOutput, autoScroll, tab]);
 
     useEffect(() => {
         if (!scrollRef.current) return;
@@ -226,44 +427,94 @@ export default function SerialMonitor({
             nextScrollTop = diagnosticsScrollTop;
         }
         scrollRef.current.scrollTop = nextScrollTop;
-    }, [autoScroll, compileHistory.length, diagnosticsScrollTop, historyScrollTop, scrollTop, sortedDiagnostics.length, tab]);
+    }, [
+        autoScroll,
+        compileHistory.length,
+        diagnosticsScrollTop,
+        historyScrollTop,
+        scrollTop,
+        sortedDiagnostics.length,
+        tab,
+    ]);
 
     const handleScroll = useCallback(() => {
-        if (!scrollRef.current) return;
+        const el = scrollRef.current;
+        if (!el) return;
+        if (tab === 'monitor' || tab === 'chips') {
+            const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight <= 24;
+            setIsAtBottom(nearBottom);
+        }
         if (tab === 'history') {
-            onHistoryScrollTopChange(scrollRef.current.scrollTop);
+            onHistoryScrollTopChange(el.scrollTop);
             return;
         }
         if (tab === 'diagnostics') {
-            onDiagnosticsScrollTopChange(scrollRef.current.scrollTop);
+            onDiagnosticsScrollTopChange(el.scrollTop);
             return;
         }
-        onScrollTopChange(scrollRef.current.scrollTop);
+        onScrollTopChange(el.scrollTop);
     }, [onDiagnosticsScrollTopChange, onHistoryScrollTopChange, onScrollTopChange, tab]);
+
+    const jumpToBottom = useCallback(() => {
+        const el = scrollRef.current;
+        if (!el) return;
+        el.scrollTop = el.scrollHeight;
+        setIsAtBottom(true);
+    }, []);
 
     const handleSubmit = useCallback((e: React.SyntheticEvent<HTMLFormElement>) => {
         e.preventDefault();
         if (!input) return;
+        const history = commandHistoryRef.current;
+        if (history[history.length - 1] !== input) {
+            const nextHistory = [...history, input];
+            commandHistoryRef.current = nextHistory.length > MAX_COMMAND_HISTORY
+                ? nextHistory.slice(nextHistory.length - MAX_COMMAND_HISTORY)
+                : nextHistory;
+        }
+        historyCursorRef.current = -1;
+        draftInputRef.current = '';
         onSend(input + lineEnding, serialTarget);
         setInput('');
     }, [input, lineEnding, onSend, serialTarget]);
 
-    // Format output with optional timestamps
-    const formattedOutput = showTimestamps
-        ? output.split('\n').map((line) => {
-            if (line.trim() === '') return line;
-            const ts = new Date().toLocaleTimeString('en-US', {
-                hour12: false,
-                hour: '2-digit',
-                minute: '2-digit',
-                second: '2-digit',
-            });
-            return `[${ts}] ${line}`;
-        }).join('\n')
-        : output;
+    const handleInputKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
+        const history = commandHistoryRef.current;
+        if (history.length === 0) return;
+
+        if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            if (historyCursorRef.current === -1) {
+                draftInputRef.current = input;
+                historyCursorRef.current = history.length - 1;
+            } else {
+                historyCursorRef.current = Math.max(0, historyCursorRef.current - 1);
+            }
+            setInput(history[historyCursorRef.current] ?? '');
+            return;
+        }
+
+        if (e.key === 'ArrowDown' && historyCursorRef.current >= 0) {
+            e.preventDefault();
+            const nextCursor = historyCursorRef.current + 1;
+            if (nextCursor >= history.length) {
+                historyCursorRef.current = -1;
+                setInput(draftInputRef.current);
+            } else {
+                historyCursorRef.current = nextCursor;
+                setInput(history[nextCursor] ?? '');
+            }
+        }
+    }, [input]);
+
     const diagnosticsMessage = diagnosticsEmptyState(chipDiagnostics, filteredDiagnostics);
     const expandedHistoryIds = new Set(compileHistoryExpandedIds);
     const expandedDiagnosticIds = new Set(diagnosticsExpandedIds);
+    const hasDiagnosticsFilters = (
+        severityFilter !== 'all'
+        || chipFilter !== 'all'
+        || normalizedDiagnosticsSearch !== ''
+    );
 
     const updateExpandedHistoryIds = useCallback((entryId: string, nextExpanded: boolean) => {
         if (!onCompileHistoryExpandedIdsChange) return;
@@ -283,26 +534,46 @@ export default function SerialMonitor({
         onDiagnosticsExpandedIdsChange(nextIds);
     }, [diagnosticsExpandedIds, onDiagnosticsExpandedIdsChange]);
 
-    const tabBtn = (id: ExtendedTab, icon: React.ReactNode, label: string, badge?: number) => (
+    let diagnosticsBadgeTone = 'bg-vscode-input text-vscode-text opacity-75';
+    if (diagnosticCounts.errors > 0) {
+        diagnosticsBadgeTone = 'bg-red-500/20 text-red-300';
+    } else if (diagnosticCounts.warnings > 0) {
+        diagnosticsBadgeTone = 'bg-amber-500/20 text-amber-300';
+    }
+
+    const tabBtn = (
+        id: ExtendedTab,
+        icon: React.ReactNode,
+        label: string,
+        badge?: number,
+        badgeToneClass = 'bg-vscode-input text-vscode-text opacity-75',
+    ) => (
         <button
+            type="button"
             onClick={() => onTabChange(id)}
             className={[
                 'flex items-center gap-1 px-3 py-1.5 text-[12px]',
-                'border-b-2 transition-colors',
+                'border-b-2 transition-colors shrink-0',
                 tab === id
                     ? 'border-blue-500 text-blue-300'
                     : 'border-transparent text-vscode-text opacity-65 hover:opacity-100',
             ].join(' ')}
         >
             {icon}
-            {label}
+            <span>{label}</span>
             {badge !== undefined && badge > 0 && (
-                <span className="ml-1 px-1.5 rounded-full bg-vscode-input text-vscode-text opacity-70 text-[10px]">
+                <span className={`ml-1 px-1.5 rounded-full text-[10px] ${badgeToneClass}`}>
                     {badge}
                 </span>
             )}
         </button>
     );
+
+    const monitorCopyText = filteredMonitorEntries.map((entry) => entry.text).join('\n');
+    const chipCopyText = filteredChipEntries
+        .map((entry) => (entry.stamp ? `[${entry.stamp}] ${entry.raw}` : entry.raw))
+        .join('\n');
+    const diagnosticsCopyText = sortedDiagnostics.map(formatDiagnosticSummary).join('\n');
 
     return (
         <div className="flex flex-col h-full bg-vscode-sidebar border-t border-vscode-border">
@@ -314,7 +585,10 @@ export default function SerialMonitor({
                         <button
                             type="button"
                             onClick={onShowDismissedRestoredWarning}
-                            className="rounded border border-vscode-border px-2 py-1 text-[10px] uppercase tracking-[0.14em] text-vscode-text hover:bg-vscode-hover"
+                            className={[
+                                'rounded border border-vscode-border px-2 py-1 text-[10px]',
+                                'uppercase tracking-[0.14em] text-vscode-text hover:bg-vscode-hover',
+                            ].join(' ')}
                         >
                             Show dismissed restore warning
                         </button>
@@ -331,7 +605,9 @@ export default function SerialMonitor({
                             className="flex flex-1 items-center gap-2 text-left hover:text-amber-100"
                             title="Show restored session details"
                         >
-                            {showRestoredLogDetails ? <ChevronDown size={12} className="shrink-0" /> : <ChevronRight size={12} className="shrink-0" />}
+                            {showRestoredLogDetails
+                                ? <ChevronDown size={12} className="shrink-0" />
+                                : <ChevronRight size={12} className="shrink-0" />}
                             <span>{buildRestoredWarningSummary(restoredLogWarning)}</span>
                         </button>
                         {onDismissRestoredLogWarning && (
@@ -355,7 +631,10 @@ export default function SerialMonitor({
                                     <button
                                         type="button"
                                         onClick={onOpenRestoredDiagnostics}
-                                        className="rounded border border-amber-500/30 bg-amber-500/10 px-2 py-1 text-[10px] uppercase tracking-[0.14em] text-amber-100 hover:bg-amber-500/20"
+                                        className={[
+                                            'rounded border border-amber-500/30 bg-amber-500/10 px-2 py-1',
+                                            'text-[10px] uppercase tracking-[0.14em] text-amber-100 hover:bg-amber-500/20',
+                                        ].join(' ')}
                                     >
                                         Open Diagnostics
                                     </button>
@@ -364,7 +643,10 @@ export default function SerialMonitor({
                                     <button
                                         type="button"
                                         onClick={onOpenRestoredHistory}
-                                        className="rounded border border-amber-500/30 bg-amber-500/10 px-2 py-1 text-[10px] uppercase tracking-[0.14em] text-amber-100 hover:bg-amber-500/20"
+                                        className={[
+                                            'rounded border border-amber-500/30 bg-amber-500/10 px-2 py-1',
+                                            'text-[10px] uppercase tracking-[0.14em] text-amber-100 hover:bg-amber-500/20',
+                                        ].join(' ')}
                                     >
                                         Open History
                                     </button>
@@ -374,115 +656,205 @@ export default function SerialMonitor({
                     )}
                 </div>
             )}
-            {/* ── Tab Bar ── */}
-            <div className="flex bg-vscode-sidebar border-b border-vscode-border shrink-0">
-                <div className="flex items-end gap-0">
+
+            {/* ── Tab Bar: Telemetry (Monitor, Plotter, Chips) | Build (Diagnostics, History) ── */}
+            <div className="flex items-center bg-vscode-sidebar border-b border-vscode-border shrink-0">
+                <div className="flex items-end gap-0 overflow-x-auto no-scrollbar">
                     {tabBtn('monitor', <TerminalIcon size={13} />, 'Monitor')}
-                    {tabBtn('chips', <Cpu size={13} />, 'Chips', chipOutput ? chipOutput.split('\n').filter(Boolean).length : 0)}
-                    {tabBtn('diagnostics', <AlertTriangle size={13} />, 'Diagnostics', chipDiagnostics.length)}
                     {tabBtn('plotter', <LineChart size={13} />, 'Plotter')}
+                    {tabBtn('chips', <Cpu size={13} />, 'Chips', chipNonEmptyCount)}
+                    <div className="w-px h-4 bg-vscode-border self-center mx-1 shrink-0" />
+                    {tabBtn('diagnostics', <AlertTriangle size={13} />, 'Diagnostics', chipDiagnostics.length, diagnosticsBadgeTone)}
                     {tabBtn('history', <History size={13} />, 'History', compileHistory.length)}
                 </div>
                 <div className="flex-1" />
 
-                {/* Shared actions */}
+                {/* Monitor & Chips actions */}
                 {(tab === 'monitor' || tab === 'chips') && (
-                    <div className="flex items-center gap-0.5 px-2">
-                        {/* Timestamp toggle */}
+                    <div className="flex items-center gap-0.5 px-2 shrink-0">
                         <button
+                            type="button"
                             onClick={() => onShowTimestampsChange(!showTimestamps)}
                             title="Toggle timestamps"
-                            className={`p-1 rounded text-[12px] flex items-center gap-1
-                                ${showTimestamps
+                            className={[
+                                'p-1 rounded text-[12px] flex items-center gap-1',
+                                showTimestamps
                                     ? 'text-blue-400 bg-blue-500/10'
-                                    : 'text-vscode-text opacity-65 hover:opacity-100'
-                                }`}
+                                    : 'text-vscode-text opacity-65 hover:opacity-100',
+                            ].join(' ')}
                         >
                             <Clock size={12} />
                         </button>
 
-                        {/* Auto-scroll toggle */}
                         <button
-                            onClick={() => onAutoScrollChange(!autoScroll)}
+                            type="button"
+                            onClick={() => {
+                                const next = !autoScroll;
+                                onAutoScrollChange(next);
+                                if (next) jumpToBottom();
+                            }}
                             title="Toggle auto-scroll"
-                            className={`p-1 rounded text-[12px] flex items-center gap-1
-                                ${autoScroll
+                            className={[
+                                'p-1 rounded text-[12px] flex items-center gap-1',
+                                autoScroll
                                     ? 'text-blue-400 bg-blue-500/10'
-                                    : 'text-vscode-text opacity-65 hover:opacity-100'
-                                }`}
+                                    : 'text-vscode-text opacity-65 hover:opacity-100',
+                            ].join(' ')}
                         >
                             <ArrowDownToLine size={12} />
                         </button>
 
-                        {/* Line ending selector */}
-                        <select
-                            value={lineEnding}
-                            onChange={(e) => onLineEndingChange(e.target.value)}
-                            title="Line ending"
-                            className="bg-vscode-input text-[11px] text-vscode-text border
-                                border-vscode-border rounded px-1 py-0.5 outline-none
-                                cursor-pointer"
-                        >
-                            {LINE_ENDINGS.map(le => (
-                                <option key={le.label} value={le.value}>
-                                    {le.label}
-                                </option>
-                            ))}
-                        </select>
-
-                        {/* Copy */}
                         <button
-                            onClick={() => navigator.clipboard.writeText(tab === 'monitor' ? output : chipOutput)}
-                            title="Copy output"
-                            className="text-vscode-text opacity-65 hover:opacity-100 p-1
-                                flex items-center gap-1 text-[12px]"
+                            type="button"
+                            onClick={() => setWordWrap((prev) => !prev)}
+                            title={wordWrap ? 'Disable word wrap' : 'Enable word wrap'}
+                            className={[
+                                'p-1 rounded text-[12px] flex items-center gap-1',
+                                wordWrap
+                                    ? 'text-blue-400 bg-blue-500/10'
+                                    : 'text-vscode-text opacity-65 hover:opacity-100',
+                            ].join(' ')}
                         >
-                            <Copy size={12} />
+                            <WrapText size={12} />
                         </button>
 
-                        {/* Clear */}
                         <button
+                            type="button"
+                            onClick={() => (
+                                tab === 'monitor'
+                                    ? setMonitorSearchOpen((prev) => !prev)
+                                    : setChipSearchOpen((prev) => !prev)
+                            )}
+                            title="Filter output"
+                            className={[
+                                'p-1 rounded text-[12px] flex items-center gap-1',
+                                (tab === 'monitor' ? monitorSearchOpen || Boolean(monitorSearch) : chipSearchOpen || Boolean(chipSearch))
+                                    ? 'text-blue-400 bg-blue-500/10'
+                                    : 'text-vscode-text opacity-65 hover:opacity-100',
+                            ].join(' ')}
+                        >
+                            <Search size={12} />
+                        </button>
+
+                        {tab === 'monitor' && (
+                            <select
+                                value={lineEnding}
+                                onChange={(e) => onLineEndingChange(e.target.value)}
+                                title="Line ending"
+                                className={[
+                                    'bg-vscode-input text-[11px] text-vscode-text border',
+                                    'border-vscode-border rounded px-1 py-0.5 outline-none cursor-pointer',
+                                ].join(' ')}
+                            >
+                                {LINE_ENDINGS.map((le) => (
+                                    <option key={le.label} value={le.value}>
+                                        {le.label}
+                                    </option>
+                                ))}
+                            </select>
+                        )}
+
+                        <button
+                            type="button"
+                            onClick={() => triggerCopy(
+                                `tab-${tab}`,
+                                tab === 'monitor' ? monitorCopyText : chipCopyText,
+                            )}
+                            title={copiedKey === `tab-${tab}` ? 'Copied!' : 'Copy output'}
+                            className={[
+                                'p-1 rounded flex items-center gap-1 text-[12px]',
+                                copiedKey === `tab-${tab}`
+                                    ? 'text-green-400 bg-green-500/10'
+                                    : 'text-vscode-text opacity-65 hover:opacity-100',
+                            ].join(' ')}
+                        >
+                            {copiedKey === `tab-${tab}` ? <Check size={12} /> : <Copy size={12} />}
+                        </button>
+
+                        <button
+                            type="button"
                             onClick={tab === 'monitor' ? onClear : onClearChipOutput}
                             title="Clear"
-                            className="text-vscode-text opacity-65 hover:opacity-100 p-1
-                                flex items-center gap-1 text-[12px]"
+                            className="text-vscode-text opacity-65 hover:opacity-100 p-1 flex items-center gap-1 text-[12px]"
                         >
                             <Trash2 size={12} />
                         </button>
                     </div>
                 )}
 
-                {tab === 'history' && onClearHistory && (
-                    <div className="flex items-center px-2">
+                {tab === 'diagnostics' && (
+                    <div className="flex items-center gap-0.5 px-2 shrink-0">
                         <button
-                            onClick={onClearHistory}
-                            title="Clear history"
-                            className="text-vscode-text opacity-65 hover:opacity-100 p-1 text-[12px]"
+                            type="button"
+                            onClick={() => triggerCopy('diagnostics-all', diagnosticsCopyText)}
+                            disabled={sortedDiagnostics.length === 0}
+                            title={copiedKey === 'diagnostics-all' ? 'Copied diagnostics!' : 'Copy filtered diagnostics'}
+                            className={[
+                                'p-1 rounded text-[12px]',
+                                sortedDiagnostics.length === 0
+                                    ? 'text-vscode-text opacity-25 cursor-not-allowed'
+                                    : copiedKey === 'diagnostics-all'
+                                        ? 'text-green-400 bg-green-500/10'
+                                        : 'text-vscode-text opacity-65 hover:opacity-100',
+                            ].join(' ')}
                         >
-                            <Trash2 size={12} />
+                            {copiedKey === 'diagnostics-all' ? <Check size={12} /> : <Copy size={12} />}
                         </button>
+                        {onClearChipDiagnostics && (
+                            <button
+                                type="button"
+                                onClick={onClearChipDiagnostics}
+                                title="Clear diagnostics"
+                                className="text-vscode-text opacity-65 hover:opacity-100 p-1 text-[12px]"
+                            >
+                                <Trash2 size={12} />
+                            </button>
+                        )}
                     </div>
                 )}
 
-                {tab === 'diagnostics' && onClearChipDiagnostics && (
-                    <div className="flex items-center px-2">
-                        <button
-                            onClick={onClearChipDiagnostics}
-                            title="Clear diagnostics"
-                            className="text-vscode-text opacity-65 hover:opacity-100 p-1 text-[12px]"
-                        >
-                            <Trash2 size={12} />
-                        </button>
+                {tab === 'history' && (
+                    <div className="flex items-center gap-0.5 px-2 shrink-0">
+                        {onCompileHistoryExpandedIdsChange && compileHistory.length > 0 && (
+                            <>
+                                <button
+                                    type="button"
+                                    onClick={() => onCompileHistoryExpandedIdsChange(compileHistory.map((e) => e.id))}
+                                    title="Expand all entries"
+                                    className="text-vscode-text opacity-65 hover:opacity-100 p-1 text-[12px]"
+                                >
+                                    <ChevronsUpDown size={12} />
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => onCompileHistoryExpandedIdsChange([])}
+                                    title="Collapse all entries"
+                                    className="text-vscode-text opacity-65 hover:opacity-100 p-1 text-[12px]"
+                                >
+                                    <ChevronsDownUp size={12} />
+                                </button>
+                            </>
+                        )}
+                        {onClearHistory && (
+                            <button
+                                type="button"
+                                onClick={onClearHistory}
+                                title="Clear history"
+                                className="text-vscode-text opacity-65 hover:opacity-100 p-1 text-[12px]"
+                            >
+                                <Trash2 size={12} />
+                            </button>
+                        )}
                     </div>
                 )}
 
                 {/* Hide */}
-                <div className="flex items-center px-2 border-l border-vscode-border">
+                <div className="flex items-center px-2 border-l border-vscode-border shrink-0">
                     <button
+                        type="button"
                         onClick={onHide}
                         title="Hide terminal"
-                        className="text-vscode-text opacity-65 hover:opacity-100 p-1
-                            flex items-center gap-1 text-[12px]"
+                        className="text-vscode-text opacity-65 hover:opacity-100 p-1 flex items-center gap-1 text-[12px]"
                     >
                         <EyeOff size={12} />
                     </button>
@@ -492,29 +864,85 @@ export default function SerialMonitor({
             {/* ── Monitor Tab ── */}
             {tab === 'monitor' && (
                 <>
-                    <div
-                        ref={scrollRef}
-                        onScroll={handleScroll}
-                        className="flex-1 overflow-y-auto p-3 text-[13px]
-                            font-mono text-vscode-text whitespace-pre-wrap leading-relaxed"
-                    >
-                        {formattedOutput || (
-                            <span className="text-vscode-text opacity-40 italic">No output…</span>
+                    {monitorSearchOpen && (
+                        <div className="flex items-center gap-2 px-3 py-1.5 border-b border-vscode-border bg-vscode-bg/40 shrink-0">
+                            <Search size={12} className="text-vscode-text opacity-60 shrink-0" />
+                            <input
+                                autoFocus
+                                value={monitorSearch}
+                                onChange={(e) => setMonitorSearch(e.target.value)}
+                                placeholder="Filter serial monitor..."
+                                className={[
+                                    'flex-1 bg-vscode-input border border-vscode-border rounded px-2 py-0.5',
+                                    'text-[12px] font-mono text-vscode-textActive outline-none',
+                                ].join(' ')}
+                            />
+                            <span className="text-[11px] text-vscode-text opacity-65 shrink-0">
+                                {filteredMonitorEntries.filter((e) => e.raw.trim() !== '').length}/{monitorNonEmptyCount} lines
+                            </span>
+                            {monitorSearch && (
+                                <button
+                                    type="button"
+                                    onClick={() => setMonitorSearch('')}
+                                    title="Clear filter"
+                                    className="p-0.5 rounded text-vscode-text opacity-65 hover:opacity-100 hover:bg-vscode-hover"
+                                >
+                                    <X size={12} />
+                                </button>
+                            )}
+                        </div>
+                    )}
+                    <div className="relative flex-1 min-h-0 flex flex-col">
+                        <div
+                            ref={scrollRef}
+                            onScroll={handleScroll}
+                            className={[
+                                'flex-1 overflow-y-auto p-3 text-[13px] font-mono text-vscode-text leading-relaxed',
+                                wordWrap ? 'whitespace-pre-wrap break-words' : 'whitespace-pre overflow-x-auto',
+                            ].join(' ')}
+                        >
+                            {filteredMonitorEntries.length > 0 && (output !== '' || normalizedMonitorSearch !== '') ? (
+                                filteredMonitorEntries.map((entry) => (
+                                    <div key={entry.index} className="min-h-[1.25em]">
+                                        {entry.text}
+                                    </div>
+                                ))
+                            ) : (
+                                <span className="text-vscode-text opacity-40 italic">
+                                    {normalizedMonitorSearch ? 'No matching lines…' : 'No output…'}
+                                </span>
+                            )}
+                        </div>
+                        {autoScroll && !isAtBottom && rawMonitorLines.length > 0 && (
+                            <button
+                                type="button"
+                                onClick={jumpToBottom}
+                                className={[
+                                    'absolute bottom-2 right-4 z-10 flex items-center gap-1',
+                                    'rounded-full border border-vscode-border bg-vscode-panel/95',
+                                    'px-2.5 py-1 text-[11px] text-vscode-textActive shadow-lg hover:bg-vscode-hover',
+                                ].join(' ')}
+                            >
+                                <ArrowDown size={11} />
+                                <span>Jump to bottom</span>
+                            </button>
                         )}
                     </div>
 
                     {/* Input Bar */}
                     <form
                         onSubmit={handleSubmit}
-                        className="flex items-center border-t border-vscode-border
-                            px-2 py-1 gap-1 shrink-0"
+                        className="flex items-center border-t border-vscode-border px-2 py-1 gap-1.5 shrink-0"
                     >
                         {serialTargetOptions.length > 1 && (
                             <select
                                 value={serialTarget}
                                 onChange={(e) => onSelectedSerialTargetChange?.(e.target.value)}
                                 title="Serial target"
-                                className="bg-vscode-input text-[11px] text-vscode-text border border-vscode-border rounded px-1.5 py-1 outline-none cursor-pointer"
+                                className={[
+                                    'bg-vscode-input text-[11px] text-vscode-text border',
+                                    'border-vscode-border rounded px-1.5 py-1 outline-none cursor-pointer',
+                                ].join(' ')}
                             >
                                 {serialTargetOptions.map((option) => (
                                     <option key={option.value} value={option.value}>
@@ -526,95 +954,132 @@ export default function SerialMonitor({
                         <span className="text-[12px] text-vscode-text opacity-75 font-mono">&gt;</span>
                         <input
                             value={input}
-                            onChange={(e) => setInput(e.target.value)}
-                            placeholder={`Send to ${serialTarget.toUpperCase()}...`}
-                            className="flex-1 bg-transparent text-[13px] font-mono
-                                text-vscode-textActive outline-none placeholder:text-vscode-text placeholder:opacity-60"
+                            onChange={(e) => {
+                                historyCursorRef.current = -1;
+                                setInput(e.target.value);
+                            }}
+                            onKeyDown={handleInputKeyDown}
+                            placeholder={`Send to ${serialTarget.toUpperCase()}... (↑/↓ history)`}
+                            className={[
+                                'flex-1 bg-transparent text-[13px] font-mono text-vscode-textActive',
+                                'outline-none placeholder:text-vscode-text placeholder:opacity-55',
+                            ].join(' ')}
                         />
-                        <button type="submit" className="text-vscode-text opacity-80 hover:text-vscode-textActive hover:opacity-100 p-1" title="Send">
+                        <span className="text-[10px] font-mono text-vscode-text opacity-45 shrink-0">
+                            {monitorNonEmptyCount} lines
+                        </span>
+                        <button
+                            type="submit"
+                            className="text-vscode-text opacity-80 hover:text-vscode-textActive hover:opacity-100 p-1"
+                            title="Send"
+                        >
                             <Send size={13} />
                         </button>
                     </form>
                 </>
             )}
 
-            {/* ── Chips Console Tab ── */}
-            {tab === 'chips' && (
-                <div
-                    ref={scrollRef}
-                    onScroll={handleScroll}
-                    className="flex-1 overflow-y-auto p-3 text-[13px]
-                        font-mono text-vscode-text whitespace-pre-wrap leading-relaxed"
-                >
-                    {chipOutput || (
-                        <span className="text-vscode-text opacity-40 italic">No chip logs…</span>
-                    )}
-                </div>
-            )}
-
             {/* ── Plotter Tab ── */}
             {tab === 'plotter' && <SerialPlotter output={output} />}
 
-            {/* ── History Tab ── */}
-            {tab === 'history' && (
-                <div ref={scrollRef} onScroll={handleScroll} className="flex-1 overflow-y-auto">
-                    {compileHistory.length === 0 ? (
-                        <p className="p-6 text-center text-vscode-text opacity-60 text-[13px] italic">
-                            No compilation history yet. Hit Build to get started.
-                        </p>
-                    ) : (
-                        compileHistory.map((entry) => (
-                            <details
-                                key={entry.id}
-                                open={expandedHistoryIds.has(entry.id)}
-                                onToggle={(event) => updateExpandedHistoryIds(entry.id, event.currentTarget.open)}
-                                className="border-b border-vscode-border group"
-                            >
-                                <summary className={[
-                                    'flex items-center gap-2 px-3 py-2 cursor-pointer',
-                                    'text-[12px] list-none select-none',
-                                    'hover:bg-vscode-hover',
-                                ].join(' ')}>
-                                    <span className={[
-                                        'w-2 h-2 rounded-full shrink-0',
-                                        entry.success ? 'bg-green-500' : 'bg-red-500',
-                                    ].join(' ')} />
-                                    <span className={entry.success ? 'text-green-400' : 'text-red-400'}>
-                                        {entry.success ? 'Success' : 'Failed'}
-                                    </span>
-                                    <span className="text-vscode-text opacity-55">-</span>
-                                    <span className="text-vscode-text opacity-85 font-medium truncate flex-1">
-                                        {entry.projectName}
-                                    </span>
-                                    <span className="text-vscode-text opacity-65 shrink-0">
-                                        {new Date(entry.timestamp).toLocaleTimeString()}
-                                    </span>
-                                    <span className="text-vscode-text opacity-65 shrink-0">
-                                        {(entry.durationMs / 1000).toFixed(1)}s
-                                    </span>
-                                </summary>
-                                <pre className="bg-vscode-codeBg px-4 py-2 text-[11px] font-mono
-                                    text-vscode-text opacity-70 whitespace-pre-wrap overflow-x-auto max-h-48
-                                    overflow-y-auto">
-                                    {entry.output || '(no output)'}
-                                </pre>
-                            </details>
-                        ))
+            {/* ── Chips Console Tab ── */}
+            {tab === 'chips' && (
+                <>
+                    {chipSearchOpen && (
+                        <div className="flex items-center gap-2 px-3 py-1.5 border-b border-vscode-border bg-vscode-bg/40 shrink-0">
+                            <Search size={12} className="text-vscode-text opacity-60 shrink-0" />
+                            <input
+                                autoFocus
+                                value={chipSearch}
+                                onChange={(e) => setChipSearch(e.target.value)}
+                                placeholder="Filter chip logs..."
+                                className={[
+                                    'flex-1 bg-vscode-input border border-vscode-border rounded px-2 py-0.5',
+                                    'text-[12px] font-mono text-vscode-textActive outline-none',
+                                ].join(' ')}
+                            />
+                            <span className="text-[11px] text-vscode-text opacity-65 shrink-0">
+                                {filteredChipEntries.filter((e) => e.raw.trim() !== '').length}/{chipNonEmptyCount} lines
+                            </span>
+                            {chipSearch && (
+                                <button
+                                    type="button"
+                                    onClick={() => setChipSearch('')}
+                                    title="Clear filter"
+                                    className="p-0.5 rounded text-vscode-text opacity-65 hover:opacity-100 hover:bg-vscode-hover"
+                                >
+                                    <X size={12} />
+                                </button>
+                            )}
+                        </div>
                     )}
-                </div>
+                    <div className="relative flex-1 min-h-0 flex flex-col">
+                        <div
+                            ref={scrollRef}
+                            onScroll={handleScroll}
+                            className={[
+                                'flex-1 overflow-y-auto p-3 text-[13px] font-mono leading-relaxed',
+                                wordWrap ? 'whitespace-pre-wrap break-words' : 'whitespace-pre overflow-x-auto',
+                            ].join(' ')}
+                        >
+                            {filteredChipEntries.length > 0 && (chipOutput !== '' || normalizedChipSearch !== '') ? (
+                                filteredChipEntries.map((entry) => {
+                                    const classified = classifyChipLine(entry.raw);
+                                    return (
+                                        <div key={entry.index} className={`min-h-[1.25em] ${classified.toneClass}`}>
+                                            {entry.stamp && (
+                                                <span className="mr-2 text-vscode-text opacity-50">
+                                                    [{entry.stamp}]
+                                                </span>
+                                            )}
+                                            {classified.chipTag && (
+                                                <span className="mr-1.5 rounded bg-vscode-input px-1 py-0.5 text-[11px] text-sky-300">
+                                                    {classified.chipTag}
+                                                </span>
+                                            )}
+                                            <span>{classified.body}</span>
+                                        </div>
+                                    );
+                                })
+                            ) : (
+                                <span className="text-vscode-text opacity-40 italic">
+                                    {normalizedChipSearch ? 'No matching chip logs…' : 'No chip logs…'}
+                                </span>
+                            )}
+                        </div>
+                        {autoScroll && !isAtBottom && rawChipLines.length > 0 && (
+                            <button
+                                type="button"
+                                onClick={jumpToBottom}
+                                className={[
+                                    'absolute bottom-2 right-4 z-10 flex items-center gap-1',
+                                    'rounded-full border border-vscode-border bg-vscode-panel/95',
+                                    'px-2.5 py-1 text-[11px] text-vscode-textActive shadow-lg hover:bg-vscode-hover',
+                                ].join(' ')}
+                            >
+                                <ArrowDown size={11} />
+                                <span>Jump to bottom</span>
+                            </button>
+                        )}
+                    </div>
+                </>
             )}
 
             {/* ── Diagnostics Tab ── */}
             {tab === 'diagnostics' && (
                 <div ref={scrollRef} onScroll={handleScroll} className="flex-1 overflow-y-auto">
-                    <div className="flex items-center gap-2 px-3 py-2 border-b border-vscode-border">
-                        <label htmlFor="serial-monitor-diagnostics-severity" className="text-[11px] text-vscode-text opacity-80">Severity</label>
+                    <div className="flex flex-wrap items-center gap-2 px-3 py-2 border-b border-vscode-border">
+                        <label htmlFor="serial-monitor-diagnostics-severity" className="text-[11px] text-vscode-text opacity-80">
+                            Severity
+                        </label>
                         <select
                             id="serial-monitor-diagnostics-severity"
                             value={severityFilter}
                             onChange={(e) => onDiagnosticsSeverityFilterChange(e.target.value as SeverityFilter)}
-                            className="bg-vscode-input text-[11px] text-vscode-text border
-                                border-vscode-border rounded px-1.5 py-0.5 outline-none cursor-pointer"
+                            className={[
+                                'bg-vscode-input text-[11px] text-vscode-text border',
+                                'border-vscode-border rounded px-1.5 py-0.5 outline-none cursor-pointer',
+                            ].join(' ')}
                         >
                             <option value="all">All</option>
                             <option value="error">Error</option>
@@ -623,23 +1088,17 @@ export default function SerialMonitor({
                             <option value="hint">Hint</option>
                         </select>
 
-                        {severityFilter !== 'all' && (
-                            <button
-                                onClick={() => onDiagnosticsSeverityFilterChange('all')}
-                                className="text-[10px] px-1.5 py-0.5 rounded border border-vscode-border text-vscode-text opacity-70 hover:opacity-100 hover:bg-vscode-hover"
-                                title="Clear severity filter"
-                            >
-                                Clear severity
-                            </button>
-                        )}
-
-                        <label htmlFor="serial-monitor-diagnostics-chip" className="text-[11px] text-vscode-text opacity-80 ml-1">Chip</label>
+                        <label htmlFor="serial-monitor-diagnostics-chip" className="text-[11px] text-vscode-text opacity-80 ml-1">
+                            Chip
+                        </label>
                         <select
                             id="serial-monitor-diagnostics-chip"
                             value={chipFilter}
                             onChange={(e) => onDiagnosticsChipFilterChange(e.target.value)}
-                            className="bg-vscode-input text-[11px] text-vscode-text border
-                                border-vscode-border rounded px-1.5 py-0.5 outline-none cursor-pointer"
+                            className={[
+                                'bg-vscode-input text-[11px] text-vscode-text border',
+                                'border-vscode-border rounded px-1.5 py-0.5 outline-none cursor-pointer',
+                            ].join(' ')}
                         >
                             {chipFilterOptions.map((option) => (
                                 <option key={option} value={option}>
@@ -648,17 +1107,63 @@ export default function SerialMonitor({
                             ))}
                         </select>
 
-                        {chipFilter !== 'all' && (
+                        <div className="flex items-center gap-1 flex-1 min-w-[140px]">
+                            <Search size={11} className="text-vscode-text opacity-55 shrink-0" />
+                            <input
+                                value={diagnosticsSearch}
+                                onChange={(e) => setDiagnosticsSearch(e.target.value)}
+                                placeholder="Search diagnostics..."
+                                className={[
+                                    'w-full bg-vscode-input border border-vscode-border rounded px-2 py-0.5',
+                                    'text-[11px] text-vscode-text outline-none',
+                                ].join(' ')}
+                            />
+                        </div>
+
+                        {diagnosticCounts.errors > 0 && (
                             <button
-                                onClick={() => onDiagnosticsChipFilterChange('all')}
-                                className="text-[10px] px-1.5 py-0.5 rounded border border-vscode-border text-vscode-text opacity-70 hover:opacity-100 hover:bg-vscode-hover"
-                                title="Clear chip filter"
+                                type="button"
+                                onClick={() => onDiagnosticsSeverityFilterChange(severityFilter === 'error' ? 'all' : 'error')}
+                                className={[
+                                    'text-[10px] px-1.5 py-0.5 rounded border transition-colors',
+                                    severityFilter === 'error'
+                                        ? 'border-red-400 bg-red-500/20 text-red-200'
+                                        : 'border-red-500/30 bg-red-500/10 text-red-300 hover:bg-red-500/20',
+                                ].join(' ')}
                             >
-                                Clear chip
+                                {formatCount(diagnosticCounts.errors, 'error', 'errors')}
+                            </button>
+                        )}
+                        {diagnosticCounts.warnings > 0 && (
+                            <button
+                                type="button"
+                                onClick={() => onDiagnosticsSeverityFilterChange(severityFilter === 'warning' ? 'all' : 'warning')}
+                                className={[
+                                    'text-[10px] px-1.5 py-0.5 rounded border transition-colors',
+                                    severityFilter === 'warning'
+                                        ? 'border-amber-400 bg-amber-500/20 text-amber-200'
+                                        : 'border-amber-500/30 bg-amber-500/10 text-amber-300 hover:bg-amber-500/20',
+                                ].join(' ')}
+                            >
+                                {formatCount(diagnosticCounts.warnings, 'warning', 'warnings')}
                             </button>
                         )}
 
-                        <span className="ml-auto text-[11px] text-vscode-text opacity-60">
+                        {hasDiagnosticsFilters && (
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    onDiagnosticsSeverityFilterChange('all');
+                                    onDiagnosticsChipFilterChange('all');
+                                    setDiagnosticsSearch('');
+                                }}
+                                className="text-[10px] px-1.5 py-0.5 rounded border border-vscode-border text-vscode-text opacity-75 hover:opacity-100 hover:bg-vscode-hover"
+                            >
+                                Reset
+                            </button>
+                        )}
+
+                        <span className="ml-auto text-[11px] text-vscode-text opacity-60 shrink-0">
                             {filteredDiagnostics.length}/{chipDiagnostics.length}
                         </span>
                     </div>
@@ -669,106 +1174,231 @@ export default function SerialMonitor({
                         </p>
                     ) : (
                         sortedDiagnostics.map((item) => {
-                                const d = item.diagnostic;
-                                const sev = d.severity.toUpperCase();
-                                const itemId = getDiagnosticItemId(item);
-                                const isExpanded = expandedDiagnosticIds.has(itemId);
-                                return (
-                                    <div
-                                        key={itemId}
-                                        className={[
-                                            'border-b border-vscode-border',
-                                            'px-3 py-2',
-                                        ].join(' ')}
-                                    >
-                                        <div className="flex items-start gap-2 text-[11px] mb-0.5">
-                                            <button
-                                                type="button"
-                                                onClick={() => updateExpandedDiagnosticIds(itemId, !isExpanded)}
-                                                className="mt-0.5 rounded p-0.5 text-vscode-text opacity-65 hover:bg-vscode-hover hover:opacity-100"
-                                                title={isExpanded ? 'Collapse diagnostic details' : 'Expand diagnostic details'}
-                                            >
-                                                {isExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
-                                            </button>
-                                            <button
-                                                onClick={() => onOpenChipDiagnostic?.(
-                                                    item.fileName,
-                                                    d.startLineNumber,
-                                                    d.startColumn,
-                                                )}
-                                                className="flex-1 min-w-0 flex items-center gap-2 text-left hover:opacity-90"
-                                                title="Open diagnostic location"
-                                            >
-                                                <span className={severityClass[d.severity]}>{sev}</span>
-                                                <span className="text-vscode-text opacity-80">{item.chipName}</span>
-                                                <span className="text-vscode-text opacity-40">•</span>
-                                                <span className="text-vscode-text opacity-70 truncate">{item.fileName}:{d.startLineNumber}:{d.startColumn}</span>
-                                            </button>
-
-                                            <button
-                                                onClick={() => onDiagnosticsChipFilterChange(item.chipName)}
-                                                className="text-[10px] px-1.5 py-0.5 rounded border border-vscode-border text-vscode-text opacity-70 hover:opacity-100 hover:bg-vscode-hover"
-                                                title="Only this chip"
-                                            >
-                                                Only this chip
-                                            </button>
-
-                                            <button
-                                                onClick={() => onDiagnosticsSeverityFilterChange(d.severity)}
-                                                className="text-[10px] px-1.5 py-0.5 rounded border border-vscode-border text-vscode-text opacity-70 hover:opacity-100 hover:bg-vscode-hover"
-                                                title={`Only ${d.severity} diagnostics`}
-                                            >
-                                                {severityFilterLabel(d.severity)}
-                                            </button>
-                                        </div>
+                            const d = item.diagnostic;
+                            const sev = d.severity.toUpperCase();
+                            const itemId = getDiagnosticItemId(item);
+                            const isExpanded = expandedDiagnosticIds.has(itemId);
+                            const diagCopyKey = `diag-${itemId}`;
+                            return (
+                                <div key={itemId} className="border-b border-vscode-border px-3 py-2">
+                                    <div className="flex items-start gap-2 text-[11px] mb-0.5">
                                         <button
+                                            type="button"
+                                            onClick={() => updateExpandedDiagnosticIds(itemId, !isExpanded)}
+                                            className="mt-0.5 rounded p-0.5 text-vscode-text opacity-65 hover:bg-vscode-hover hover:opacity-100"
+                                            title={isExpanded ? 'Collapse diagnostic details' : 'Expand diagnostic details'}
+                                        >
+                                            {isExpanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+                                        </button>
+                                        <button
+                                            type="button"
                                             onClick={() => onOpenChipDiagnostic?.(
                                                 item.fileName,
                                                 d.startLineNumber,
                                                 d.startColumn,
                                             )}
-                                            className="w-full pl-6 text-left text-[12px] text-vscode-text opacity-90 font-mono whitespace-pre-wrap hover:opacity-100"
+                                            className="flex-1 min-w-0 flex items-center gap-2 text-left hover:opacity-90"
                                             title="Open diagnostic location"
                                         >
-                                            {d.message}
+                                            <span className={severityClass[d.severity]}>{sev}</span>
+                                            <span className="text-vscode-text opacity-80">{item.chipName}</span>
+                                            <span className="text-vscode-text opacity-40">•</span>
+                                            <span className="text-vscode-text opacity-70 truncate">
+                                                {item.fileName}:{d.startLineNumber}:{d.startColumn}
+                                            </span>
                                         </button>
-                                        {isExpanded && (
-                                            <div className="mt-2 ml-6 rounded border border-vscode-border bg-vscode-codeBg px-3 py-2 text-[11px] text-vscode-text opacity-85">
-                                                <div className="font-mono whitespace-pre-wrap text-[12px] opacity-95">{d.message}</div>
-                                                <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 opacity-70">
-                                                    <span>{item.fileName}:{d.startLineNumber}:{d.startColumn}</span>
-                                                    <span>End {d.endLineNumber}:{d.endColumn}</span>
-                                                    <span>Chip {item.chipName}</span>
-                                                    {d.source && <span>Source {d.source}</span>}
-                                                </div>
-                                                <div className="mt-2 flex flex-wrap gap-2">
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => onOpenChipDiagnostic?.(
-                                                            item.fileName,
-                                                            d.startLineNumber,
-                                                            d.startColumn,
-                                                        )}
-                                                        className="rounded border border-vscode-border px-2 py-1 text-[10px] uppercase tracking-[0.14em] text-vscode-text hover:bg-vscode-hover"
-                                                    >
-                                                        Open location
-                                                    </button>
-                                                    <button
-                                                        type="button"
-                                                        onClick={() => onDiagnosticsChipFilterChange(item.chipName)}
-                                                        className="rounded border border-vscode-border px-2 py-1 text-[10px] uppercase tracking-[0.14em] text-vscode-text hover:bg-vscode-hover"
-                                                    >
-                                                        Filter chip
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        )}
+
+                                        <button
+                                            type="button"
+                                            onClick={() => onDiagnosticsChipFilterChange(item.chipName)}
+                                            className={[
+                                                'text-[10px] px-1.5 py-0.5 rounded border border-vscode-border',
+                                                'text-vscode-text opacity-70 hover:opacity-100 hover:bg-vscode-hover',
+                                            ].join(' ')}
+                                            title="Only this chip"
+                                        >
+                                            Only this chip
+                                        </button>
+
+                                        <button
+                                            type="button"
+                                            onClick={() => onDiagnosticsSeverityFilterChange(d.severity)}
+                                            className={[
+                                                'text-[10px] px-1.5 py-0.5 rounded border border-vscode-border',
+                                                'text-vscode-text opacity-70 hover:opacity-100 hover:bg-vscode-hover',
+                                            ].join(' ')}
+                                            title={`Only ${d.severity} diagnostics`}
+                                        >
+                                            {severityFilterLabel(d.severity)}
+                                        </button>
                                     </div>
-                                );
-                            })
+                                    <button
+                                        type="button"
+                                        onClick={() => onOpenChipDiagnostic?.(
+                                            item.fileName,
+                                            d.startLineNumber,
+                                            d.startColumn,
+                                        )}
+                                        className="w-full pl-6 text-left text-[12px] text-vscode-text opacity-90 font-mono whitespace-pre-wrap hover:opacity-100"
+                                        title="Open diagnostic location"
+                                    >
+                                        {d.message}
+                                    </button>
+                                    {isExpanded && (
+                                        <div className="mt-2 ml-6 rounded border border-vscode-border bg-vscode-codeBg px-3 py-2 text-[11px] text-vscode-text opacity-85">
+                                            <div className="font-mono whitespace-pre-wrap text-[12px] opacity-95">{d.message}</div>
+                                            <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 opacity-70">
+                                                <span>{item.fileName}:{d.startLineNumber}:{d.startColumn}</span>
+                                                <span>End {d.endLineNumber}:{d.endColumn}</span>
+                                                <span>Chip {item.chipName}</span>
+                                                {d.source && <span>Source {d.source}</span>}
+                                            </div>
+                                            <div className="mt-2 flex flex-wrap gap-2">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => onOpenChipDiagnostic?.(
+                                                        item.fileName,
+                                                        d.startLineNumber,
+                                                        d.startColumn,
+                                                    )}
+                                                    className={[
+                                                        'rounded border border-vscode-border px-2 py-1 text-[10px]',
+                                                        'uppercase tracking-[0.14em] text-vscode-text hover:bg-vscode-hover',
+                                                    ].join(' ')}
+                                                >
+                                                    Open location
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => onDiagnosticsChipFilterChange(item.chipName)}
+                                                    className={[
+                                                        'rounded border border-vscode-border px-2 py-1 text-[10px]',
+                                                        'uppercase tracking-[0.14em] text-vscode-text hover:bg-vscode-hover',
+                                                    ].join(' ')}
+                                                >
+                                                    Filter chip
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => triggerCopy(diagCopyKey, formatDiagnosticSummary(item))}
+                                                    className={[
+                                                        'rounded border border-vscode-border px-2 py-1 text-[10px]',
+                                                        'uppercase tracking-[0.14em] hover:bg-vscode-hover flex items-center gap-1',
+                                                        copiedKey === diagCopyKey ? 'text-green-400' : 'text-vscode-text',
+                                                    ].join(' ')}
+                                                >
+                                                    {copiedKey === diagCopyKey ? <Check size={10} /> : <Copy size={10} />}
+                                                    <span>{copiedKey === diagCopyKey ? 'Copied' : 'Copy'}</span>
+                                                </button>
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            );
+                        })
+                    )}
+                </div>
+            )}
+
+            {/* ── History Tab ── */}
+            {tab === 'history' && (
+                <div ref={scrollRef} onScroll={handleScroll} className="flex-1 overflow-y-auto">
+                    {compileHistory.length > 0 && (
+                        <div className="flex items-center gap-2 px-3 py-1.5 border-b border-vscode-border text-[11px]">
+                            {(
+                                [
+                                    { id: 'all', label: `All (${compileHistory.length})` },
+                                    { id: 'success', label: `Success (${historyCounts.success})` },
+                                    { id: 'failed', label: `Failed (${historyCounts.failed})` },
+                                ] as Array<{ id: HistoryStatusFilter; label: string }>
+                            ).map((pill) => (
+                                <button
+                                    key={pill.id}
+                                    type="button"
+                                    onClick={() => setHistoryStatusFilter(pill.id)}
+                                    className={[
+                                        'px-2 py-0.5 rounded border transition-colors',
+                                        historyStatusFilter === pill.id
+                                            ? 'border-blue-500/60 bg-blue-500/15 text-blue-300'
+                                            : 'border-vscode-border text-vscode-text opacity-70 hover:opacity-100 hover:bg-vscode-hover',
+                                    ].join(' ')}
+                                >
+                                    {pill.label}
+                                </button>
+                            ))}
+                        </div>
+                    )}
+                    {filteredHistory.length === 0 ? (
+                        <p className="p-6 text-center text-vscode-text opacity-60 text-[13px] italic">
+                            {compileHistory.length === 0
+                                ? 'No compilation history yet. Hit Build to get started.'
+                                : 'No builds matching selected status.'}
+                        </p>
+                    ) : (
+                        filteredHistory.map((entry) => {
+                            const historyCopyKey = `hist-${entry.id}`;
+                            return (
+                                <details
+                                    key={entry.id}
+                                    open={expandedHistoryIds.has(entry.id)}
+                                    onToggle={(event) => updateExpandedHistoryIds(entry.id, event.currentTarget.open)}
+                                    className="border-b border-vscode-border group"
+                                >
+                                    <summary className={[
+                                        'flex items-center gap-2 px-3 py-2 cursor-pointer',
+                                        'text-[12px] list-none select-none',
+                                        'hover:bg-vscode-hover',
+                                    ].join(' ')}>
+                                        <span className={[
+                                            'w-2 h-2 rounded-full shrink-0',
+                                            entry.success ? 'bg-green-500' : 'bg-red-500',
+                                        ].join(' ')} />
+                                        <span className={entry.success ? 'text-green-400' : 'text-red-400'}>
+                                            {entry.success ? 'Success' : 'Failed'}
+                                        </span>
+                                        <span className="text-vscode-text opacity-55">-</span>
+                                        <span className="text-vscode-text opacity-85 font-medium truncate flex-1">
+                                            {entry.projectName}
+                                        </span>
+                                        <button
+                                            type="button"
+                                            onClick={(event) => {
+                                                event.preventDefault();
+                                                event.stopPropagation();
+                                                triggerCopy(historyCopyKey, entry.output || '(no output)');
+                                            }}
+                                            title={copiedKey === historyCopyKey ? 'Log copied!' : 'Copy build output'}
+                                            className={[
+                                                'p-1 rounded shrink-0 transition-colors',
+                                                copiedKey === historyCopyKey
+                                                    ? 'text-green-400 bg-green-500/10'
+                                                    : 'text-vscode-text opacity-55 hover:opacity-100 hover:bg-vscode-input',
+                                            ].join(' ')}
+                                        >
+                                            {copiedKey === historyCopyKey ? <Check size={11} /> : <Copy size={11} />}
+                                        </button>
+                                        <span className="text-vscode-text opacity-65 shrink-0">
+                                            {new Date(entry.timestamp).toLocaleTimeString()}
+                                        </span>
+                                        <span className="text-vscode-text opacity-65 shrink-0">
+                                            {(entry.durationMs / 1000).toFixed(1)}s
+                                        </span>
+                                    </summary>
+                                    <pre className={[
+                                        'bg-vscode-codeBg px-4 py-2 text-[11px] font-mono',
+                                        'text-vscode-text opacity-70 whitespace-pre-wrap',
+                                        'overflow-x-auto max-h-48 overflow-y-auto',
+                                    ].join(' ')}>
+                                        {entry.output || '(no output)'}
+                                    </pre>
+                                </details>
+                            );
+                        })
                     )}
                 </div>
             )}
         </div>
     );
-}
+});
+
+export default SerialMonitor;

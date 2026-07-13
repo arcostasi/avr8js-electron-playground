@@ -674,14 +674,35 @@ export function getWiringLegendDescription(
     return getComponentWiringLegendDescription(start);
 }
 
+const WOKWI_WIRE_ROUTING_TOKEN_RE = /^(?:\*|[vh](?:\*|[-+]?\d+(?:\.\d+)?))$/i;
+
+export function isWokwiWireRoutingToken(hint: string): boolean {
+    return WOKWI_WIRE_ROUTING_TOKEN_RE.test(hint.trim());
+}
+
+export function filterWiringDiagnosticHints(routeHints: readonly string[] | undefined): string[] {
+    if (!routeHints || routeHints.length === 0) {
+        return [];
+    }
+
+    return routeHints.filter((hint) => {
+        const trimmed = hint.trim();
+        return trimmed.length > 0 && !isWokwiWireRoutingToken(trimmed);
+    });
+}
+
 export function listDiagramRouteHints(diagram: WokwiDiagram | undefined): DiagramRouteHintItem[] {
     if (!diagram) {
         return [];
     }
 
     return diagram.connections.flatMap((connection) => {
+        const diagnosticHints = filterWiringDiagnosticHints(connection.routeHints);
+        if (diagnosticHints.length === 0) {
+            return [];
+        }
         const connectionLabel = `${formatSimulatorPinReference(diagram, connection.from)} -> ${formatSimulatorPinReference(diagram, connection.to)}`;
-        return (connection.routeHints ?? []).map((message) => ({
+        return diagnosticHints.map((message) => ({
             connectionId: connection.id,
             connectionLabel,
             message,

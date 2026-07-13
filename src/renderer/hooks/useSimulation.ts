@@ -31,12 +31,14 @@ export interface CpuSnapshot {
 }
 
 interface UseSimulationParams {
+    projectKey?: string;
     diagram?: WokwiDiagram;
     hex?: string | null;
     customChipArtifacts?: CustomChipArtifacts;
     customChipManifests?: CustomChipManifests;
     onSerialOutput: (text: string, usartId?: string) => void;
     onChipOutput?: (text: string) => void;
+    onNeoPixelsUpdate?: (partId: string, pixels: Uint32Array) => void;
     setIsEditMode: (edit: boolean) => void;
 }
 
@@ -56,13 +58,18 @@ interface UseSimulationReturn {
     getCpuSnapshot: () => CpuSnapshot | null;
 }
 
+const SERIAL_FLUSH_INTERVAL_MS = 50;
+const SERIAL_IMMEDIATE_FLUSH_CHARS = 4096;
+
 export function useSimulation({
+    projectKey,
     diagram,
     hex,
     customChipArtifacts = {},
     customChipManifests = {},
     onSerialOutput,
     onChipOutput,
+    onNeoPixelsUpdate,
     setIsEditMode,
 }: UseSimulationParams): UseSimulationReturn {
     const [isPlaying, setIsPlaying] = useState(false);
@@ -76,6 +83,25 @@ export function useSimulation({
     const lastDiagramShapeRef = useRef<string | null>(null);
     const lastDiagramLayoutRef = useRef<string | null>(null);
     const serialLineStateRef = useRef<Record<string, boolean>>({});
+    const pendingSerialRef = useRef<Map<string, string>>(new Map());
+    const onSerialOutputRef = useRef(onSerialOutput);
+    onSerialOutputRef.current = onSerialOutput;
+    const onNeoPixelsUpdateRef = useRef(onNeoPixelsUpdate);
+    onNeoPixelsUpdateRef.current = onNeoPixelsUpdate;
+    const playSessionRef = useRef(0);
+    const prevProjectKeyRef = useRef<string | undefined>(projectKey);
+
+    const flushPendingSerial = useCallback(() => {
+        const pending = pendingSerialRef.current;
+        if (pending.size === 0) return;
+        const entries = Array.from(pending.entries());
+        pending.clear();
+        for (const [usartId, text] of entries) {
+            if (text.length > 0) {
+                onSerialOutputRef.current(text, usartId);
+            }
+        }
+    }, []);
 
     const getDiagramLayoutHash = useCallback((currentDiagram: WokwiDiagram): string => {
         return JSON.stringify(currentDiagram.parts.map((part) => ({
@@ -96,7 +122,9 @@ export function useSimulation({
     }, []);
 
     const stopSimulation = useCallback(() => {
+        playSessionRef.current += 1;
         measureSync('simulation-stop', () => {
+            flushPendingSerial();
             if (gpioCleanupRef.current) {
                 gpioCleanupRef.current();
                 gpioCleanupRef.current = null;
@@ -105,10 +133,32 @@ export function useSimulation({
                 runnerRef.current.stop();
                 runnerRef.current = null;
             }
+            serialLineStateRef.current = {};
+            pendingSerialRef.current.clear();
             setAdjustableDevices([]);
             setIsPlaying(false);
+            setSimTime('00:00.000');
+            setSimSpeed('0%');
         });
-    }, []);
+    }, [flushPendingSerial]);
+
+    // Stop simulation cleanly whenever active project changes
+    useEffect(() => {
+        if (prevProjectKeyRef.current === projectKey) return;
+        prevProjectKeyRef.current = projectKey;
+        stopSimulation();
+        compiledSetupRef.current = null;
+        lastDiagramShapeRef.current = null;
+        lastDiagramLayoutRef.current = null;
+    }, [projectKey, stopSimulation]);
+
+    // Stop simulation if firmware is cleared
+    useEffect(() => {
+        if (!hex && (runnerRef.current || isPlaying)) {
+            stopSimulation();
+            setIsEditMode(true);
+        }
+    }, [hex, isPlaying, setIsEditMode, stopSimulation]);
 
     // Cleanup on unmount
     useEffect(() => {
@@ -116,6 +166,7 @@ export function useSimulation({
     }, [stopSimulation]);
 
     const handlePlay = useCallback(async () => {
+        const sessionId = ++playSessionRef.current;
         await measureAsync('simulation-start', async () => {
         if (!hex) {
             alert('Please compile the code first.');
@@ -125,18 +176,30 @@ export function useSimulation({
         setIsEditMode(false);
         setIsPlaying(true);
 
+        try {
         const { AVRRunner } = await import('../../shared/execute');
         const { getBoardSimulationWarning, resolveBoardProfileFromParts } = await import('../../shared/avr/profiles');
         const { formatTime } = await import('../../shared/format-time');
         const { I2CBus } = await import('../../shared/i2c-bus');
         const { CPUPerformance } = await import('../../shared/cpu-performance');
 
-        if (runnerRef.current) runnerRef.current.stop();
+        if (playSessionRef.current !== sessionId) {
+            return;
+        }
+
+        if (gpioCleanupRef.current) {
+            gpioCleanupRef.current();
+            gpioCleanupRef.current = null;
+        }
+        if (runnerRef.current) {
+            runnerRef.current.stop();
+            runnerRef.current = null;
+        }
 
         const boardProfile = resolveBoardProfileFromParts(diagram?.parts ?? []);
         const simulationWarning = getBoardSimulationWarning(boardProfile);
         if (simulationWarning) {
-            onSerialOutput(`[warning] ${simulationWarning}\n`);
+            onSerialOutputRef.current(`[warning] ${simulationWarning}\n`);
         }
         const runner = new AVRRunner(hex, boardProfile.mcu);
         runnerRef.current = runner;
@@ -151,8 +214,12 @@ export function useSimulation({
                 const isPrimary = usartId === runner.mcuProfile.defaults.usart;
                 const atLineStart = serialLineStateRef.current[usartId] ?? true;
                 const prefix = !isPrimary && atLineStart && char !== '\n' && char !== '\r' ? `[${usartId}] ` : '';
-                onSerialOutput(prefix + char, usartId);
+                const nextText = (pendingSerialRef.current.get(usartId) ?? '') + prefix + char;
+                pendingSerialRef.current.set(usartId, nextText);
                 serialLineStateRef.current[usartId] = char === '\n' || char === '\r';
+                if (nextText.length >= SERIAL_IMMEDIATE_FLUSH_CHARS) {
+                    flushPendingSerial();
+                }
             };
         }
 
@@ -192,6 +259,7 @@ export function useSimulation({
                     customChipManifests,
                     onChipOutput,
                     compiledSetup ?? undefined,
+                    (partId, pixels) => onNeoPixelsUpdateRef.current?.(partId, pixels),
                 ),
                 `parts=${diagram.parts.length},conns=${diagram.connections.length}`,
             )
@@ -199,9 +267,9 @@ export function useSimulation({
 
         setAdjustableDevices(adjustable);
 
-        if (diagram) {
-            const gpioClean = setupGPIORouting(diagram, runner);
-            gpioCleanupRef.current = () => { gpioClean(); hwCleanup(); };
+        const gpioRouting = diagram ? setupGPIORouting(diagram, runner, compiledSetup ?? undefined) : null;
+        if (gpioRouting) {
+            gpioCleanupRef.current = () => { gpioRouting.cleanup(); hwCleanup(); };
         } else {
             gpioCleanupRef.current = hwCleanup;
         }
@@ -215,12 +283,14 @@ export function useSimulation({
             const millis = performance.now();
 
             // Pump visual state to DOM elements (60fps synced)
+            gpioRouting?.flush();
             updateControllerStates(controllers);
 
-            // Throttle UI React state updates
-            if (millis - previousTimeMillis > 50) {
+            // Throttle UI React state updates & batch serial output every ~50ms
+            if (millis - previousTimeMillis > SERIAL_FLUSH_INTERVAL_MS) {
                 const timeStr = formatTime(cpu.cycles / runner.frequency);
                 setSimTime(timeStr);
+                flushPendingSerial();
                 previousTimeMillis = millis;
             }
 
@@ -233,12 +303,20 @@ export function useSimulation({
             }
         });
         markPerf('simulation-loop-started');
+        } catch (err) {
+            if (playSessionRef.current === sessionId) {
+                stopSimulation();
+                setIsEditMode(true);
+                onSerialOutputRef.current(`[error] Failed to start simulation: ${err instanceof Error ? err.message : String(err)}\n`);
+            }
+        }
         });
-    }, [hex, diagram, customChipArtifacts, customChipManifests, onSerialOutput, onChipOutput, setIsEditMode, speedMultiplier]);
+    }, [hex, diagram, customChipArtifacts, customChipManifests, onChipOutput, setIsEditMode, speedMultiplier, stopSimulation, getCompiledSetup, getDiagramLayoutHash, flushPendingSerial]);
 
     const handleStop = useCallback(() => {
         stopSimulation();
-    }, [stopSimulation]);
+        setIsEditMode(true);
+    }, [setIsEditMode, stopSimulation]);
 
     const serialWrite = useCallback((text: string, usartId?: string) => {
         if (!runnerRef.current) return;

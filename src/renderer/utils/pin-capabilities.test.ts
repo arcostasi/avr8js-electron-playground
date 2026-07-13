@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { WokwiDiagram } from '../types/wokwi.types';
 import {
+    filterWiringDiagnosticHints,
     formatBoardPinPwmLabel,
     formatSimulatorPinReference,
     getConnectionRouteHints,
@@ -11,6 +12,7 @@ import {
     getWiringLegendHeading,
     getWiringCandidateSummary,
     getWiringCandidateStatus,
+    isWokwiWireRoutingToken,
     listDiagramRouteHints,
     resolveSimulatorPinMetadata,
 } from './pin-capabilities';
@@ -274,5 +276,37 @@ describe('pin capabilities', () => {
             hasValidTargets: false,
             hasInvalidTargets: true,
         })).toBe('No compatible board targets visible');
+    });
+
+    it('filters Wokwi wire geometry routing tokens out of wiring diagnostics and hints', () => {
+        expect(isWokwiWireRoutingToken('*')).toBe(true);
+        expect(isWokwiWireRoutingToken('v14')).toBe(true);
+        expect(isWokwiWireRoutingToken('h-20')).toBe(true);
+        expect(isWokwiWireRoutingToken('V12.5')).toBe(true);
+        expect(isWokwiWireRoutingToken('h*')).toBe(true);
+        expect(isWokwiWireRoutingToken('Pin D4 does not support hardware PWM on Arduino Uno.')).toBe(false);
+
+        expect(filterWiringDiagnosticHints(['v14', '*', 'h-20', '  '])).toEqual([]);
+
+        const diagram = makeDiagram('wokwi-arduino-uno', [
+            { id: 'lcd', type: 'wokwi-lcd1602', top: 0, left: 0, rotate: 0 },
+        ]);
+        const diagnosticMessage = getConnectionRouteHints(diagram, 'lcd:SDA', 'board:5')[0];
+
+        const withRoutingAndWarning: WokwiDiagram = {
+            ...diagram,
+            connections: [
+                { id: 'conn-0', from: 'uno:GND.2', to: 'lcd:GND', color: 'black', routeHints: ['v14', '*', 'h-20'] },
+                { id: 'conn-1', from: 'lcd:SDA', to: 'board:5', color: 'blue', routeHints: ['v22', diagnosticMessage, '*'] },
+            ],
+        };
+
+        expect(listDiagramRouteHints(withRoutingAndWarning)).toEqual([
+            {
+                connectionId: 'conn-1',
+                connectionLabel: 'lcd1602:SDA -> D5',
+                message: diagnosticMessage,
+            },
+        ]);
     });
 });

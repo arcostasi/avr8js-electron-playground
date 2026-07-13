@@ -25,6 +25,11 @@ import { attachCustomChipControllers } from './custom-chips';
 import type { CustomChipArtifacts, CustomChipControl, CustomChipManifests } from './custom-chips';
 import { buildNetlist } from './netlist-builder';
 import type { NetlistEntry } from './netlist-builder';
+import {
+    DOT_MATRIX_PART_TYPE,
+    getDotMatrixPixelCount,
+    type DotMatrixHostElement,
+} from '../components/simulator/dot-matrix';
 
 type PortSet = Readonly<ArduinoPorts>;
 type SpiMuxSession = {
@@ -125,6 +130,7 @@ export function compileSimulationSetup(diagram: WokwiDiagram): CompiledSimulatio
     }
 
     const structuralHash = JSON.stringify({
+        customView: diagram.customView ?? '',
         parts: diagram.parts.map((part) => ({
             id: part.id,
             type: part.type,
@@ -153,8 +159,11 @@ export function compileSimulationSetup(diagram: WokwiDiagram): CompiledSimulatio
 
 // ── NeoPixel helpers ──
 
-function getNeoPixelCount(part: { type: string; attrs?: Record<string, string> }): number {
+export function getNeoPixelCount(part: { type: string; attrs?: Record<string, string> }): number {
     if (part.type === 'wokwi-neopixel') return 1;
+    if (part.type === 'wokwi-neopixel-strip') {
+        return Number.parseInt(part.attrs?.pixels ?? '16', 10) || 16;
+    }
     if (part.type === 'wokwi-led-ring') {
         return Number.parseInt(part.attrs?.pixels ?? '16', 10) || 16;
     }
@@ -162,6 +171,9 @@ function getNeoPixelCount(part: { type: string; attrs?: Record<string, string> }
         const rows = Number.parseInt(part.attrs?.rows ?? '8', 10) || 8;
         const cols = Number.parseInt(part.attrs?.cols ?? '8', 10) || 8;
         return rows * cols;
+    }
+    if (part.type === DOT_MATRIX_PART_TYPE) {
+        return getDotMatrixPixelCount(part.attrs);
     }
     return 0;
 }
@@ -183,6 +195,9 @@ interface LcdState {
     cursor: boolean;
     cursorX: number;
     cursorY: number;
+    backlight: boolean;
+    cgram?: Uint8Array;
+    cgramUpdated?: boolean;
 }
 
 // ── Adjustable device tracking ──
@@ -201,9 +216,15 @@ export interface AdjustableDevice {
 
 // ── Main API ──
 
-const NEOPIXEL_TYPES = new Set(['wokwi-neopixel', 'wokwi-led-ring', 'wokwi-neopixel-matrix']);
-const FLAME_DIGITAL_PROPERTIES: CustomChipControl[] = [
-    { key: 'detected', label: 'Flame Detected', min: 0, max: 1, step: 1, unit: '', defaultValue: 0 },
+const NEOPIXEL_TYPES = new Set([
+    'wokwi-neopixel',
+    'wokwi-neopixel-strip',
+    'wokwi-led-ring',
+    'wokwi-neopixel-matrix',
+    DOT_MATRIX_PART_TYPE,
+]);
+const DIGITAL_THRESHOLD_PROPERTIES: CustomChipControl[] = [
+    { key: 'detected', label: 'Threshold Triggered', min: 0, max: 1, step: 1, unit: '', defaultValue: 0 },
 ];
 const TILT_SWITCH_PROPERTIES: CustomChipControl[] = [
     { key: 'tilted', label: 'Tilted', min: 0, max: 1, step: 1, unit: '', defaultValue: 0 },
@@ -229,6 +250,7 @@ export function createHardwareControllers( // NOSONAR: central hardware factory 
     customChipManifests: CustomChipManifests = {},
     onChipLog?: (text: string) => void,
     compiledSetup?: CompiledSimulationSetup,
+    onNeoPixelsUpdate?: (partId: string, pixels: Uint32Array) => void,
 ): {
     controllers: HardwareController[];
     adjustable: AdjustableDevice[];
@@ -255,6 +277,23 @@ export function createHardwareControllers( // NOSONAR: central hardware factory 
 
     for (const part of diagram.parts) {
         const el = elementById.get(part.id);
+
+        // ── NeoPixel (works with or without DOM element so headless Custom View streaming works) ──
+        if (NEOPIXEL_TYPES.has(part.type)) {
+            setupNeopixel(
+                part,
+                el ?? null,
+                componentPinsFor(part.id),
+                runner,
+                ports,
+                boardProfile,
+                controllers,
+                cleanups,
+                onNeoPixelsUpdate,
+            );
+            continue;
+        }
+
         if (!el) continue;
 
         // ── I2C displays ──
@@ -263,14 +302,9 @@ export function createHardwareControllers( // NOSONAR: central hardware factory 
         } else if (part.type === 'wokwi-lcd2004') {
             setupLCD2004(el, cpuMillis, i2cBus, controllers);
         } else if (part.type === 'wokwi-ssd1306') {
-            setupSSD1306(el, cpuMillis, i2cBus, controllers);
+            setupSSD1306(part, el, cpuMillis, i2cBus, controllers);
         } else if (part.type === 'wokwi-ili9341') {
             setupILI9341(part, el, componentPinsFor(part.id), runner, { ports, profile: boardProfile }, controllers, cleanups);
-        }
-
-        // ── NeoPixel (single, ring, matrix) ──
-        else if (NEOPIXEL_TYPES.has(part.type)) {
-            setupNeopixel(part, el, componentPinsFor(part.id), runner, ports, boardProfile, controllers);
         }
 
         // ── Speaker / Buzzer audio ──
@@ -447,16 +481,23 @@ export function createHardwareControllers( // NOSONAR: central hardware factory 
                     get: () => runner.adcRegistry.getChannel(ch),
                     set: (_k, v) => runner.adcRegistry.setValue(ch, v),
                 });
-            } else if (part.type === 'wokwi-flame-sensor') {
-                const flameSignal = setupFlameDigitalSensor(componentPinsFor(part.id), ports, boardProfile, part.id);
-                if (flameSignal) {
+            } else {
+                const digitalSignal = setupDigitalThresholdSensor(componentPinsFor(part.id), ports, boardProfile, part.id);
+                if (digitalSignal) {
+                    const sensorLabels: Record<string, string> = {
+                        'wokwi-flame-sensor': 'Flame Sensor',
+                        'wokwi-gas-sensor': 'Gas Sensor',
+                        'wokwi-photoresistor-sensor': 'Photoresistor',
+                        'wokwi-big-sound-sensor': 'Big Sound Sensor',
+                        'wokwi-small-sound-sensor': 'Small Sound Sensor',
+                    };
                     adjustable.push({
                         partId: part.id,
                         partType: part.type,
-                        label: 'Flame Sensor',
-                        properties: FLAME_DIGITAL_PROPERTIES,
-                        get: () => flameSignal.getDetected(),
-                        set: (_key, value) => flameSignal.setDetected(value),
+                        label: sensorLabels[part.type] ?? part.type,
+                        properties: DIGITAL_THRESHOLD_PROPERTIES,
+                        get: () => digitalSignal.getDetected(),
+                        set: (_key, value) => digitalSignal.setDetected(value),
                     });
                 }
             }
@@ -482,7 +523,7 @@ export function createHardwareControllers( // NOSONAR: central hardware factory 
                     if (pi) {
                         adjustable.push({
                             partId: part.id, partType: part.type,
-                            get: () => pi.port.pinState(pi.bit) === 1 ? 1 : 0,
+                            get: () => ((runner.cpu.data[pi.port.portConfig.PIN] & (1 << pi.bit)) !== 0 ? 1 : 0),
                             set: (_k, v) => pi.port.setPin(pi.bit, v > 0),
                         });
                     }
@@ -519,7 +560,7 @@ export function createHardwareControllers( // NOSONAR: central hardware factory 
 
 // ── Setup functions (keep cognitive complexity low) ──
 
-function setupFlameDigitalSensor(
+function setupDigitalThresholdSensor(
     compPins: ResolvedPin[],
     ports: PortSet,
     boardProfile: BoardProfile,
@@ -535,18 +576,28 @@ function setupFlameDigitalSensor(
         return null;
     }
 
+    let currentDetected = false;
     const applyDetected = (detected: boolean) => {
+        currentDetected = detected;
         portBit.port.setPin(portBit.bit, !detected);
-        const element = document.getElementById(partId) as (HTMLElement & { ledSignal?: boolean }) | null;
+        const element = document.getElementById(partId) as (HTMLElement & {
+            ledPower?: boolean;
+            ledSignal?: boolean;
+            ledD0?: boolean;
+            ledDO?: boolean;
+        }) | null;
         if (element) {
-            element.ledSignal = detected;
+            if ('ledPower' in element) element.ledPower = true;
+            if ('ledSignal' in element) element.ledSignal = detected;
+            if ('ledD0' in element) element.ledD0 = detected;
+            if ('ledDO' in element) element.ledDO = detected;
         }
     };
 
     applyDetected(false);
 
     return {
-        getDetected: () => (portBit.port.pinState(portBit.bit) === 0 ? 1 : 0),
+        getDetected: () => (currentDetected ? 1 : 0),
         setDetected: (value) => applyDetected(value >= 0.5),
     };
 }
@@ -566,14 +617,16 @@ function setupTiltSwitchAdjustable(
         return null;
     }
 
+    let currentTilted = false;
     const applyTilted = (tilted: boolean) => {
+        currentTilted = tilted;
         portBit.port.setPin(portBit.bit, tilted);
     };
 
     applyTilted(false);
 
     return {
-        getTilted: () => (portBit.port.pinState(portBit.bit) === 1 ? 1 : 0),
+        getTilted: () => (currentTilted ? 1 : 0),
         setTilted: (value) => applyTilted(value >= 0.5),
     };
 }
@@ -711,11 +764,24 @@ function setupLCD2004(
     controllers.push({ element: el, update: () => lcd.update(), type: 'lcd' });
 }
 
+function parseSsd1306Address(rawAddress?: string): number {
+    if (!rawAddress) return 0x3C;
+    const trimmed = rawAddress.trim();
+    const parsed = Number.parseInt(trimmed, trimmed.toLowerCase().startsWith('0x') ? 16 : 10);
+    if (parsed === 0x3C || parsed === 0x3D) return parsed;
+    return 0x3C;
+}
+
 function setupSSD1306(
-    el: HTMLElement, cpuMillis: () => number, i2cBus: I2CBus, controllers: HardwareController[],
+    part: { attrs?: Record<string, string> },
+    el: HTMLElement,
+    cpuMillis: () => number,
+    i2cBus: I2CBus,
+    controllers: HardwareController[],
 ): void {
     const oled = new SSD1306Controller(cpuMillis);
-    i2cBus.registerDevice(0x3C, oled);
+    const i2cAddress = parseSsd1306Address(part.attrs?.i2cAddress);
+    i2cBus.registerDevice(i2cAddress, oled);
     type OledEl = HTMLElement & { imageData: ImageData; redraw: () => void };
     controllers.push({
         element: el,
@@ -791,12 +857,14 @@ function setupILI9341(
 
 function setupNeopixel(
     part: { id: string; type: string; attrs?: Record<string, string> },
-    el: HTMLElement,
+    el: HTMLElement | null,
     compPins: ResolvedPin[],
     runner: AVRRunner,
     ports: PortSet,
     boardProfile: BoardProfile,
     controllers: HardwareController[],
+    cleanups: Array<() => void>,
+    onNeoPixelsUpdate?: (partId: string, pixels: Uint32Array) => void,
 ): void {
     const numPixels = getNeoPixelCount(part);
     if (numPixels === 0) return;
@@ -818,36 +886,81 @@ function setupNeopixel(
     let controllerType: HardwareController['type'] = 'neopixel-matrix';
     if (part.type === 'wokwi-neopixel') {
         controllerType = 'neopixel-single';
+    } else if (part.type === 'wokwi-neopixel-strip') {
+        controllerType = 'neopixel-strip';
     } else if (part.type === 'wokwi-led-ring') {
         controllerType = 'neopixel-ring';
+    } else if (part.type === DOT_MATRIX_PART_TYPE) {
+        controllerType = 'dot-matrix';
+        if (el) {
+            cleanups.push(() => {
+                (el as DotMatrixHostElement).clearPixels?.();
+            });
+        }
+    }
+
+    if (onNeoPixelsUpdate) {
+        cleanups.push(() => {
+            onNeoPixelsUpdate(part.id, new Uint32Array(ws.pixels.length));
+        });
     }
 
     controllers.push({
         element: el,
-        update: () => ws.update(runner.cpu.cycles * (1e9 / runner.frequency)),
+        update: () => {
+            if (part.type === DOT_MATRIX_PART_TYPE && el) {
+                const host = el as DotMatrixHostElement;
+                if (typeof host.getPixelCount === 'function') {
+                    ws.resize(host.getPixelCount());
+                }
+            }
+            const updatedPixels = ws.update(runner.cpu.cycles * (1e9 / runner.frequency));
+            if (updatedPixels && onNeoPixelsUpdate) {
+                onNeoPixelsUpdate(part.id, updatedPixels);
+            }
+            return updatedPixels;
+        },
         type: controllerType,
     });
 }
 
+function parseBuzzerVolume(attrs?: Record<string, string>): number {
+    const raw = Number.parseFloat(attrs?.volume ?? '');
+    if (!Number.isFinite(raw)) return 0.5;
+    return Math.max(0.05, Math.min(1, raw));
+}
+
 function setupSpeaker(
-    part: { id: string },
+    part: { id: string; attrs?: Record<string, string> },
     _el: HTMLElement,
     compPins: ResolvedPin[],
     runner: AVRRunner,
     ports: PortSet,
     boardProfile: BoardProfile,
 ): void {
-    // Buzzer has pin "1" (signal) and "2" (GND)
-    const sigArduino = findArduinoPin(compPins, '1') ?? findArduinoPin(compPins, 'SIG');
-    if (!sigArduino) return;
+    const candidatePins = ['1', 'SIG', '2']
+        .map((name) => findArduinoPin(compPins, name))
+        .filter((pin): pin is string => Boolean(pin));
 
-    const pi = getPortAndBit(sigArduino, ports, boardProfile);
+    let pi: ReturnType<typeof getPortAndBit> = null;
+    for (const arduinoPin of candidatePins) {
+        const resolved = getPortAndBit(arduinoPin, ports, boardProfile);
+        if (resolved) {
+            pi = resolved;
+            break;
+        }
+    }
     if (!pi) return;
 
-    // Reuse the speaker already created in AVRRunner
+    const volume = parseBuzzerVolume(part.attrs);
+    let lastHigh: boolean | null = null;
+
+    // Reuse the speaker already created in AVRRunner, filtering unrelated pin transitions on the same port
     pi.port.addListener(() => {
         const high = pi.port.pinState(pi.bit) === 1;
-        runner.speaker.feed(high ? 1 : 0);
+        if (high === lastHigh) return;
+        lastHigh = high;
+        runner.speaker.feed(high ? volume : 0);
     });
 }
 
@@ -931,7 +1044,7 @@ function setupIRRemote(
 export function updateControllerStates(controllers: HardwareController[]): void {
     for (const ctrl of controllers) {
         const state = ctrl.update();
-        if (!state) continue;
+        if (!state || !ctrl.element) continue;
 
         switch (ctrl.type) {
             case 'lcd':
@@ -946,8 +1059,12 @@ export function updateControllerStates(controllers: HardwareController[]): void 
             case 'neopixel-matrix':
                 updateNeopixelMatrix(ctrl.element, state as Uint32Array);
                 break;
+            case 'dot-matrix':
+                updateDotMatrix(ctrl.element, state as Uint32Array);
+                break;
+            case 'neopixel-strip':
             case 'oled':
-                // rendering handled inside the update() closure via element.redraw()
+                // rendering handled via Custom View bridge or element.redraw()
                 break;
             case 'ili9341':
                 // flush() is called inside the update() closure — nothing more to do here
@@ -961,12 +1078,19 @@ export function updateControllerStates(controllers: HardwareController[]): void 
 // ── Visual state updaters ──
 
 function updateLCD(el: HTMLElement, s: LcdState): void {
-    const lcd = el as HTMLElement & LcdState;
+    const lcd = el as HTMLElement & LcdState & { font?: Uint8Array };
     lcd.characters = s.characters;
     lcd.blink = s.blink;
     lcd.cursor = s.cursor;
     lcd.cursorX = s.cursorX;
     lcd.cursorY = s.cursorY;
+    lcd.backlight = s.backlight;
+    if (s.cgramUpdated && s.cgram && lcd.font instanceof Uint8Array && lcd.font.length >= 128) {
+        const nextFont = new Uint8Array(lcd.font);
+        nextFont.set(s.cgram.subarray(0, 64), 0);
+        nextFont.set(s.cgram.subarray(0, 64), 64);
+        lcd.font = nextFont;
+    }
 }
 
 function updateNeopixelSingle(el: HTMLElement, pixels: Uint32Array): void {
@@ -977,11 +1101,27 @@ function updateNeopixelSingle(el: HTMLElement, pixels: Uint32Array): void {
     neo.b = b;
 }
 
+const neoPixelPrevBufferByElement = new WeakMap<HTMLElement, Uint32Array>();
+
 function updateNeopixelRing(el: HTMLElement, pixels: Uint32Array): void {
     const ring = el as HTMLElement & { setPixel: (i: number, c: { r: number; g: number; b: number }) => void };
     if (typeof ring.setPixel !== 'function') return;
+
+    const prev = neoPixelPrevBufferByElement.get(el);
+    if (!prev || prev.length !== pixels.length) {
+        const snapshot = new Uint32Array(pixels);
+        neoPixelPrevBufferByElement.set(el, snapshot);
+        for (let i = 0; i < pixels.length; i++) {
+            ring.setPixel(i, grb2rgb(pixels[i]));
+        }
+        return;
+    }
+
     for (let i = 0; i < pixels.length; i++) {
-        ring.setPixel(i, grb2rgb(pixels[i]));
+        const px = pixels[i];
+        if (px === prev[i]) continue;
+        prev[i] = px;
+        ring.setPixel(i, grb2rgb(px));
     }
 }
 
@@ -992,9 +1132,31 @@ function updateNeopixelMatrix(el: HTMLElement, pixels: Uint32Array): void {
     };
     if (typeof matrix.setPixel !== 'function') return;
     const cols = matrix.cols || 8;
+
+    const prev = neoPixelPrevBufferByElement.get(el);
+    if (!prev || prev.length !== pixels.length) {
+        const snapshot = new Uint32Array(pixels);
+        neoPixelPrevBufferByElement.set(el, snapshot);
+        for (let i = 0; i < pixels.length; i++) {
+            const row = Math.floor(i / cols);
+            const col = i % cols;
+            matrix.setPixel(row, col, grb2rgb(pixels[i]));
+        }
+        return;
+    }
+
     for (let i = 0; i < pixels.length; i++) {
+        const px = pixels[i];
+        if (px === prev[i]) continue;
+        prev[i] = px;
         const row = Math.floor(i / cols);
         const col = i % cols;
-        matrix.setPixel(row, col, grb2rgb(pixels[i]));
+        matrix.setPixel(row, col, grb2rgb(px));
     }
+}
+
+export { updateNeopixelRing, updateNeopixelMatrix };
+
+function updateDotMatrix(el: HTMLElement, pixels: Uint32Array): void {
+    (el as DotMatrixHostElement).setPixels?.(pixels);
 }

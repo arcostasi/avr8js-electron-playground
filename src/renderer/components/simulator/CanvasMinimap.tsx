@@ -67,6 +67,15 @@ export default function CanvasMinimap({
         const ctx = canvas.getContext('2d');
         if (!ctx) return;
 
+        const dpr = globalThis.devicePixelRatio || 1;
+        const backingW = Math.max(1, Math.round(MINI_W * dpr));
+        const backingH = Math.max(1, Math.round(MINI_H * dpr));
+        if (canvas.width !== backingW || canvas.height !== backingH) {
+            canvas.width = backingW;
+            canvas.height = backingH;
+        }
+
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
         ctx.clearRect(0, 0, MINI_W, MINI_H);
 
         const css = getComputedStyle(canvas);
@@ -125,17 +134,16 @@ export default function CanvasMinimap({
     return (
         <canvas
             ref={canvasRef}
-            width={MINI_W}
-            height={MINI_H}
             onClick={handleClick}
             title="Circuit minimap — click to navigate"
             className="rounded border border-vscode-border cursor-crosshair"
             style={{
+                width: MINI_W,
+                height: MINI_H,
                 position: 'absolute',
                 bottom: 12,
                 right: 12,
                 zIndex: 30,
-                imageRendering: 'pixelated',
             }}
         />
     );

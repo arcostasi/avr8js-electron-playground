@@ -69,14 +69,18 @@ function collectPartElements(diagram: WokwiDiagram): Record<string, HTMLElement 
     return elements;
 }
 
+function getPartCacheKey(part: WokwiDiagram['parts'][number]): string {
+    return `${part.id}:${part.type}:${JSON.stringify(part.attrs ?? {})}`;
+}
+
 /**
  * Reads pin info from the DOM (Wokwi custom elements expose `.pinInfo`),
  * caches it per part, and returns a memoized map of pinId → canvas position.
  *
- * Cache key format: `${partId}:${partType}` so a part with the same ID but
- * a different type (user swapped the component) is correctly re-read.
+ * Cache key format: `${partId}:${partType}:${attrs}` so a part with the same ID
+ * across different projects/types/configs is never reused with stale pin offsets.
  */
-export function usePinPositions(diagram?: WokwiDiagram): Record<string, PinPosition> {
+export function usePinPositions(diagram?: WokwiDiagram, projectKey?: string): Record<string, PinPosition> {
     /**
      * Counter incremented each time the post-commit effect populates the cache.
      * MUST be captured (not discarded with [,]) so we can add it to the
@@ -86,10 +90,16 @@ export function usePinPositions(diagram?: WokwiDiagram): Record<string, PinPosit
      */
     const [pinTick, setPinTick] = useState(0);
 
-    // Cache keyed by "partId:partType" — stores pins AND unrotated element dimensions.
+    // Cache keyed by "partId:partType:attrs" — stores pins AND unrotated element dimensions.
     // Rotation changes don't need to bust the cache because we always re-apply rotation
     // from the raw (unrotated) pin data at render time.
     const pinInfoCache = useRef<Record<string, CachedPinData>>({});
+    const prevProjectKeyRef = useRef<string | undefined>(projectKey);
+    const isProjectTransition = prevProjectKeyRef.current !== projectKey;
+    if (isProjectTransition) {
+        prevProjectKeyRef.current = projectKey;
+        pinInfoCache.current = {};
+    }
 
     /**
      * Stable string that encodes IDENTITY + ROTATION of every part.
@@ -100,7 +110,7 @@ export function usePinPositions(diagram?: WokwiDiagram): Record<string, PinPosit
     const partsKey = useMemo(
         () =>
             diagram?.parts
-                .map(p => `${p.id}:${p.type}:${p.rotate ?? 0}`)
+                .map(p => `${p.id}:${p.type}:${p.rotate ?? 0}:${JSON.stringify(p.attrs ?? {})}`)
                 .join(',') ?? '',
         [diagram?.parts],
     );
@@ -111,24 +121,14 @@ export function usePinPositions(diagram?: WokwiDiagram): Record<string, PinPosit
     const pinPositions = useMemo(() => {
         const positions: Record<string, PinPosition> = {};
         if (!diagram) return positions;
-        const elementsById = collectPartElements(diagram);
 
         diagram.parts.forEach(part => {
-            const cacheKey = `${part.id}:${part.type}`;
+            const cacheKey = getPartCacheKey(part);
             let cached = pinInfoCache.current[cacheKey];
-            const element = elementsById[part.id];
 
-            if (cached) {
-                // Custom chip pin layouts can change even when the diagram shape doesn't,
-                // for example after manifest edits or delayed pinInfo registration.
-                const fresh = element ? readElementPinData(element) : null;
-                if (fresh && !sameCachedPinData(cached, fresh)) {
-                    cached = fresh;
-                    pinInfoCache.current[cacheKey] = cached;
-                }
-            } else {
-                // Elements from the PREVIOUS render are already in the DOM —
-                // try to read pinInfo synchronously before the commit.
+            if (!cached && !isProjectTransition) {
+                // Only touch the DOM when a part is missing from cache (never during a project switch or drag frame)
+                const element = document.getElementById(part.id) as (HTMLElement & { pinInfo?: PinInfo[] }) | null;
                 const fresh = element ? readElementPinData(element) : null;
                 if (fresh) {
                     cached = fresh;
@@ -168,37 +168,35 @@ export function usePinPositions(diagram?: WokwiDiagram): Record<string, PinPosit
             });
         });
         return positions;
-    }, [diagram, partsKey, pinTick]);
+    }, [diagram, isProjectTransition, partsKey, pinTick, projectKey]);
+
+    const diagramRef = useRef(diagram);
+    diagramRef.current = diagram;
+    const hasDiagram = Boolean(diagram);
 
     /**
-     * Post-commit DOM read — runs AFTER the new elements have been added to the DOM.
-     *
-     * BUG FIX: previously depended on `diagram?.parts.length`, so it did NOT
-     * re-run when switching between projects that had the same number of parts.
-     * Now depends on `partsKey` (id + type per part) which changes whenever the
-     * actual set of parts changes, regardless of count.
+     * Post-commit DOM read — runs AFTER structural part additions/removals/rotations,
+     * project switches, or attribute changes, skipping position-only drag updates.
      */
     useEffect(() => {
-        if (!diagram) return;
-        const elementsById = collectPartElements(diagram);
+        const currentDiagram = diagramRef.current;
+        if (!currentDiagram) return undefined;
 
         // Evict cache entries that are no longer valid:
         //   - parts removed from the diagram
-        //   - parts whose type changed (same id, different type)
-        const validKeys = new Set(diagram.parts.map(p => `${p.id}:${p.type}`));
+        //   - parts whose type or attrs changed
+        const validKeys = new Set(currentDiagram.parts.map(getPartCacheKey));
         for (const key of Object.keys(pinInfoCache.current)) {
             if (!validKeys.has(key)) {
                 delete pinInfoCache.current[key];
             }
         }
 
-        // After commit, refresh cache entries from the live DOM. This must run even
-        // when the diagram object is unchanged, because custom chip manifests and
-        // attrs can change the exposed pin layout independently from diagram parts.
-        const timer = setTimeout(() => {
+        const refreshCacheFromLiveDom = () => {
+            const elementsById = collectPartElements(currentDiagram);
             let changed = false;
-            diagram.parts.forEach(part => {
-                const cacheKey = `${part.id}:${part.type}`;
+            currentDiagram.parts.forEach(part => {
+                const cacheKey = getPartCacheKey(part);
                 const fresh = elementsById[part.id] ? readElementPinData(elementsById[part.id]) : null;
                 if (!fresh) return;
 
@@ -207,13 +205,20 @@ export function usePinPositions(diagram?: WokwiDiagram): Record<string, PinPosit
                     changed = true;
                 }
             });
-            // Force a re-render so pinPositions is recomputed with the full cache
             if (changed) {
                 setPinTick(n => n + 1);
             }
-        }, 150);
-        return () => clearTimeout(timer);
-    });
+        };
+
+        const rafId = globalThis.requestAnimationFrame(refreshCacheFromLiveDom);
+        const timerShort = globalThis.setTimeout(refreshCacheFromLiveDom, 60);
+        const timerLong = globalThis.setTimeout(refreshCacheFromLiveDom, 160);
+        return () => {
+            globalThis.cancelAnimationFrame(rafId);
+            globalThis.clearTimeout(timerShort);
+            globalThis.clearTimeout(timerLong);
+        };
+    }, [hasDiagram, partsKey, projectKey]);
 
     return pinPositions;
 }

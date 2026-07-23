@@ -3,7 +3,7 @@
  * Floating zoom in/out/reset widget for the simulator canvas.
  */
 import React from 'react';
-import { ZoomIn, ZoomOut, Maximize } from 'lucide-react';
+import { ZoomIn, ZoomOut } from 'lucide-react';
 
 interface CanvasZoomControlsProps {
     zoom: number;
@@ -14,42 +14,60 @@ interface CanvasZoomControlsProps {
 
 export default function CanvasZoomControls({
     zoom, onZoomIn, onZoomOut, onReset,
-}: CanvasZoomControlsProps) {
-    const btnCls = [
-        'p-1.5 text-vscode-text hover:text-vscode-textActive',
-        'hover:bg-vscode-hover',
-        'transition-colors',
-    ].join(' ');
+}: Readonly<CanvasZoomControlsProps>) {
+    const canZoomOut = zoom > 0.1 + 1e-4;
+    const canZoomIn = zoom < 5 - 1e-4;
+
     return (
-        <div className={[
-            'absolute right-3 bottom-3 flex',
-            'bg-vscode-surface/95 backdrop-blur-sm',
-            'border border-vscode-border rounded-lg shadow-xl z-20',
-        ].join(' ')}>
+        <div
+            onPointerDown={(e) => e.stopPropagation()}
+            onWheel={(e) => e.stopPropagation()}
+            className={[
+                'absolute right-3 bottom-3 flex items-center',
+                'bg-vscode-surface/95 backdrop-blur-sm',
+                'border border-vscode-border rounded-lg shadow-xl z-20',
+            ].join(' ')}
+        >
             <button
+                type="button"
                 onClick={onZoomOut}
-                className={btnCls}
+                disabled={!canZoomOut}
+                aria-label="Zoom out"
                 title="Zoom Out"
+                className={[
+                    'p-1.5 transition-colors rounded-l-lg',
+                    canZoomOut
+                        ? 'text-vscode-text hover:text-vscode-textActive hover:bg-vscode-hover'
+                        : 'text-vscode-border cursor-not-allowed',
+                ].join(' ')}
             >
                 <ZoomOut size={15} />
             </button>
-            <span className={[
-                'px-2 py-1.5 text-[10px] font-mono',
-                'text-vscode-text border-x border-vscode-border',
-            ].join(' ')}>
-                {Math.round(zoom * 100)}%
-            </span>
             <button
+                type="button"
                 onClick={onReset}
-                className={btnCls}
-                title="Reset"
+                aria-label="Reset zoom to 100%"
+                title="Click to reset zoom to 100%"
+                className={[
+                    'min-w-[3.25rem] text-center px-2 py-1.5 text-[10px] font-mono tabular-nums',
+                    'text-vscode-text hover:text-vscode-textActive hover:bg-vscode-hover',
+                    'border-x border-vscode-border transition-colors',
+                ].join(' ')}
             >
-                <Maximize size={15} />
+                {Math.round(zoom * 100)}%
             </button>
             <button
+                type="button"
                 onClick={onZoomIn}
-                className={btnCls}
+                disabled={!canZoomIn}
+                aria-label="Zoom in"
                 title="Zoom In"
+                className={[
+                    'p-1.5 transition-colors rounded-r-lg',
+                    canZoomIn
+                        ? 'text-vscode-text hover:text-vscode-textActive hover:bg-vscode-hover'
+                        : 'text-vscode-border cursor-not-allowed',
+                ].join(' ')}
             >
                 <ZoomIn size={15} />
             </button>

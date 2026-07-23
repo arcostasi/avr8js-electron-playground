@@ -37,6 +37,7 @@ interface PinOverlayProps {
     pinPositions: Record<string, PinPosition>;
     wiringStart: string | null;
     hoveredPin: string | null;
+    snappedPinId?: string | null;
     pinDescriptors?: Record<string, WiringCandidateDescriptor>;
     onHoverPin: (pinId: string | null) => void;
     onWiringStart: (pinId: string) => void;
@@ -44,10 +45,11 @@ interface PinOverlayProps {
     setDraggingPart: (id: string | null) => void;
 }
 
-export default function PinOverlay({
+const PinOverlay = React.memo(function PinOverlay({
     pinPositions,
     wiringStart,
     hoveredPin,
+    snappedPinId = null,
     pinDescriptors = {},
     onHoverPin,
     onWiringStart,
@@ -58,10 +60,11 @@ export default function PinOverlay({
         <>
             {Object.entries(pinPositions).map(([pinId, pos]) => {
                 const isActive = wiringStart === pinId;
+                const isSnapped = snappedPinId === pinId;
                 const isHovered = hoveredPin === pinId;
                 const descriptor = pinDescriptors[pinId] ?? { status: 'neutral', tone: 'neutral' };
                 const isCandidate = descriptor.status !== 'neutral';
-                const isVisible = isActive || isHovered || isCandidate;
+                const isVisible = isActive || isSnapped || isHovered || isCandidate;
                 const palette = getPinOverlayPalette(isActive, descriptor.tone);
                 const hitboxClass = descriptor.status === 'invalid'
                     ? 'cursor-not-allowed'
@@ -69,7 +72,17 @@ export default function PinOverlay({
 
                 return (
                     <g key={`pin-${pinId}`}>
-                        {/* Glow ring — only on hover/active */}
+                        {/* Magnetic snap lock ring */}
+                        {isSnapped && !isActive && (
+                            <circle
+                                cx={pos.x} cy={pos.y} r={14}
+                                fill="rgba(56, 189, 248, 0.14)"
+                                stroke="#38bdf8"
+                                strokeWidth={1.8}
+                                strokeDasharray="3,2"
+                            />
+                        )}
+                        {/* Glow ring — only on hover/active/snapped */}
                         {isVisible && (
                             <circle
                                 cx={pos.x} cy={pos.y} r={12}
@@ -79,14 +92,14 @@ export default function PinOverlay({
                                 className="animate-pulse"
                             />
                         )}
-                        {/* Visible pad dot — only on hover/active */}
+                        {/* Visible pad dot — only on hover/active/snapped */}
                         {isVisible && (
                             <circle
                                 cx={pos.x}
                                 cy={pos.y}
-                                r={isActive ? 6 : 5}
-                                fill={palette.fill}
-                                stroke={palette.stroke}
+                                r={isActive || isSnapped ? 6 : 5}
+                                fill={isSnapped ? '#38bdf8' : palette.fill}
+                                stroke={isSnapped ? '#e0f2fe' : palette.stroke}
                                 strokeWidth={1.5}
                             />
                         )}
@@ -116,4 +129,6 @@ export default function PinOverlay({
             })}
         </>
     );
-}
+});
+
+export default PinOverlay;

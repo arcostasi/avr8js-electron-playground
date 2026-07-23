@@ -14,6 +14,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import type { WokwiPart } from '../../types/wokwi.types';
 import type { PinInfo } from '../../types/wokwi.types';
+import { DOT_MATRIX_PART_TYPE, DotMatrixPart } from './dot-matrix';
 
 /** Component types that need to receive pointer events during simulation */
 const INTERACTIVE_TYPES = new Set([
@@ -49,14 +50,14 @@ interface PartRendererProps {
     /** Called when the part body is clicked — used to set selectedPartId */
     onPartClick: (partId: string) => void;
     /** Called when the rotate button is clicked — new rotation in degrees */
-    onRotate: (partId: string, degrees: number) => void;
+    onRotate?: (partId: string, degrees: number) => void;
     /** Called when the text of a wokwi-label annotation is changed */
     onLabelTextChange?: (partId: string, newText: string) => void;
 }
 
-export default function PartRenderer({
+const PartRenderer = React.memo(function PartRenderer({
     part, customChipManifest, isEditMode, isDragging, isSelected,
-    onPartPointerDown, onPartClick, onRotate, onLabelTextChange,
+    onPartPointerDown, onPartClick, onLabelTextChange,
 }: PartRendererProps) {
     if (part.hide) return null;
 
@@ -75,6 +76,19 @@ export default function PartRenderer({
         );
     }
 
+    if (part.type === DOT_MATRIX_PART_TYPE) {
+        return (
+            <DotMatrixPart
+                part={part}
+                isEditMode={isEditMode}
+                isDragging={isDragging}
+                isSelected={isSelected}
+                onPartPointerDown={onPartPointerDown}
+                onPartClick={onPartClick}
+            />
+        );
+    }
+
     if (part.type.startsWith('chip-')) {
         return (
             <CustomChipPart
@@ -85,7 +99,19 @@ export default function PartRenderer({
                 isSelected={isSelected}
                 onPartPointerDown={onPartPointerDown}
                 onPartClick={onPartClick}
-                onRotate={onRotate}
+            />
+        );
+    }
+
+    if (part.type === 'wokwi-neopixel-strip') {
+        return (
+            <NeoPixelStripPart
+                part={part}
+                isEditMode={isEditMode}
+                isDragging={isDragging}
+                isSelected={isSelected}
+                onPartPointerDown={onPartPointerDown}
+                onPartClick={onPartClick}
             />
         );
     }
@@ -134,42 +160,11 @@ export default function PartRenderer({
                     }}
                 />
             )}
-            {/* Rotate button — shown over selected parts in edit mode */}
-            {isEditMode && isSelected && (
-                <button
-                    className={[
-                        'absolute pointer-events-auto z-30',
-                        '-top-8 left-1/2 -translate-x-1/2',
-                        'bg-blue-600 hover:bg-blue-500 active:bg-blue-700',
-                        'text-white rounded-full w-7 h-7',
-                        'flex items-center justify-center',
-                        'shadow-lg shadow-black/40',
-                        'transition-colors',
-                    ].join(' ')}
-                    title="Rotate 90° (R)"
-                    onPointerDown={(e) => e.stopPropagation()}
-                    onClick={(e) => {
-                        e.stopPropagation();
-                        onRotate(part.id, ((part.rotate || 0) + 90) % 360);
-                    }}
-                >
-                    <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        width="14" height="14"
-                        viewBox="0 0 24 24"
-                        fill="none" stroke="currentColor"
-                        strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
-                    >
-                        <path d="M21 2v6h-6" />
-                        <path d="M3 12a9 9 0 0 1 15-6.7L21 8" />
-                        <path d="M3 22v-6h6" />
-                        <path d="M21 12a9 9 0 0 1-15 6.7L3 16" />
-                    </svg>
-                </button>
-            )}
         </div>
     );
-}
+});
+
+export default PartRenderer;
 
 interface CustomChipPartProps {
     part: WokwiPart;
@@ -186,7 +181,7 @@ interface CustomChipPartProps {
     isSelected: boolean;
     onPartPointerDown: (e: React.PointerEvent, part: WokwiPart) => void;
     onPartClick: (partId: string) => void;
-    onRotate: (partId: string, degrees: number) => void;
+    onRotate?: (partId: string, degrees: number) => void;
 }
 
 function CustomChipPart({
@@ -197,7 +192,6 @@ function CustomChipPart({
     isSelected,
     onPartPointerDown,
     onPartClick,
-    onRotate,
 }: CustomChipPartProps) {
     const elementRef = useRef<HTMLDivElement>(null);
     const screenCanvasRef = useRef<HTMLCanvasElement>(null);
@@ -370,42 +364,105 @@ function CustomChipPart({
                     }}
                 />
             )}
+        </div>
+    );
+}
+// ─────────────────────────────────────────────────────────────────────────────
+// NeoPixelStripPart — compact addressable strip representation with VSS/DIN/VDD pads
+// ─────────────────────────────────────────────────────────────────────────────
 
-            {isEditMode && isSelected && (
-                <button
-                    className={[
-                        'absolute pointer-events-auto z-30',
-                        '-top-8 left-1/2 -translate-x-1/2',
-                        'bg-blue-600 hover:bg-blue-500 active:bg-blue-700',
-                        'text-white rounded-full w-7 h-7',
-                        'flex items-center justify-center',
-                        'shadow-lg shadow-black/40',
-                        'transition-colors',
-                    ].join(' ')}
-                    title="Rotate 90° (R)"
-                    onPointerDown={(e) => e.stopPropagation()}
+interface NeoPixelStripPartProps {
+    part: WokwiPart;
+    isEditMode: boolean;
+    isDragging: boolean;
+    isSelected: boolean;
+    onPartPointerDown: (e: React.PointerEvent, part: WokwiPart) => void;
+    onPartClick: (partId: string) => void;
+}
+
+const NEOPIXEL_STRIP_PINS: PinInfo[] = [
+    { name: 'VSS', x: 0, y: 12 },
+    { name: 'DIN', x: 0, y: 26 },
+    { name: 'VDD', x: 0, y: 40 },
+];
+
+function NeoPixelStripPart({
+    part,
+    isEditMode,
+    isDragging,
+    isSelected,
+    onPartPointerDown,
+    onPartClick,
+}: NeoPixelStripPartProps) {
+    const elementRef = useRef<HTMLDivElement>(null);
+    const pixelsCount = Number.parseInt(part.attrs?.pixels ?? '16', 10) || 16;
+
+    useEffect(() => {
+        if (!elementRef.current) return;
+        const host = elementRef.current as HTMLDivElement & { pinInfo?: PinInfo[] };
+        host.pinInfo = NEOPIXEL_STRIP_PINS;
+    }, [part.id]);
+
+    return (
+        <div
+            className={`absolute ${isDragging ? 'z-50 opacity-80' : 'z-10'} ${isEditMode ? '' : 'pointer-events-auto'}`}
+            style={{
+                top: `${part.top}px`,
+                left: `${part.left}px`,
+                transform: part.rotate ? `rotate(${part.rotate}deg)` : undefined,
+                transformOrigin: 'top left',
+                filter: isDragging ? 'drop-shadow(0 4px 12px rgba(59,130,246,0.4))' : undefined,
+            }}
+        >
+            <div
+                id={part.id}
+                ref={elementRef}
+                className="relative rounded-md border border-slate-500/60 select-none"
+                style={{
+                    width: 170,
+                    height: 52,
+                    background: 'linear-gradient(180deg, #1f2430 0%, #141821 100%)',
+                    boxShadow: 'inset 0 0 0 1px rgba(255,255,255,0.06)',
+                }}
+            >
+                {NEOPIXEL_STRIP_PINS.map((pin) => (
+                    <div
+                        key={pin.name}
+                        className="absolute flex items-center gap-1.5"
+                        style={{ left: -4, top: pin.y - 4 }}
+                    >
+                        <div className="w-2 h-2 rounded-full bg-amber-300 border border-amber-700" />
+                        <span className="text-[8px] font-mono text-slate-300 leading-none">{pin.name}</span>
+                    </div>
+                ))}
+                <div className="ml-8 h-full flex flex-col justify-center pr-2">
+                    <div className="text-[11px] font-semibold text-slate-100 leading-tight">NeoPixel Strip</div>
+                    <div className="text-[10px] font-mono text-emerald-300/90 mt-0.5">{pixelsCount} px · WS2812</div>
+                </div>
+            </div>
+            {isEditMode && (
+                <div
+                    className="absolute inset-0 z-20 pointer-events-auto rounded"
+                    style={{
+                        cursor: isDragging ? 'grabbing' : 'grab',
+                        outline: isSelected
+                            ? '2px solid rgba(59,130,246,0.85)'
+                            : isDragging
+                                ? '2px solid rgba(59,130,246,0.5)'
+                                : 'none',
+                        boxShadow: isSelected ? '0 0 0 3px rgba(59,130,246,0.2)' : 'none',
+                    }}
+                    onPointerDown={(e) => onPartPointerDown(e, part)}
                     onClick={(e) => {
                         e.stopPropagation();
-                        onRotate(part.id, ((part.rotate || 0) + 90) % 360);
+                        onPartClick(part.id);
                     }}
-                >
-                    <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        width="14" height="14"
-                        viewBox="0 0 24 24"
-                        fill="none" stroke="currentColor"
-                        strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
-                    >
-                        <path d="M21 2v6h-6" />
-                        <path d="M3 12a9 9 0 0 1 15-6.7L21 8" />
-                        <path d="M3 22v-6h6" />
-                        <path d="M21 12a9 9 0 0 1-15 6.7L3 16" />
-                    </svg>
-                </button>
+                />
             )}
         </div>
     );
 }
+
 // ─────────────────────────────────────────────────────────────────────────────
 // LabelAnnotation — text overlay used for canvas annotations (wokwi-label)
 // ─────────────────────────────────────────────────────────────────────────────

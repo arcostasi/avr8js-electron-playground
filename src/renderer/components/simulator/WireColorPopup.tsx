@@ -1,15 +1,16 @@
 import React, { useEffect, useRef } from 'react';
-import { WIRE_COLORS } from '../../constants/wokwi-components';
+import { WIRE_COLOR_DEFINITIONS } from '../../constants/wire-colors';
 
 interface WireColorPopupProps {
     x: number;
     y: number;
     currentColor: string;
     onSelectColor: (color: string) => void;
+    onDelete?: () => void;
     onClose: () => void;
 }
 
-export default function WireColorPopup({ x, y, currentColor, onSelectColor, onClose }: WireColorPopupProps) {
+export default function WireColorPopup({ x, y, currentColor, onSelectColor, onDelete, onClose }: WireColorPopupProps) {
     const popupRef = useRef<HTMLDivElement>(null);
 
     // Close on outside click
@@ -38,7 +39,7 @@ export default function WireColorPopup({ x, y, currentColor, onSelectColor, onCl
                 'absolute z-50 bg-vscode-surface',
                 'border border-vscode-border rounded-lg',
                 'shadow-xl shadow-black/50 p-2',
-                'flex flex-wrap gap-1.5 w-[140px]',
+                'flex flex-col items-center gap-1.5 w-[172px]',
             ].join(' ')}
             style={{
                 left: `${x}px`,
@@ -68,23 +69,48 @@ export default function WireColorPopup({ x, y, currentColor, onSelectColor, onCl
                 Wire Color
             </div>
 
-            <div className="flex flex-wrap gap-2 justify-center pb-1">
-                {WIRE_COLORS.map(c => (
-                    <button
-                        key={c}
-                        onClick={() => {
-                            onSelectColor(c);
-                            onClose();
-                        }}
-                        title={c}
-                        className={`w-5 h-5 rounded-full transition-all border ${currentColor === c
+            <div className="grid grid-cols-6 gap-1.5 justify-items-center pb-1">
+                {WIRE_COLOR_DEFINITIONS.map((def) => {
+                    const isActive = currentColor.toLowerCase() === def.id;
+                    return (
+                        <button
+                            key={def.id}
+                            type="button"
+                            onClick={() => {
+                                onSelectColor(def.id);
+                                onClose();
+                            }}
+                            title={def.label}
+                            aria-label={def.label}
+                            className={`w-5 h-5 rounded-full transition-all border ${isActive
                                 ? 'border-vscode-textActive scale-110 shadow-sm shadow-white/30'
-                                : 'border-vscode-border opacity-70 hover:opacity-100 hover:scale-110'
+                                : 'opacity-80 hover:opacity-100 hover:scale-110'
                             }`}
-                        style={{ backgroundColor: c }}
-                    />
-                ))}
+                            style={{
+                                backgroundColor: def.jacket,
+                                borderColor: isActive ? undefined : def.outline,
+                            }}
+                        />
+                    );
+                })}
             </div>
+
+            {onDelete && (
+                <button
+                    type="button"
+                    onClick={() => {
+                        onDelete();
+                        onClose();
+                    }}
+                    className={[
+                        'w-full mt-1 pt-1 border-t border-vscode-border/70',
+                        'text-[10px] font-medium text-rose-400 hover:text-rose-300',
+                        'py-1 rounded hover:bg-rose-500/12 transition-colors',
+                    ].join(' ')}
+                >
+                    Remove wire
+                </button>
+            )}
         </div>
     );
 }

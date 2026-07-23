@@ -34,7 +34,8 @@ export interface ComponentProperties {
 
 interface ComponentPropertyEditorProps {
     components: ComponentProperties[];
-    isPlaying: boolean;
+    isPlaying?: boolean;
+    hidden?: boolean;
 }
 
 // ── Property Definitions Catalog ──
@@ -182,6 +183,19 @@ export const PROPERTY_CATALOG: Record<string, {
 
 // ── Single property slider row ──
 
+function formatPropertyValue(val: number, step: number): string {
+    return step < 1 ? String(Number(val.toFixed(1))) : String(val);
+}
+
+function snapPropertyValue(val: number, def: PropertyDef): number {
+    const clamped = Math.min(def.max, Math.max(def.min, val));
+    if (def.step >= 1) {
+        const steps = Math.round((clamped - def.min) / def.step);
+        return Math.min(def.max, Math.max(def.min, def.min + steps * def.step));
+    }
+    return clamped;
+}
+
 function PropertySlider({
     def, value, onChange,
 }: Readonly<{
@@ -189,14 +203,105 @@ function PropertySlider({
     value: number;
     onChange: (val: number) => void;
 }>) {
+    const [isEditing, setIsEditing] = useState(false);
+    const [draftText, setDraftText] = useState(() => formatPropertyValue(value, def.step));
+
+    useEffect(() => {
+        if (!isEditing) {
+            setDraftText(formatPropertyValue(value, def.step));
+        }
+    }, [def.step, isEditing, value]);
+
+    const commitDraft = () => {
+        const trimmed = draftText.trim();
+        const parsed = Number(trimmed);
+        if (trimmed === '' || !Number.isFinite(parsed)) {
+            setDraftText(formatPropertyValue(value, def.step));
+            return;
+        }
+        const snapped = snapPropertyValue(parsed, def);
+        onChange(snapped);
+        setDraftText(formatPropertyValue(snapped, def.step));
+    };
+
+    const isBinaryToggle = def.min === 0 && def.max === 1 && def.step === 1;
+    if (isBinaryToggle) {
+        const isOn = value >= 0.5;
+        return (
+            <div className="flex items-center justify-between gap-2 px-2 py-1.5 text-[11px]">
+                <span className="text-vscode-text opacity-85 truncate">{def.label}</span>
+                <button
+                    type="button"
+                    role="switch"
+                    aria-checked={isOn}
+                    aria-label={def.label}
+                    onPointerDown={(e) => e.stopPropagation()}
+                    onClick={() => onChange(isOn ? 0 : 1)}
+                    className={[
+                        'inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[10px] font-semibold transition-colors',
+                        isOn
+                            ? 'border-blue-500/60 bg-blue-500/20 text-blue-300'
+                            : 'border-vscode-border bg-vscode-input text-vscode-text opacity-75 hover:opacity-100',
+                    ].join(' ')}
+                >
+                    <span className={`w-2 h-2 rounded-full ${isOn ? 'bg-blue-400' : 'bg-neutral-500'}`} />
+                    <span>{isOn ? 'ON' : 'OFF'}</span>
+                </button>
+            </div>
+        );
+    }
+
     return (
         <div className="flex flex-col gap-1 px-2 py-1">
-            <div className="flex justify-between text-[11px]">
-                <span className="text-vscode-text opacity-80">{def.label}</span>
-                <span className="text-vscode-textActive font-mono">
-                    {def.step < 1 ? value.toFixed(1) : value}
-                    {def.unit ? ` ${def.unit}` : ''}
-                </span>
+            <div className="flex items-center justify-between gap-2 text-[11px]">
+                <span className="text-vscode-text opacity-80 truncate">{def.label}</span>
+                <div className="flex items-center gap-1 shrink-0">
+                    <input
+                        type="number"
+                        aria-label={def.label}
+                        min={def.min}
+                        max={def.max}
+                        step={def.step}
+                        value={draftText}
+                        onPointerDown={(e) => e.stopPropagation()}
+                        onFocus={() => setIsEditing(true)}
+                        onBlur={() => {
+                            setIsEditing(false);
+                            commitDraft();
+                        }}
+                        onKeyDown={(e) => {
+                            e.stopPropagation();
+                            if (e.key === 'Enter') {
+                                commitDraft();
+                                e.currentTarget.blur();
+                            } else if (e.key === 'Escape') {
+                                setDraftText(formatPropertyValue(value, def.step));
+                                e.currentTarget.blur();
+                            }
+                        }}
+                        onChange={(e) => {
+                            const raw = e.target.value;
+                            setDraftText(raw);
+                            const trimmed = raw.trim();
+                            if (trimmed !== '' && trimmed !== '-' && trimmed !== '.') {
+                                const parsed = Number(trimmed);
+                                if (Number.isFinite(parsed) && parsed >= def.min && parsed <= def.max) {
+                                    onChange(snapPropertyValue(parsed, def));
+                                }
+                            }
+                        }}
+                        className={[
+                            'w-14 px-1 py-0.5 text-right rounded text-[11px] font-mono',
+                            'bg-vscode-input border border-vscode-border text-vscode-textActive',
+                            'focus:outline-none focus:border-blue-500/70',
+                        ].join(' ')}
+                    />
+                    {def.unit && (
+                        <span className="text-[10px] text-vscode-text opacity-60 font-mono">
+                            {def.unit}
+                        </span>
+                    )}
+                </div>
             </div>
             <input
                 type="range"
@@ -204,7 +309,12 @@ function PropertySlider({
                 max={def.max}
                 step={def.step}
                 value={value}
-                onChange={(e) => onChange(Number(e.target.value))}
+                onPointerDown={(e) => e.stopPropagation()}
+                onChange={(e) => {
+                    const nextVal = Number(e.target.value);
+                    onChange(nextVal);
+                    setDraftText(formatPropertyValue(nextVal, def.step));
+                }}
                 className="w-full h-1 accent-blue-500 cursor-pointer"
             />
         </div>
@@ -245,6 +355,8 @@ function ComponentGroup({
     return (
         <div className="border-b border-vscode-border">
             <button
+                type="button"
+                aria-expanded={open}
                 onClick={() => setOpen(o => !o)}
                 className="flex items-center gap-1.5 w-full px-2 py-1.5
                     text-[12px] font-medium text-vscode-text
@@ -278,11 +390,11 @@ function ComponentGroup({
 // ── Main Component ──
 
 export default function ComponentPropertyEditor({
-    components, isPlaying,
+    components, hidden = false,
 }: Readonly<ComponentPropertyEditorProps>) {
     const [collapsed, setCollapsed] = useState(false);
 
-    if (components.length === 0 || !isPlaying) return null;
+    if (components.length === 0 || hidden) return null;
 
     return (
         <div
@@ -293,6 +405,8 @@ export default function ComponentPropertyEditor({
         >
             {/* Header */}
             <button
+                type="button"
+                aria-expanded={!collapsed}
                 onClick={() => setCollapsed(c => !c)}
                 className="flex items-center gap-1.5 w-full px-2.5 py-1.5
                     bg-vscode-surface text-[12px] font-semibold text-vscode-text

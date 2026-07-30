@@ -43,6 +43,17 @@ export default function NewProjectDialog({ onConfirm, onClose }: Readonly<NewPro
         inputRef.current?.focus();
     }, []);
 
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') {
+                e.preventDefault();
+                onClose();
+            }
+        };
+        globalThis.addEventListener('keydown', handleKeyDown);
+        return () => globalThis.removeEventListener('keydown', handleKeyDown);
+    }, [onClose]);
+
     const handleSubmit = (e: React.SyntheticEvent<HTMLFormElement>) => {
         e.preventDefault();
         const trimmed = name.trim();
@@ -51,10 +62,14 @@ export default function NewProjectDialog({ onConfirm, onClose }: Readonly<NewPro
             setError('Name can only contain letters, numbers, spaces, hyphens and underscores.');
             return;
         }
+        if (!slugify(trimmed)) {
+            setError('Project name must include at least one letter or number.');
+            return;
+        }
         onConfirm({ name: trimmed, board, category, template });
     };
 
-    const slug = slugify(name || 'my-project');
+    const slug = slugify(name) || 'my-project';
 
     return (
         /* Backdrop */
@@ -64,6 +79,9 @@ export default function NewProjectDialog({ onConfirm, onClose }: Readonly<NewPro
             onPointerDown={onClose}
         >
             <div
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="new-project-dialog-title"
                 className="bg-vscode-bg rounded-xl shadow-2xl border border-vscode-border
                     w-full max-w-md overflow-hidden"
                 onPointerDown={e => e.stopPropagation()}
@@ -71,9 +89,16 @@ export default function NewProjectDialog({ onConfirm, onClose }: Readonly<NewPro
                 {/* Header */}
                 <div className="flex items-center gap-3 px-5 py-3 border-b border-vscode-border bg-vscode-surface">
                     <FolderPlus size={18} className="text-blue-400" />
-                    <h2 className="text-[15px] font-semibold text-vscode-textActive">New Project</h2>
+                    <h2 id="new-project-dialog-title" className="text-[15px] font-semibold text-vscode-textActive">
+                        New Project
+                    </h2>
                     <div className="flex-1" />
-                    <button onClick={onClose} className="text-vscode-text opacity-60 hover:opacity-100">
+                    <button
+                        type="button"
+                        aria-label="Close"
+                        onClick={onClose}
+                        className="text-vscode-text opacity-60 hover:opacity-100"
+                    >
                         <X size={18} />
                     </button>
                 </div>

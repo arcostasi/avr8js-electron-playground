@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, nativeTheme, dialog } from "electron";
+import { app, BrowserWindow, ipcMain, nativeTheme, dialog, screen } from "electron";
 import type { WebContents } from 'electron';
 import { IpcChannelInterface } from "../electron/ipc-channel";
 import { SystemInfoChannel } from "../electron/info-channel";
@@ -8,16 +8,23 @@ import {
   createProjectIoService,
   parseProjectArchive,
   ProjectIoCancelledError,
+  PROJECT_BUILD_DIR,
+  saveProjectBuildArtifacts,
 } from './project-io';
 import type {
   ProjectArchive,
+  ProjectBuildChipArtifactInput,
   ProjectFileRecord,
   ProjectIoProgress,
 } from './project-io';
 
 import * as path from "node:path";
 import * as fs from 'node:fs/promises';
+import * as fsSync from 'node:fs';
+import * as os from 'node:os';
+import * as cp from 'node:child_process';
 import { registerCanBridgeIpc } from './can-bridge-manager';
+import { registerCustomViewIpc } from './custom-view-ipc';
 
 process.env['ELECTRON_DISABLE_SECURITY_WARNINGS'] = 'true';
 
@@ -66,6 +73,15 @@ async function pathExists(targetPath: string): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+function resolvePathWithin(baseDir: string, targetPath: string): string {
+  const resolvedBase = path.resolve(baseDir);
+  const resolvedTarget = path.resolve(resolvedBase, targetPath);
+  if (resolvedTarget !== resolvedBase && !resolvedTarget.startsWith(resolvedBase + path.sep)) {
+    throw new Error(`Path "${targetPath}" escapes base directory.`);
+  }
+  return resolvedTarget;
 }
 
 function sanitizeStorageSegment(value: string): string {
@@ -118,9 +134,139 @@ function forwardProjectProgress(
 // Setup the titlebar main process
 setupTitlebar();
 
+const MIN_WINDOW_WIDTH = 640;
+const MIN_WINDOW_HEIGHT = 480;
+const DEFAULT_WINDOW_WIDTH = 1440;
+const DEFAULT_WINDOW_HEIGHT = 900;
+const WINDOW_STATE_SCOPE = 'window';
+const WINDOW_STATE_FILE = 'window-state.json';
+
+interface PersistedWindowState {
+  bounds: Electron.Rectangle;
+  isMaximized: boolean;
+  isFullScreen: boolean;
+}
+
 class Main {
 
-  private mainWindow: BrowserWindow;
+  private mainWindow: BrowserWindow | null = null;
+  private ipcRegistered = false;
+  private wasMaximizedBeforeFullScreen = false;
+  private boundsBeforeFullScreen: Electron.Rectangle | null = null;
+  private lastNormalBounds: Electron.Rectangle | null = null;
+  private windowStateSaveTimer: ReturnType<typeof setTimeout> | null = null;
+
+  private getWindowStateFilePath(): string {
+    return getRendererStoragePath(WINDOW_STATE_SCOPE, WINDOW_STATE_FILE);
+  }
+
+  private readPersistedWindowState(): PersistedWindowState | null {
+    try {
+      const raw = fsSync.readFileSync(this.getWindowStateFilePath(), 'utf-8');
+      const parsed = JSON.parse(raw) as Partial<PersistedWindowState>;
+      const bounds = parsed?.bounds;
+      if (
+        !bounds
+        || typeof bounds.x !== 'number' || !Number.isFinite(bounds.x)
+        || typeof bounds.y !== 'number' || !Number.isFinite(bounds.y)
+        || typeof bounds.width !== 'number' || !Number.isFinite(bounds.width) || bounds.width <= 0
+        || typeof bounds.height !== 'number' || !Number.isFinite(bounds.height) || bounds.height <= 0
+      ) {
+        return null;
+      }
+
+      return {
+        bounds: this.clampBoundsToWorkArea({
+          x: Math.round(bounds.x),
+          y: Math.round(bounds.y),
+          width: Math.round(bounds.width),
+          height: Math.round(bounds.height),
+        }),
+        isMaximized: Boolean(parsed.isMaximized),
+        isFullScreen: Boolean(parsed.isFullScreen),
+      };
+    } catch {
+      return null;
+    }
+  }
+
+  private buildCurrentWindowState(): PersistedWindowState | null {
+    if (!this.mainWindow || this.mainWindow.isDestroyed()) return null;
+
+    if (!this.mainWindow.isMaximized() && !this.mainWindow.isFullScreen() && !this.mainWindow.isMinimized()) {
+      this.lastNormalBounds = this.mainWindow.getBounds();
+    }
+
+    const normalBounds = this.lastNormalBounds
+      ?? this.boundsBeforeFullScreen
+      ?? (typeof this.mainWindow.getNormalBounds === 'function'
+        ? this.mainWindow.getNormalBounds()
+        : this.mainWindow.getBounds());
+
+    return {
+      bounds: this.clampBoundsToWorkArea(normalBounds),
+      isMaximized: this.mainWindow.isMaximized(),
+      isFullScreen: this.mainWindow.isFullScreen(),
+    };
+  }
+
+  private saveWindowStateSync(): void {
+    if (this.windowStateSaveTimer !== null) {
+      clearTimeout(this.windowStateSaveTimer);
+      this.windowStateSaveTimer = null;
+    }
+
+    const state = this.buildCurrentWindowState();
+    if (!state) return;
+
+    try {
+      const filePath = this.getWindowStateFilePath();
+      fsSync.mkdirSync(path.dirname(filePath), { recursive: true });
+      fsSync.writeFileSync(filePath, JSON.stringify(state, null, 2), 'utf-8');
+    } catch (error) {
+      console.warn('[window-state] Failed to persist window state:', error);
+    }
+  }
+
+  private scheduleSaveWindowState(): void {
+    if (!this.mainWindow || this.mainWindow.isDestroyed()) return;
+    if (!this.mainWindow.isMaximized() && !this.mainWindow.isFullScreen() && !this.mainWindow.isMinimized()) {
+      this.lastNormalBounds = this.mainWindow.getBounds();
+    }
+
+    if (this.windowStateSaveTimer !== null) {
+      clearTimeout(this.windowStateSaveTimer);
+    }
+    this.windowStateSaveTimer = setTimeout(() => {
+      this.windowStateSaveTimer = null;
+      const state = this.buildCurrentWindowState();
+      if (!state) return;
+      const filePath = this.getWindowStateFilePath();
+      void fs.mkdir(path.dirname(filePath), { recursive: true })
+        .then(() => fs.writeFile(filePath, JSON.stringify(state, null, 2), 'utf-8'))
+        .catch(() => {});
+    }, 200);
+  }
+
+  private clampBoundsToWorkArea(bounds: Electron.Rectangle): Electron.Rectangle {
+    const display = screen.getDisplayMatching(bounds);
+    const workArea = display.workArea;
+    const width = Math.max(MIN_WINDOW_WIDTH, Math.min(bounds.width, workArea.width));
+    const height = Math.max(MIN_WINDOW_HEIGHT, Math.min(bounds.height, workArea.height));
+    const maxX = workArea.x + workArea.width - width;
+    const maxY = workArea.y + workArea.height - height;
+    const x = Math.max(workArea.x, Math.min(bounds.x, maxX));
+    const y = Math.max(workArea.y, Math.min(bounds.y, maxY));
+    return { x, y, width, height };
+  }
+
+  private emitWindowState() {
+    if (!this.mainWindow || this.mainWindow.isDestroyed()) return;
+    this.mainWindow.webContents.send('window-state-changed', {
+      isMaximized: this.mainWindow.isMaximized(),
+      isFullScreen: this.mainWindow.isFullScreen(),
+    });
+  }
 
   /**
    * This method will be called when Electron has finished
@@ -128,12 +274,16 @@ class Main {
    * Some APIs can only be used after this event occurs
    */
   public init(ipcChannels: IpcChannelInterface[]) {
-    app.on('ready', this.createWindow);
-    app.on('activate', this.onActivate);
-    app.on('window-all-closed', this.onWindowAllClosed);
+    app.on('ready', () => this.onReady(ipcChannels));
+    app.on('activate', () => this.onActivate());
+    app.on('window-all-closed', () => this.onWindowAllClosed());
+  }
 
-    // These channels will then be registered by our ipcMain process
+  private onReady(ipcChannels: IpcChannelInterface[]) {
+    // Register IPC handlers once before creating the first window
     this.registerIpcChannels(ipcChannels);
+    this.registerAppIpcHandlers();
+    this.createWindow();
   }
 
   /**
@@ -152,16 +302,30 @@ class Main {
    * Create the browser window and load index.html
    */
   private createWindow() {
-    const projectIo = createProjectIoService({ userDataPath: app.getPath('userData') });
     // Follow app-controlled theme (renderer will sync via IPC).
     nativeTheme.themeSource = 'system';
 
+    const persistedState = this.readPersistedWindowState();
+    const workArea = screen.getPrimaryDisplay().workArea;
+    const defaultWidth = Math.max(MIN_WINDOW_WIDTH, Math.min(DEFAULT_WINDOW_WIDTH, workArea.width));
+    const defaultHeight = Math.max(MIN_WINDOW_HEIGHT, Math.min(DEFAULT_WINDOW_HEIGHT, workArea.height));
+    const defaultBounds: Electron.Rectangle = {
+      width: defaultWidth,
+      height: defaultHeight,
+      x: workArea.x + Math.max(0, Math.floor((workArea.width - defaultWidth) / 2)),
+      y: workArea.y + Math.max(0, Math.floor((workArea.height - defaultHeight) / 2)),
+    };
+    const initialBounds = persistedState?.bounds ?? defaultBounds;
+    this.lastNormalBounds = initialBounds;
+
     // Create and control browser windows
     this.mainWindow = new BrowserWindow({
-      width: 1920,
-      height: 1040,
-      x: 0,
-      y: 0,
+      width: initialBounds.width,
+      height: initialBounds.height,
+      minWidth: MIN_WINDOW_WIDTH,
+      minHeight: MIN_WINDOW_HEIGHT,
+      x: initialBounds.x,
+      y: initialBounds.y,
       // frame: false,
       titleBarStyle: 'hidden',
       webPreferences: {
@@ -171,22 +335,103 @@ class Main {
       }
     });
 
+    this.mainWindow.on('close', () => {
+      this.saveWindowStateSync();
+    });
+
+    this.mainWindow.on('closed', () => {
+      if (this.windowStateSaveTimer !== null) {
+        clearTimeout(this.windowStateSaveTimer);
+        this.windowStateSaveTimer = null;
+      }
+      this.mainWindow = null;
+    });
+
+    this.mainWindow.on('move', () => this.scheduleSaveWindowState());
+    this.mainWindow.on('resize', () => this.scheduleSaveWindowState());
+    this.mainWindow.on('maximize', () => {
+      this.scheduleSaveWindowState();
+      this.emitWindowState();
+    });
+    this.mainWindow.on('unmaximize', () => {
+      this.scheduleSaveWindowState();
+      this.emitWindowState();
+    });
+    this.mainWindow.on('enter-full-screen', () => {
+      this.scheduleSaveWindowState();
+      this.emitWindowState();
+    });
+    this.mainWindow.on('leave-full-screen', () => {
+      if (this.wasMaximizedBeforeFullScreen && !this.mainWindow?.isMaximized()) {
+        this.mainWindow?.maximize();
+      } else if (this.boundsBeforeFullScreen && this.mainWindow && !this.mainWindow.isDestroyed()) {
+        this.mainWindow.setBounds(this.clampBoundsToWorkArea(this.boundsBeforeFullScreen));
+      } else if (this.mainWindow && !this.mainWindow.isDestroyed() && !this.mainWindow.isMaximized()) {
+        this.mainWindow.setBounds(this.clampBoundsToWorkArea(this.mainWindow.getBounds()));
+      }
+      this.wasMaximizedBeforeFullScreen = false;
+      this.boundsBeforeFullScreen = null;
+      this.scheduleSaveWindowState();
+      this.emitWindowState();
+    });
+    this.mainWindow.webContents.on('did-finish-load', () => this.emitWindowState());
+
     // DevTools disabled for production
     // this.mainWindow.webContents.openDevTools();
 
-    // Attach fullscreen(f11 and not 'maximized') && focus listeners
-    attachTitlebarToWindow(this.mainWindow);
+    // Attach fullscreen(f11 and not 'maximized') && focus listeners with explicit minimum dimensions
+    attachTitlebarToWindow(this.mainWindow, {
+      minWidth: MIN_WINDOW_WIDTH,
+      minHeight: MIN_WINDOW_HEIGHT,
+    });
+    this.mainWindow.setMinimumSize(MIN_WINDOW_WIDTH, MIN_WINDOW_HEIGHT);
+
+    if (persistedState?.isFullScreen) {
+      this.wasMaximizedBeforeFullScreen = persistedState.isMaximized;
+      this.boundsBeforeFullScreen = initialBounds;
+      this.mainWindow.setFullScreen(true);
+    } else if (persistedState?.isMaximized) {
+      this.mainWindow.maximize();
+    }
 
     // and load the index.html of the app
     this.mainWindow.loadFile(path.join(__dirname, "../renderer/index.html"));
+  }
+
+  private registerAppIpcHandlers() {
+    if (this.ipcRegistered) return;
+    this.ipcRegistered = true;
+
+    const projectIo = createProjectIoService({ userDataPath: app.getPath('userData') });
 
     // IPC handlers for window controls (frameless titlebar buttons)
+    ipcMain.handle('window-get-state', () => ({
+      isMaximized: this.mainWindow?.isMaximized() ?? false,
+      isFullScreen: this.mainWindow?.isFullScreen() ?? false,
+    }));
     ipcMain.on('window-minimize', () => this.mainWindow?.minimize());
     ipcMain.on('window-maximize', () => {
-      if (this.mainWindow?.isMaximized()) {
+      if (!this.mainWindow || this.mainWindow.isDestroyed()) return;
+      if (this.mainWindow.isFullScreen()) {
+        this.mainWindow.setFullScreen(false);
+        return;
+      }
+      if (this.mainWindow.isMaximized()) {
         this.mainWindow.unmaximize();
       } else {
-        this.mainWindow?.maximize();
+        this.mainWindow.maximize();
+      }
+    });
+    ipcMain.on('window-toggle-fullscreen', () => {
+      if (!this.mainWindow || this.mainWindow.isDestroyed()) return;
+      if (this.mainWindow.isFullScreen()) {
+        this.mainWindow.setFullScreen(false);
+      } else {
+        this.wasMaximizedBeforeFullScreen = this.mainWindow.isMaximized();
+        this.boundsBeforeFullScreen = this.wasMaximizedBeforeFullScreen
+          ? null
+          : this.mainWindow.getBounds();
+        this.mainWindow.setFullScreen(true);
       }
     });
     ipcMain.on('window-close', () => this.mainWindow?.close());
@@ -201,6 +446,7 @@ class Main {
     });
 
     registerCanBridgeIpc(ipcMain, path.resolve(__dirname, '../..'));
+    registerCustomViewIpc(ipcMain);
 
     ipcMain.handle('project:cancel', async (_event, { requestId }: { requestId: string }) => {
       const startTime = startedAt();
@@ -359,14 +605,17 @@ class Main {
       }) => {
         const startTime = startedAt();
         try {
-          const result = await dialog.showSaveDialog(this.mainWindow, {
+          const saveOptions = {
             title: 'Export Project',
             defaultPath: `${name}.avr8js`,
             filters: [
               { name: 'AVR8js Project', extensions: ['avr8js'] },
               { name: 'All Files', extensions: ['*'] },
             ],
-          });
+          };
+          const result = this.mainWindow
+            ? await dialog.showSaveDialog(this.mainWindow, saveOptions)
+            : await dialog.showSaveDialog(saveOptions);
 
           if (result.canceled || !result.filePath) {
             return okResponse(startTime, { canceled: true, filePath: null });
@@ -395,7 +644,7 @@ class Main {
     ipcMain.handle('project:import', async () => {
       const startTime = startedAt();
       try {
-        const result = await dialog.showOpenDialog(this.mainWindow, {
+        const openOptions: Electron.OpenDialogOptions = {
           title: 'Import Project',
           filters: [
             { name: 'AVR8js Project', extensions: ['avr8js'] },
@@ -403,7 +652,10 @@ class Main {
             { name: 'All Files', extensions: ['*'] },
           ],
           properties: ['openFile'],
-        });
+        };
+        const result = this.mainWindow
+          ? await dialog.showOpenDialog(this.mainWindow, openOptions)
+          : await dialog.showOpenDialog(openOptions);
 
         const filePath = result.filePaths?.[0];
         if (result.canceled || !filePath) {
@@ -439,6 +691,41 @@ class Main {
       },
     );
 
+    // Persist compiled firmware & custom chip binaries into <projectPath>/build/
+    ipcMain.handle(
+      'project:save-build',
+      async (_event, {
+        projectPath,
+        hex,
+        board,
+        backend,
+        chipWasms,
+      }: {
+        projectPath: string;
+        hex?: string | null;
+        board?: string;
+        backend?: string;
+        chipWasms?: ProjectBuildChipArtifactInput[];
+      }) => {
+        const startTime = startedAt();
+        try {
+          if (typeof projectPath !== 'string' || projectPath.trim().length === 0) {
+            throw new Error('Project path is required to persist build artifacts.');
+          }
+          resolvePathWithin(projectPath, PROJECT_BUILD_DIR);
+          const result = await saveProjectBuildArtifacts(projectPath, {
+            hex,
+            board,
+            backend,
+            chipWasms,
+          });
+          return okResponse(startTime, result);
+        } catch (e: unknown) {
+          return errorResponse(startTime, {}, e);
+        }
+      },
+    );
+
     // Generic file save — writes any project file to disk
     ipcMain.handle(
       'project:save-file',
@@ -447,7 +734,7 @@ class Main {
       }) => {
         const startTime = startedAt();
         try {
-          const filePath = path.join(projectPath, filename);
+          const filePath = resolvePathWithin(projectPath, filename);
           await fs.writeFile(filePath, content, 'utf-8');
           return okResponse(startTime, {});
         } catch (e: unknown) {
@@ -464,7 +751,7 @@ class Main {
       }) => {
         const startTime = startedAt();
         try {
-          const filePath = path.join(projectPath, filename);
+          const filePath = resolvePathWithin(projectPath, filename);
           const content = await fs.readFile(filePath, 'utf-8');
           return okResponse(startTime, { content }, { cacheHit: false });
         } catch (e: unknown) {
@@ -475,10 +762,14 @@ class Main {
 
     // Dialog IPC: Save / Open file pickers
     ipcMain.handle('dialog-save', async (_event, options) => {
-      return dialog.showSaveDialog(this.mainWindow, options);
+      return this.mainWindow
+        ? dialog.showSaveDialog(this.mainWindow, options)
+        : dialog.showSaveDialog(options);
     });
     ipcMain.handle('dialog-open', async (_event, options) => {
-      return dialog.showOpenDialog(this.mainWindow, options);
+      return this.mainWindow
+        ? dialog.showOpenDialog(this.mainWindow, options)
+        : dialog.showOpenDialog(options);
     });
 
     // Create a new project folder under examples/
@@ -503,7 +794,9 @@ class Main {
       }) => {
         const startTime = startedAt();
         try {
-          const dir = path.join(appRoot, 'examples', category, slug);
+          const examplesRoot = path.join(appRoot, 'examples');
+          const safeSlug = sanitizeStorageSegment(slug);
+          const dir = resolvePathWithin(examplesRoot, path.join(category, safeSlug));
           await fs.mkdir(dir, { recursive: true });
 
           const metadata = JSON.stringify(
@@ -511,7 +804,7 @@ class Main {
             null, 2,
           );
           await fs.writeFile(path.join(dir, 'metadata.json'), metadata, 'utf-8');
-          await fs.writeFile(path.join(dir, `${slug}.ino`), inoContent, 'utf-8');
+          await fs.writeFile(path.join(dir, `${safeSlug}.ino`), inoContent, 'utf-8');
           await fs.writeFile(path.join(dir, 'diagram.json'), diagramContent, 'utf-8');
 
           return okResponse(startTime, { dirPath: dir });
@@ -540,10 +833,6 @@ class Main {
         }>;
         commandTemplate?: string;
       }) => {
-        // eslint-disable-next-line @typescript-eslint/no-require-imports
-        const os = require('node:os') as typeof import('node:os');
-        // eslint-disable-next-line @typescript-eslint/no-require-imports
-        const cp = require('node:child_process') as typeof import('node:child_process');
 
         const results: Array<{
           name: string;
@@ -612,7 +901,9 @@ class Main {
 
             const wasmBuffer = await fs.readFile(outputPath);
             if (projectPath) {
-              await fs.writeFile(path.join(projectPath, wasmFile), wasmBuffer);
+              const chipBuildDir = resolvePathWithin(projectPath, PROJECT_BUILD_DIR);
+              await fs.mkdir(chipBuildDir, { recursive: true });
+              await fs.writeFile(resolvePathWithin(chipBuildDir, path.basename(wasmFile)), wasmBuffer);
             }
 
             results.push({
@@ -651,6 +942,7 @@ class Main {
     ipcMain.handle(
       'arduino-cli:compile',
       async (_event, {
+        buildId,
         source,
         extraFiles,
         arduinoCliPath,
@@ -658,6 +950,7 @@ class Main {
         fqbn,
         extraFlags,
       }: {
+        buildId?: string;
         source: string;
         extraFiles: { name: string; content: string }[];
         arduinoCliPath: string;
@@ -665,10 +958,14 @@ class Main {
         fqbn: string;
         extraFlags: string;
       }) => {
-        // eslint-disable-next-line @typescript-eslint/no-require-imports
-        const os = require('node:os') as typeof import('node:os');
-        // eslint-disable-next-line @typescript-eslint/no-require-imports
-        const cp = require('node:child_process') as typeof import('node:child_process');
+        const emitProgress = (payload: {
+          phase: 'prepare' | 'compile' | 'packaging' | 'done' | 'error';
+          stream: 'status' | 'stdout' | 'stderr';
+          text: string;
+        }) => {
+          if (!buildId || _event.sender.isDestroyed()) return;
+          _event.sender.send('arduino-cli:progress', { buildId, ...payload });
+        };
 
         // Create an isolated temp directory
         const tmpBase = await fs.mkdtemp(path.join(os.tmpdir(), 'avr8js-'));
@@ -680,6 +977,12 @@ class Main {
         await fs.mkdir(outputDir, { recursive: true });
 
         try {
+          emitProgress({
+            phase: 'prepare',
+            stream: 'status',
+            text: `Preparing sketch files for ${fqbn}...`,
+          });
+
           // Write main sketch
           await fs.writeFile(path.join(sketchDir, `${sketchName}.ino`), source, 'utf-8');
           // Write extra files
@@ -700,25 +1003,60 @@ class Main {
             sketchDir,
           ];
 
+          emitProgress({
+            phase: 'compile',
+            stream: 'status',
+            text: `Running ${path.basename(cliBin)} compile --fqbn ${fqbn}...`,
+          });
+
           const { stdout, stderr, code } = await new Promise<{
             stdout: string; stderr: string; code: number;
           }>((resolve) => {
             let out = '';
             let err = '';
             const proc = cp.spawn(cliBin, args, { env: process.env });
-            proc.stdout?.on('data', (d: Buffer) => { out += d.toString(); });
-            proc.stderr?.on('data', (d: Buffer) => { err += d.toString(); });
+            proc.stdout?.on('data', (d: Buffer) => {
+              const chunk = d.toString();
+              out += chunk;
+              emitProgress({ phase: 'compile', stream: 'stdout', text: chunk });
+            });
+            proc.stderr?.on('data', (d: Buffer) => {
+              const chunk = d.toString();
+              err += chunk;
+              emitProgress({ phase: 'compile', stream: 'stderr', text: chunk });
+            });
             proc.on('close', (exitCode: number) => resolve({ stdout: out, stderr: err, code: exitCode ?? 1 }));
-            proc.on('error', (e: Error) => resolve({ stdout: out, stderr: err + '\n' + e.message, code: 1 }));
+            proc.on('error', (e: Error) => {
+              const msg = e.message;
+              emitProgress({ phase: 'error', stream: 'stderr', text: msg });
+              resolve({ stdout: out, stderr: err + '\n' + msg, code: 1 });
+            });
           });
 
           if (code !== 0) {
+            emitProgress({
+              phase: 'error',
+              stream: 'stderr',
+              text: `arduino-cli exited with code ${code}`,
+            });
             return { hex: '', stdout, stderr };
           }
+
+          emitProgress({
+            phase: 'packaging',
+            stream: 'status',
+            text: 'Loading compiled firmware (.hex)...',
+          });
 
           // Read the compiled hex file
           const hexPath = path.join(outputDir, `${sketchName}.ino.hex`);
           const hex = await fs.readFile(hexPath, 'utf-8');
+
+          emitProgress({
+            phase: 'done',
+            stream: 'status',
+            text: 'Compilation completed.',
+          });
           return { hex, stdout, stderr };
         } finally {
           // Clean up temp directory in background

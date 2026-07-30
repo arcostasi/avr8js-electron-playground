@@ -1,14 +1,24 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo, Suspense, lazy } from 'react';
 import ProjectSidebar from '@/components/ProjectSidebar';
+import TitlebarWindowControls from '@/components/TitlebarWindowControls';
 import type { PaletteCommand } from '@/components/CommandPalette';
 import type { NewProjectOptions } from '@/components/NewProjectDialog';
-import type { WokwiDiagram, WokwiPart } from '@/types/wokwi.types';
+import type { WokwiDiagram, WokwiPart, ProjectSaveStatus } from '@/types/wokwi.types';
 import { parseDiagram } from '@/types/wokwi.types';
 import { resolveBoardProfileFromParts } from '../shared/avr/profiles';
 import { stringifyEmptyDiagramForBuildBoard } from '../shared/avr/board-diagrams';
 import { buildHex } from '../shared/compile';
 import {
-    discoverProjects, discoverProjectsFromRoot, getAppRoot, isProjectOperationAborted, loadProject, pickProjectsDirectory, preloadProject,
+    discoverProjects,
+    discoverProjectsFromRoot,
+    getAppRoot,
+    invalidateProjectLoadCache,
+    isProjectOperationAborted,
+    loadProject,
+    pickProjectsDirectory,
+    preloadProject,
+    saveProjectBuild,
+    updateProjectLoadCacheBuild,
 } from '@/services/project-loader';
 import type { DiscoveredProject, ProjectOperationProgress } from '@/services/project-loader';
 import {
@@ -43,11 +53,19 @@ import {
     writeCachedChipArtifact,
 } from '@/services/chip-build-cache';
 import { parseChipBuildDiagnostics } from '@/services/chip-build-diagnostics';
+import {
+    appendBuildLogLines,
+    splitChunkToLines,
+    stripAnsiCodes,
+    type BuildLogStream,
+    type BuildOverlayStage,
+    type BuildOverlayState,
+} from '@/components/simulator/build-overlay-utils';
 import { useDiagramState } from '@/hooks/useDiagramState';
-import { useAutoSave } from '@/hooks/useAutoSave';
 import { useResizableLayout } from '@/hooks/useResizableLayout';
 import { useProjectStore } from '@/store/projectStore';
 import type { CompileHistoryEntry } from '@/store/projectStore';
+import { useShallow } from 'zustand/react/shallow';
 import { useSettingsStore } from '@/store/settingsStore';
 import type { EditorDiagnostic } from '@/types/editor-diagnostics';
 import SerialMonitor from '@/components/SerialMonitor';
@@ -65,9 +83,23 @@ import {
 import {
     FileJson, FileCode2, Terminal as TerminalIcon,
     FolderOpen, PlayCircle, Settings, Save, RotateCcw,
-    FilePlus2, Sun, Moon, ChevronLeft, ChevronRight, X,
+    FilePlus2, Sun, Moon, ChevronLeft, ChevronRight, X, Search,
 } from 'lucide-react';
+import {
+    computeNextTabStripScrollLeft,
+    computeScrollLeftToRevealTabItem,
+    type TabStripItemMetrics,
+} from './utils/tab-strip-scroll';
 import './index.css';
+
+function measureTabStripItem(container: HTMLElement, item: HTMLElement): TabStripItemMetrics {
+    const containerRect = container.getBoundingClientRect();
+    const itemRect = item.getBoundingClientRect();
+    return {
+        left: itemRect.left - containerRect.left + container.scrollLeft,
+        width: itemRect.width,
+    };
+}
 
 const Editor = lazy(() => import('@/components/Editor'));
 const WokwiSimulator = lazy(() => import('@/components/simulator'));
@@ -77,62 +109,7 @@ const NewProjectDialog = lazy(() => import('@/components/NewProjectDialog'));
 
 markPerf('renderer-module-evaluated');
 
-// eslint-disable-next-line @typescript-eslint/no-require-imports
-const ipcRenderer = require('electron').ipcRenderer;
-
-/** Window control buttons extracted to avoid long lines */
-function TitlebarButtons() {
-    const btnCls = [
-        'w-12 h-8 flex items-center justify-center',
-        'text-vscode-text opacity-80 hover:opacity-100 hover:bg-vscode-hover transition-colors',
-    ].join(' ');
-    const style = {
-        WebkitAppRegion: 'no-drag',
-    } as React.CSSProperties;
-    return (
-        <div className="flex" style={style}>
-            <button
-                onClick={() => ipcRenderer.send('window-minimize')}
-                className={btnCls}
-            >
-                <svg width="10" height="1" viewBox="0 0 10 1">
-                    <rect width="10" height="1" fill="currentColor" />
-                </svg>
-            </button>
-            <button
-                onClick={() => ipcRenderer.send('window-maximize')}
-                className={btnCls}
-            >
-                <svg width="10" height="10" viewBox="0 0 10 10">
-                    <rect
-                        width="10" height="10" rx="0"
-                        fill="none" stroke="currentColor"
-                        strokeWidth="1"
-                    />
-                </svg>
-            </button>
-            <button
-                onClick={() => ipcRenderer.send('window-close')}
-                className={[
-                    'w-12 h-8 flex items-center justify-center',
-                    'text-vscode-text opacity-80 hover:bg-[#e81123]',
-                    'hover:text-white hover:opacity-100 transition-colors',
-                ].join(' ')}
-            >
-                <svg width="10" height="10" viewBox="0 0 10 10">
-                    <line
-                        x1="0" y1="0" x2="10" y2="10"
-                        stroke="currentColor" strokeWidth="1.2"
-                    />
-                    <line
-                        x1="10" y1="0" x2="0" y2="10"
-                        stroke="currentColor" strokeWidth="1.2"
-                    />
-                </svg>
-            </button>
-        </div>
-    );
-}
+const { ipcRenderer } = window.require('electron') as typeof import('electron');
 
 interface ActivityRailProps {
     sidebarVisible: boolean;
@@ -157,53 +134,62 @@ function ActivityRail({
     onToggleTheme,
     onOpenSettings,
 }: Readonly<ActivityRailProps>) {
+    const railToggleClass = (active: boolean) => [
+        'w-full py-2 flex items-center justify-center border-l-2 transition-colors',
+        'focus:outline-none focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-blue-400',
+        active
+            ? 'text-vscode-textActive border-blue-500'
+            : 'text-vscode-text/60 border-transparent hover:text-vscode-textActive',
+    ].join(' ');
+
     return (
         <div className={
-            'flex flex-col items-center py-4 space-y-4 '
+            'flex flex-col items-center py-3 space-y-2 '
             + 'w-12 bg-vscode-activity border-r '
             + 'border-vscode-border z-50 shrink-0'
         }>
             <button
+                type="button"
                 onClick={onToggleSidebar}
-                className={[
-                    'text-vscode-text hover:text-vscode-textActive',
-                    'transition-colors',
-                    sidebarVisible
-                        ? 'text-vscode-textActive border-l-2 border-blue-500'
-                        : '',
-                ].join(' ')}
+                aria-label="Toggle Explorer"
+                aria-pressed={sidebarVisible}
+                className={railToggleClass(sidebarVisible)}
                 title="Toggle Explorer"
             >
-                <FolderOpen size={24} strokeWidth={1.5} />
+                <FolderOpen size={22} strokeWidth={1.5} />
             </button>
             <button
+                type="button"
                 onClick={onToggleEditor}
-                className={[
-                    'text-vscode-text hover:text-vscode-textActive',
-                    'transition-colors',
-                    editorVisible ? 'text-vscode-textActive' : '',
-                ].join(' ')}
+                aria-label="Toggle Code Editor"
+                aria-pressed={editorVisible}
+                className={railToggleClass(editorVisible)}
                 title="Toggle Code Editor"
             >
-                <FileCode2 size={24} strokeWidth={1.5} />
+                <FileCode2 size={22} strokeWidth={1.5} />
             </button>
             <button
+                type="button"
                 onClick={onToggleSimulator}
-                className={[
-                    'text-vscode-text hover:text-vscode-textActive',
-                    'transition-colors',
-                    simulatorVisible ? 'text-vscode-textActive' : '',
-                ].join(' ')}
+                aria-label="Toggle Simulator"
+                aria-pressed={simulatorVisible}
+                className={railToggleClass(simulatorVisible)}
                 title="Toggle Simulator"
             >
-                <PlayCircle size={24} strokeWidth={1.5} />
+                <PlayCircle size={22} strokeWidth={1.5} />
             </button>
 
             <div className="flex-1" />
 
             <button
+                type="button"
                 onClick={onToggleTheme}
-                className="text-vscode-text hover:text-vscode-textActive transition-colors"
+                aria-label={theme === 'dark' ? 'Switch to Light Theme' : 'Switch to Dark Theme'}
+                className={[
+                    'w-full py-2 flex items-center justify-center text-vscode-text/75',
+                    'hover:text-vscode-textActive transition-colors focus:outline-none',
+                    'focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-blue-400',
+                ].join(' ')}
                 title={theme === 'dark' ? 'Switch to Light Theme' : 'Switch to Dark Theme'}
             >
                 {theme === 'dark'
@@ -212,11 +198,17 @@ function ActivityRail({
                 }
             </button>
             <button
+                type="button"
                 onClick={onOpenSettings}
-                className="text-vscode-text hover:text-vscode-textActive transition-colors"
-                title="Settings"
+                aria-label="Open Settings"
+                className={[
+                    'w-full py-2 flex items-center justify-center text-vscode-text/75',
+                    'hover:text-vscode-textActive transition-colors focus:outline-none',
+                    'focus-visible:ring-1 focus-visible:ring-inset focus-visible:ring-blue-400',
+                ].join(' ')}
+                title="Settings (Ctrl+,)"
             >
-                <Settings size={22} strokeWidth={1.5} />
+                <Settings size={21} strokeWidth={1.5} />
             </button>
         </div>
     );
@@ -496,7 +488,20 @@ async function runChipBuildFlow(params: {
     const allResults: ChipBuildResultItem[] = [...cacheHits, ...result.results];
     logChipBuildResults(allResults, appendTerminalOutput);
 
+    const mergedArtifacts = mergeChipArtifacts({}, allResults);
     setCustomChipArtifacts((prev) => mergeChipArtifacts(prev, allResults));
+
+    if (projectDirPath) {
+        const chipWasms = allResults
+            .filter((item): item is ChipBuildResultItem & { wasmBase64: string } => (
+                item.success && typeof item.wasmBase64 === 'string' && item.wasmBase64.length > 0
+            ))
+            .map((item) => ({ wasmFile: item.wasmFile, wasmBase64: item.wasmBase64 }));
+        if (chipWasms.length > 0) {
+            await saveProjectBuild(projectDirPath, { chipWasms });
+            updateProjectLoadCacheBuild(projectDirPath, { customChipArtifacts: mergedArtifacts });
+        }
+    }
 
     const diagnosticsByFile = collectChipDiagnosticsByFile(allResults);
     setChipBuildDiagnostics(diagnosticsByFile);
@@ -526,9 +531,34 @@ async function runChipBuildFlow(params: {
     return success;
 }
 
+interface ArduinoCliProgressEventPayload {
+    buildId?: string;
+    phase?: 'prepare' | 'compile' | 'packaging' | 'done' | 'error';
+    stream?: BuildLogStream;
+    text?: string;
+}
+
+function appendOverlayLines(
+    setBuildOverlay: React.Dispatch<React.SetStateAction<BuildOverlayState | null>>,
+    buildId: string,
+    logIdRef: { current: number },
+    lines: string[],
+    stream: BuildLogStream,
+    updates?: Partial<Pick<BuildOverlayState, 'stage' | 'headline' | 'status' | 'finishedAt' | 'errorSummary'>>,
+): void {
+    setBuildOverlay((current) => {
+        if (!current || current.buildId !== buildId) return current;
+        return {
+            ...current,
+            ...updates,
+            logs: appendBuildLogLines(current.logs, lines, stream, logIdRef),
+        };
+    });
+}
+
 async function runCompileFlow(params: {
     files: Array<{ name: string; content: string }>;
-    currentProjectObj: { board?: string } | null;
+    currentProjectObj: { board?: string; dirPath?: string } | null;
     settings: {
         buildBackend: 'cloud' | 'local';
         arduinoCliPath: string;
@@ -543,6 +573,9 @@ async function runCompileFlow(params: {
     setHex: (hex: string | null) => void;
     currentProjectName: string;
     addCompileHistory: (entry: CompileHistoryEntry) => void;
+    setBuildOverlay: React.Dispatch<React.SetStateAction<BuildOverlayState | null>>;
+    buildOverlayTimerRef: { current: ReturnType<typeof globalThis.setTimeout> | null };
+    buildLogIdRef: { current: number };
 }): Promise<void> {
     const {
         files,
@@ -554,16 +587,104 @@ async function runCompileFlow(params: {
         setHex,
         currentProjectName,
         addCompileHistory,
+        setBuildOverlay,
+        buildOverlayTimerRef,
+        buildLogIdRef,
     } = params;
 
-    const sketchFile = files.find(f => f.name.endsWith('.ino') || f.name.endsWith('.cpp'))?.content || '';
+    const sketchFileObj = files.find(
+        (f) => (f.name.endsWith('.ino') || (f.name.endsWith('.cpp') && !f.name.endsWith('.chip.cpp')))
+            && f.content.trim().length > 0,
+    );
+    if (!sketchFileObj) {
+        appendTerminalOutput('[build] Cannot build: no project or sketch (.ino) is open.\n');
+        return;
+    }
+    const sketchFile = sketchFileObj.content;
     const extraFiles = files
         .filter(f => /\.(c|h|cpp)$/i.test(f.name) && !/\.chip\.(c|h|cpp)$/i.test(f.name))
         .map(f => ({ name: f.name, content: f.content }));
+    const board = currentProjectObj?.board || 'uno';
+    const fqbn = settings.buildBackend === 'local'
+        ? (settings.fqbnMap[board] || `arduino:avr:${board}`)
+        : undefined;
+    const hasCustomChips = discoverCustomChipSources(files).length > 0;
+    const buildId = `build-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
+    if (buildOverlayTimerRef.current !== null) {
+        globalThis.clearTimeout(buildOverlayTimerRef.current);
+        buildOverlayTimerRef.current = null;
+    }
+
     setIsCompiling(true);
     const startTime = Date.now();
+    const initialHeadline = settings.buildBackend === 'local'
+        ? 'Compiling with arduino-cli...'
+        : 'Compiling via Hexi cloud...';
+
+    setBuildOverlay({
+        buildId,
+        status: 'building',
+        stage: 'prepare',
+        backend: settings.buildBackend,
+        projectName: currentProjectName || '(unnamed)',
+        board,
+        fqbn,
+        startedAt: startTime,
+        headline: initialHeadline,
+        logs: appendBuildLogLines([], [`Starting build for ${currentProjectName || board}...`], 'status', buildLogIdRef),
+    });
+
+    const remainders: { stdout: string; stderr: string } = { stdout: '', stderr: '' };
+    let receivedStreamOutput = false;
+
+    const handleCliProgress = (_event: unknown, payload: ArduinoCliProgressEventPayload) => {
+        if (!payload || payload.buildId !== buildId || !payload.text) return;
+
+        const stream: BuildLogStream = payload.stream ?? 'status';
+        let lines: string[];
+        if (stream === 'stdout' || stream === 'stderr') {
+            receivedStreamOutput = true;
+            const split = splitChunkToLines(remainders[stream], payload.text);
+            remainders[stream] = split.remainder;
+            lines = split.lines;
+        } else {
+            lines = [payload.text];
+        }
+
+        const stageByPhase: Record<NonNullable<ArduinoCliProgressEventPayload['phase']>, BuildOverlayStage> = {
+            prepare: 'prepare',
+            compile: 'compile',
+            packaging: 'save',
+            done: 'save',
+            error: 'error',
+        };
+        const nextStage = payload.phase ? stageByPhase[payload.phase] : undefined;
+
+        appendOverlayLines(
+            setBuildOverlay,
+            buildId,
+            buildLogIdRef,
+            lines,
+            stream,
+            nextStage ? { stage: nextStage } : undefined,
+        );
+    };
+
+    ipcRenderer.on('arduino-cli:progress', handleCliProgress);
 
     try {
+        if (hasCustomChips) {
+            appendOverlayLines(
+                setBuildOverlay,
+                buildId,
+                buildLogIdRef,
+                ['Building custom chip WASM modules...'],
+                'status',
+                { stage: 'chips' },
+            );
+        }
+
         const chipsOk = await handleBuildChips();
         if (!chipsOk) {
             throw new Error('Custom chip build failed. Fix chip errors and try again.');
@@ -573,49 +694,167 @@ async function runCompileFlow(params: {
 
         if (settings.buildBackend === 'local') {
             appendTerminalOutput('Compiling with local arduino-cli...\n');
-            const board = currentProjectObj?.board || 'uno';
-            const fqbn = settings.fqbnMap[board] || `arduino:avr:${board}`;
             result = await ipcRenderer.invoke('arduino-cli:compile', {
+                buildId,
                 source: sketchFile,
                 extraFiles,
                 arduinoCliPath: settings.arduinoCliPath,
                 arduinoCliBin: settings.arduinoCliBin,
-                fqbn,
+                fqbn: fqbn ?? `arduino:avr:${board}`,
                 extraFlags: settings.extraFlags,
             });
         } else {
             appendTerminalOutput('Compiling via Hexi cloud...\n');
+            appendOverlayLines(
+                setBuildOverlay,
+                buildId,
+                buildLogIdRef,
+                [`Submitting sketch (${board}) to Hexi cloud...`],
+                'status',
+                { stage: 'compile' },
+            );
             result = await buildHex(
                 sketchFile,
                 extraFiles,
-                currentProjectObj?.board || 'uno',
+                board,
                 {},
                 false,
                 settings.cloudUrl,
             );
         }
 
-        if (result.stderr) appendTerminalOutput('\n' + result.stderr + '\n');
-        if (result.stdout) appendTerminalOutput('\n' + result.stdout + '\n');
+        if (remainders.stdout.trim()) {
+            appendOverlayLines(setBuildOverlay, buildId, buildLogIdRef, [remainders.stdout], 'stdout');
+            remainders.stdout = '';
+        }
+        if (remainders.stderr.trim()) {
+            appendOverlayLines(setBuildOverlay, buildId, buildLogIdRef, [remainders.stderr], 'stderr');
+            remainders.stderr = '';
+        }
+
+        const cleanStdout = result.stdout ? stripAnsiCodes(result.stdout) : '';
+        const cleanStderr = result.stderr ? stripAnsiCodes(result.stderr) : '';
+
+        if (!receivedStreamOutput) {
+            if (cleanStdout) {
+                appendOverlayLines(
+                    setBuildOverlay,
+                    buildId,
+                    buildLogIdRef,
+                    cleanStdout.split(/\r?\n/),
+                    'stdout',
+                );
+            }
+            if (cleanStderr) {
+                appendOverlayLines(
+                    setBuildOverlay,
+                    buildId,
+                    buildLogIdRef,
+                    cleanStderr.split(/\r?\n/),
+                    'stderr',
+                );
+            }
+        }
+
+        if (cleanStderr) appendTerminalOutput('\n' + cleanStderr + '\n');
+        if (cleanStdout) appendTerminalOutput('\n' + cleanStdout + '\n');
 
         const success = Boolean(result.hex);
         if (success) {
             setHex(result.hex);
+            let finalLine = 'Build succeeded. Ready to run.';
+            if (currentProjectObj?.dirPath) {
+                appendOverlayLines(
+                    setBuildOverlay,
+                    buildId,
+                    buildLogIdRef,
+                    ['Saving binaries to build/firmware.hex...'],
+                    'status',
+                    { stage: 'save' },
+                );
+                const saved = await saveProjectBuild(currentProjectObj.dirPath, {
+                    hex: result.hex,
+                    board,
+                    backend: settings.buildBackend,
+                });
+                updateProjectLoadCacheBuild(currentProjectObj.dirPath, { hex: result.hex });
+                if (saved.success) {
+                    appendTerminalOutput('[build] Saved binary artifacts to build/firmware.hex.\n');
+                    finalLine = 'Saved binary artifacts to build/firmware.hex.';
+                } else {
+                    appendTerminalOutput(`[build] Warning: failed to persist build artifacts: ${saved.error ?? 'unknown error'}\n`);
+                }
+            }
             appendTerminalOutput('\nCompilation Build Success. Ready to run.\n');
+
+            appendOverlayLines(
+                setBuildOverlay,
+                buildId,
+                buildLogIdRef,
+                [finalLine],
+                'status',
+                {
+                    status: 'success',
+                    stage: 'done',
+                    finishedAt: Date.now(),
+                    headline: 'Build succeeded',
+                },
+            );
+
+            buildOverlayTimerRef.current = globalThis.setTimeout(() => {
+                setBuildOverlay((current) => (current?.buildId === buildId ? null : current));
+                buildOverlayTimerRef.current = null;
+            }, 1600);
+        } else {
+            const firstErrorLine = [cleanStderr, cleanStdout]
+                .join('\n')
+                .split(/\r?\n/)
+                .map((line) => line.trim())
+                .find((line) => /\berror:/i.test(line))
+                || 'Compilation failed with no firmware output.';
+
+            appendOverlayLines(
+                setBuildOverlay,
+                buildId,
+                buildLogIdRef,
+                ['Build failed. Review compiler diagnostics above.'],
+                'stderr',
+                {
+                    status: 'error',
+                    stage: 'error',
+                    finishedAt: Date.now(),
+                    headline: 'Build failed',
+                    errorSummary: firstErrorLine,
+                },
+            );
         }
 
         const entry: CompileHistoryEntry = {
             id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
             timestamp: Date.now(),
             success,
-            output: [result.stdout, result.stderr].filter(Boolean).join('\n').trim(),
+            output: [cleanStdout, cleanStderr].filter(Boolean).join('\n').trim(),
             durationMs: Date.now() - startTime,
             projectName: currentProjectName || '(unnamed)',
         };
         addCompileHistory(entry);
     } catch (e: unknown) {
-        const msg = toErrorMessage(e);
+        const msg = stripAnsiCodes(toErrorMessage(e));
         appendTerminalOutput('\nError: ' + msg + '\n');
+        appendOverlayLines(
+            setBuildOverlay,
+            buildId,
+            buildLogIdRef,
+            [msg],
+            'stderr',
+            {
+                status: 'error',
+                stage: 'error',
+                finishedAt: Date.now(),
+                headline: 'Build failed',
+                errorSummary: msg,
+            },
+        );
         const entry: CompileHistoryEntry = {
             id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
             timestamp: Date.now(),
@@ -626,6 +865,7 @@ async function runCompileFlow(params: {
         };
         addCompileHistory(entry);
     } finally {
+        ipcRenderer.removeListener('arduino-cli:progress', handleCliProgress);
         setIsCompiling(false);
     }
 }
@@ -650,6 +890,7 @@ type LoadedProjectSnapshot = {
     name: string;
     files: ProjectFileRecord[];
     hex: string | null;
+    customChipArtifacts?: Record<string, string>;
     diagram: WokwiDiagram | null;
 };
 
@@ -755,8 +996,22 @@ interface ProjectLoadStateApplier {
     setChipBuildJumpTarget: (value: ChipBuildJumpTarget | null) => void;
     setSavedContents: (value: Record<string, string>) => void;
     setActiveFile: (name: string) => void;
+    setOpenEditorFiles: (files: string[]) => void;
     clearTerminalOutput?: () => void;
     appendTerminalOutput?: (text: string) => void;
+}
+
+function orderProjectTabFiles(files: readonly { name: string }[]): string[] {
+    const rank = (name: string): number => {
+        if (name.endsWith('.ino')) return 0;
+        if (name.endsWith('.cpp') || name.endsWith('.c') || name.endsWith('.h')) return 1;
+        if (name.endsWith('.json')) return 3;
+        return 2;
+    };
+
+    return [...files]
+        .sort((a, b) => rank(a.name) - rank(b.name))
+        .map((file) => file.name);
 }
 
 function applyLoadedProjectState(params: {
@@ -781,10 +1036,11 @@ function applyLoadedProjectState(params: {
     }
 
     applier.setFiles(loaded.files);
+    applier.setOpenEditorFiles(orderProjectTabFiles(loaded.files));
     applier.setCurrentProject(loaded.name, selectedProject);
     if (loaded.diagram) applier.resetDiagram(loaded.diagram);
     applier.setHex(hexOverride ?? loaded.hex);
-    applier.setCustomChipArtifacts({});
+    applier.setCustomChipArtifacts(loaded.customChipArtifacts ? { ...loaded.customChipArtifacts } : {});
     applier.setChipConsoleOutput('');
     applier.setChipBuildDiagnostics({});
     applier.setChipBuildJumpTarget(null);
@@ -809,6 +1065,7 @@ function buildProjectLoadStateApplier(params: {
     setChipBuildJumpTarget: React.Dispatch<React.SetStateAction<ChipBuildJumpTarget | null>>;
     setSavedContents: (value: Record<string, string>) => void;
     setActiveFile: (name: string) => void;
+    setOpenEditorFiles: (files: string[]) => void;
     clearTerminalOutput: () => void;
     appendTerminalOutput: (text: string) => void;
 }): ProjectLoadStateApplier {
@@ -823,6 +1080,7 @@ function buildProjectLoadStateApplier(params: {
         setChipBuildJumpTarget: (value) => params.setChipBuildJumpTarget(value),
         setSavedContents: params.setSavedContents,
         setActiveFile: params.setActiveFile,
+        setOpenEditorFiles: params.setOpenEditorFiles,
         clearTerminalOutput: params.clearTerminalOutput,
         appendTerminalOutput: params.appendTerminalOutput,
     };
@@ -834,7 +1092,7 @@ export default function App() { // NOSONAR: composition root
         rendererStartupMeasureRef.current = startPerfMeasure('renderer-app-startup');
     }
 
-    // ── Global Store ──
+    // ── Global Store (selective subscription prevents full App re-render on serial terminal bursts) ──
     const {
         projects, setProjects,
         currentProjectName, currentProjectObj, setCurrentProject,
@@ -843,9 +1101,33 @@ export default function App() { // NOSONAR: composition root
         savedContents, setSavedContents, setSavedContent,
         hex, setHex,
         isCompiling, setIsCompiling,
-        terminalChunks, appendTerminalOutput, clearTerminalOutput, setTerminalChunks,
+        appendTerminalOutput, clearTerminalOutput, setTerminalChunks,
         compileHistory, addCompileHistory, clearCompileHistory, setCompileHistory,
-    } = useProjectStore();
+    } = useProjectStore(useShallow((state) => ({
+        projects: state.projects,
+        setProjects: state.setProjects,
+        currentProjectName: state.currentProjectName,
+        currentProjectObj: state.currentProjectObj,
+        setCurrentProject: state.setCurrentProject,
+        files: state.files,
+        setFiles: state.setFiles,
+        activeFile: state.activeFile,
+        setActiveFile: state.setActiveFile,
+        savedContents: state.savedContents,
+        setSavedContents: state.setSavedContents,
+        setSavedContent: state.setSavedContent,
+        hex: state.hex,
+        setHex: state.setHex,
+        isCompiling: state.isCompiling,
+        setIsCompiling: state.setIsCompiling,
+        appendTerminalOutput: state.appendTerminalOutput,
+        clearTerminalOutput: state.clearTerminalOutput,
+        setTerminalChunks: state.setTerminalChunks,
+        compileHistory: state.compileHistory,
+        addCompileHistory: state.addCompileHistory,
+        clearCompileHistory: state.clearCompileHistory,
+        setCompileHistory: state.setCompileHistory,
+    })));
 
     // ── Settings ──
     const settings = useSettingsStore();
@@ -939,17 +1221,47 @@ export default function App() { // NOSONAR: composition root
 
     // ── Diagram State ──
     const {
-        diagram, setDiagram, resetDiagram, addPart,
+        diagram, diagramRef, setDiagram, resetDiagram, addPart,
         undo, redo, canUndo, canRedo,
     } = useDiagramState(DEFAULT_DIAGRAM);
 
     // ── Serial Input ──
     const serialWriteRef = useRef<((text: string, usartId?: string) => void) | null>(null);
+    const stopSimulationRef = useRef<(() => void) | null>(null);
+    const [projectTransitionSeq, setProjectTransitionSeq] = useState(0);
+    const [buildOverlay, setBuildOverlay] = useState<BuildOverlayState | null>(null);
+    const [projectSaveState, setProjectSaveState] = useState<ProjectSaveStatus>('idle');
+    const buildOverlayTimerRef = useRef<ReturnType<typeof globalThis.setTimeout> | null>(null);
+    const saveFeedbackTimerRef = useRef<ReturnType<typeof globalThis.setTimeout> | null>(null);
+    const lastCanvasDiagramJsonRef = useRef<string | null>(null);
+    const buildLogIdRef = useRef(1);
     const tabStripRef = useRef<HTMLDivElement | null>(null);
-    const tabButtonRefs = useRef<Record<string, HTMLButtonElement | null>>({});
+    const pendingTabStripRestoreScrollLeftRef = useRef<number | null>(null);
+    const pendingTabStripTargetRef = useRef<{ left: number; expiresAt: number } | null>(null);
+
+    const dismissBuildOverlay = useCallback(() => {
+        if (buildOverlayTimerRef.current !== null) {
+            globalThis.clearTimeout(buildOverlayTimerRef.current);
+            buildOverlayTimerRef.current = null;
+        }
+        setBuildOverlay(null);
+    }, []);
+
+    useEffect(() => {
+        return () => {
+            if (buildOverlayTimerRef.current !== null) {
+                globalThis.clearTimeout(buildOverlayTimerRef.current);
+            }
+            if (saveFeedbackTimerRef.current !== null) {
+                globalThis.clearTimeout(saveFeedbackTimerRef.current);
+            }
+        };
+    }, []);
+    const tabItemRefs = useRef<Record<string, HTMLDivElement | null>>({});
     const discoverAbortRef = useRef<AbortController | null>(null);
     const loadAbortRef = useRef<AbortController | null>(null);
     const hydratedProjectSessionRef = useRef<string | null>(null);
+    const hydratedProjectSessionDoneRef = useRef<string | null>(null);
 
     const projectStateApplier = useMemo(() => buildProjectLoadStateApplier({
         setFiles,
@@ -962,6 +1274,7 @@ export default function App() { // NOSONAR: composition root
         setChipBuildJumpTarget,
         setSavedContents,
         setActiveFile,
+        setOpenEditorFiles,
         clearTerminalOutput,
         appendTerminalOutput,
     }), [
@@ -1010,7 +1323,7 @@ export default function App() { // NOSONAR: composition root
 
     useResizableLayout(['#sidebar-pane', '#content-pane'], {
         sizes: sidebarContentSizes,
-        minSize: [180, 500],
+        minSize: [150, 320],
         gutterSize: 4,
         enabled: sidebarVisible,
         onSizesChange: (sizes) => setSidebarContentSizes([sizes[0] ?? 18, sizes[1] ?? 82]),
@@ -1018,18 +1331,18 @@ export default function App() { // NOSONAR: composition root
 
     useResizableLayout(['#editor-area-pane', '#simulator-pane'], {
         sizes: editorSimulatorSizes,
-        minSize: [300, 400],
+        minSize: [200, 260],
         gutterSize: 4,
         enabled: editorVisible && simulatorVisible,
         onSizesChange: (sizes) => setEditorSimulatorSizes([sizes[0] ?? 45, sizes[1] ?? 55]),
     });
 
-    useResizableLayout(['#code-pane', '#terminal-pane'], {
+    useResizableLayout(['#simulator-canvas-pane', '#terminal-pane'], {
         sizes: codeTerminalSizes,
-        minSize: [150, 120],
+        minSize: [140, 100],
         gutterSize: 4,
         direction: 'vertical',
-        enabled: editorVisible && terminalVisible,
+        enabled: simulatorVisible && terminalVisible,
         onSizesChange: (sizes) => setCodeTerminalSizes([sizes[0] ?? 75, sizes[1] ?? 25]),
     });
 
@@ -1062,26 +1375,32 @@ export default function App() { // NOSONAR: composition root
 
     useEffect(() => {
         if (!uiSessionLoaded || !currentProjectObj?.dirPath || !activeFile) return;
+        const projectKey = normalizeProjectSessionKey(currentProjectObj.dirPath);
+        if (hydratedProjectSessionDoneRef.current !== projectKey) return;
 
-        void updateUiSession((draft) => {
-            const projectKey = normalizeProjectSessionKey(currentProjectObj.dirPath);
-            draft.projects[projectKey] = buildProjectSessionSnapshot({
-                activeFile,
-                openFiles: openEditorFiles,
-                sidebarSections: sidebarSectionState,
-                diagnostics: diagnosticsFilterState,
-                compileHistoryExpandedIds,
-                dismissedRestoredWarningKey,
-                tabStripScrollLeft,
-                terminal: {
-                    ...terminalViewState,
-                    selectedTab: persistedTerminalTab,
-                },
-                terminalOutputChunks: terminalChunks,
-                chipOutput: chipConsoleOutput,
-                compileHistory,
+        const timeoutId = globalThis.setTimeout(() => {
+            const currentChunks = useProjectStore.getState().terminalChunks;
+            void updateUiSession((draft) => {
+                draft.projects[projectKey] = buildProjectSessionSnapshot({
+                    activeFile,
+                    openFiles: openEditorFiles,
+                    sidebarSections: sidebarSectionState,
+                    diagnostics: diagnosticsFilterState,
+                    compileHistoryExpandedIds,
+                    dismissedRestoredWarningKey,
+                    tabStripScrollLeft,
+                    terminal: {
+                        ...terminalViewState,
+                        selectedTab: persistedTerminalTab,
+                    },
+                    terminalOutputChunks: currentChunks,
+                    chipOutput: chipConsoleOutput,
+                    compileHistory,
+                });
             });
-        });
+        }, 250);
+
+        return () => globalThis.clearTimeout(timeoutId);
     }, [
         activeFile,
         chipConsoleOutput,
@@ -1094,28 +1413,78 @@ export default function App() { // NOSONAR: composition root
         persistedTerminalTab,
         sidebarSectionState,
         tabStripScrollLeft,
-        terminalChunks,
         terminalViewState,
         uiSessionLoaded,
     ]);
 
+    // Persist serial terminal buffer outside React state so serial bursts never re-render App
     useEffect(() => {
-        if (!uiSessionLoaded || !currentProjectObj?.dirPath || files.length === 0) return;
+        if (!uiSessionLoaded || !currentProjectObj?.dirPath) return undefined;
+
+        const dirPath = currentProjectObj.dirPath;
+        let timeoutId: ReturnType<typeof globalThis.setTimeout> | null = null;
+        let prevChunks = useProjectStore.getState().terminalChunks;
+
+        const unsubscribe = useProjectStore.subscribe((state) => {
+            if (state.terminalChunks === prevChunks) return;
+            prevChunks = state.terminalChunks;
+
+            if (timeoutId !== null) {
+                globalThis.clearTimeout(timeoutId);
+            }
+            timeoutId = globalThis.setTimeout(() => {
+                timeoutId = null;
+                const latestChunks = useProjectStore.getState().terminalChunks;
+                void updateUiSession((draft) => {
+                    const projectKey = normalizeProjectSessionKey(dirPath);
+                    const existing = draft.projects[projectKey] ?? {};
+                    draft.projects[projectKey] = {
+                        ...existing,
+                        terminalOutputChunks: latestChunks,
+                    };
+                });
+            }, 500);
+        });
+
+        return () => {
+            unsubscribe();
+            if (timeoutId !== null) {
+                globalThis.clearTimeout(timeoutId);
+            }
+        };
+    }, [currentProjectObj?.dirPath, uiSessionLoaded]);
+
+    useEffect(() => {
+        if (!uiSessionLoaded || !currentProjectObj?.dirPath || files.length === 0) return undefined;
 
         const projectKey = normalizeProjectSessionKey(currentProjectObj.dirPath);
-        if (hydratedProjectSessionRef.current === projectKey) return;
+        if (hydratedProjectSessionRef.current === projectKey) return undefined;
         hydratedProjectSessionRef.current = projectKey;
+        let cancelled = false;
 
         void readUiSession().then((session) => {
+            if (cancelled) return;
             const projectSession = session.projects[projectKey];
             const restored = resolveProjectSessionRestore(projectSession, files);
-            setOpenEditorFiles(restored.openFiles);
+            const primaryIno = files.find((file) => file.name.endsWith('.ino'))?.name ?? null;
+            let nextOpenFiles = restored.openFiles;
+            let nextActiveFile = restored.activeFile;
+
+            if (primaryIno && nextOpenFiles.length === 1 && nextOpenFiles[0] === 'diagram.json') {
+                nextOpenFiles = [primaryIno, 'diagram.json'];
+                if (!nextActiveFile || nextActiveFile === 'diagram.json') {
+                    nextActiveFile = primaryIno;
+                }
+            }
+
+            setOpenEditorFiles(nextOpenFiles);
             setSidebarSectionState(restored.sidebarSections);
             setDiagnosticsFilterState(restored.diagnostics);
             setCompileHistoryExpandedIds(restored.compileHistoryExpandedIds);
             setDismissedRestoredWarningKey(projectSession?.dismissedRestoredWarningKey ?? null);
             setDismissedRestoredWarning(restored.dismissedRestoredWarning);
             setPersistedTerminalTab(projectSession?.terminal?.selectedTab ?? DEFAULT_UI_TERMINAL_SESSION_STATE.selectedTab);
+            pendingTabStripRestoreScrollLeftRef.current = restored.tabStripScrollLeft;
             setTabStripScrollLeft(restored.tabStripScrollLeft);
             setTerminalViewState(restored.terminal);
             setTerminalChunks(restored.terminalOutputChunks);
@@ -1124,10 +1493,15 @@ export default function App() { // NOSONAR: composition root
             setRestoredLogWarningKey(restored.restoredLogWarningKey);
             setRestoredLogWarning(restored.restoredLogWarning);
 
-            if (restored.activeFile) {
-                setActiveFile(restored.activeFile);
+            if (nextActiveFile) {
+                setActiveFile(nextActiveFile);
             }
+            hydratedProjectSessionDoneRef.current = projectKey;
         });
+
+        return () => {
+            cancelled = true;
+        };
     }, [currentProjectObj?.dirPath, files, setActiveFile, setCompileHistory, setTerminalChunks, uiSessionLoaded]);
 
     useEffect(() => {
@@ -1192,6 +1566,7 @@ export default function App() { // NOSONAR: composition root
         options: { preferCache?: boolean } = {},
     ): Promise<LoadedProjectSnapshot | null> => {
         hydratedProjectSessionRef.current = null;
+        hydratedProjectSessionDoneRef.current = null;
         discoverAbortRef.current?.abort();
         loadAbortRef.current?.abort();
         const controller = new AbortController();
@@ -1272,27 +1647,31 @@ export default function App() { // NOSONAR: composition root
         };
     }, [projectStateApplier, runProjectDiscovery, setProjects, setFiles, setActiveFile]);
 
-    // ── Auto-Save Diagram to Disk ──
-    useAutoSave({
-        diagram,
-        projectPath: currentProjectObj?.dirPath || null,
-        delay: settings.autoSaveDelay,
-        enabled: settings.autoSaveDelay > 0,
-    });
+    useEffect(() => {
+        lastCanvasDiagramJsonRef.current = null;
+        if (saveFeedbackTimerRef.current !== null) {
+            globalThis.clearTimeout(saveFeedbackTimerRef.current);
+            saveFeedbackTimerRef.current = null;
+        }
+        setProjectSaveState('idle');
+    }, [currentProjectObj?.dirPath, projectTransitionSeq]);
 
     // ── Switch project handler ──
     const handleProjectSelect = useCallback(async (projectName: string) => {
         const project = projects.find(p => p.name === projectName);
         if (!project) return;
+        dismissBuildOverlay();
+        stopSimulationRef.current?.();
         const loaded = await runProjectLoad('project-select-load', project);
         if (!loaded) return;
+        setProjectTransitionSeq((seq) => seq + 1);
         applyLoadedProjectState({
             loaded,
             selectedProject: project,
             applier: projectStateApplier,
             clearTerminal: true,
         });
-    }, [projects, projectStateApplier, runProjectLoad]);
+    }, [dismissBuildOverlay, projects, projectStateApplier, runProjectLoad]);
 
     const handleRefreshCurrentProject = useCallback(async () => {
         const target = currentProjectObj
@@ -1300,8 +1679,11 @@ export default function App() { // NOSONAR: composition root
             ?? null;
         if (!target?.dirPath) return;
 
+        dismissBuildOverlay();
+        stopSimulationRef.current?.();
         const loaded = await runProjectLoad('project-refresh-load', target, { preferCache: false });
         if (!loaded) return;
+        setProjectTransitionSeq((seq) => seq + 1);
         const ok = applyLoadedProjectState({
             loaded,
             selectedProject: target,
@@ -1311,6 +1693,7 @@ export default function App() { // NOSONAR: composition root
         if (!ok) return;
     }, [
         currentProjectObj,
+        dismissBuildOverlay,
         projects,
         currentProjectName,
         projectStateApplier,
@@ -1321,6 +1704,8 @@ export default function App() { // NOSONAR: composition root
         const dir = await pickProjectsDirectory();
         if (!dir) return;
 
+        dismissBuildOverlay();
+        stopSimulationRef.current?.();
         const discovered = await runProjectDiscovery(
             'project-discovery:external-root',
             (options) => discoverProjectsFromRoot(dir, 'external', options),
@@ -1336,6 +1721,7 @@ export default function App() { // NOSONAR: composition root
         const first = discovered[0];
         const loaded = await runProjectLoad('project-open-folder-load-first', first);
         if (!loaded) return;
+        setProjectTransitionSeq((seq) => seq + 1);
         const ok = applyLoadedProjectState({
             loaded,
             selectedProject: first,
@@ -1350,6 +1736,7 @@ export default function App() { // NOSONAR: composition root
         void preloadLastOpenedProject(discovered, first.dirPath);
     }, [
         appendTerminalOutput,
+        dismissBuildOverlay,
         runProjectDiscovery,
         runProjectLoad,
         setProjects,
@@ -1357,6 +1744,8 @@ export default function App() { // NOSONAR: composition root
     ]);
 
     const handleResetToExamples = useCallback(async () => {
+        dismissBuildOverlay();
+        stopSimulationRef.current?.();
         const discovered = await runProjectDiscovery('project-discovery:reset-examples', (options) => discoverProjects(options));
         if (discovered === null) return;
         if (discovered.length === 0) {
@@ -1368,6 +1757,7 @@ export default function App() { // NOSONAR: composition root
         const first = discovered[0];
         const loaded = await runProjectLoad('project-reset-load-first', first);
         if (!loaded) return;
+        setProjectTransitionSeq((seq) => seq + 1);
         const ok = applyLoadedProjectState({
             loaded,
             selectedProject: first,
@@ -1382,6 +1772,7 @@ export default function App() { // NOSONAR: composition root
         void preloadLastOpenedProject(discovered, first.dirPath);
     }, [
         appendTerminalOutput,
+        dismissBuildOverlay,
         runProjectDiscovery,
         runProjectLoad,
         setProjects,
@@ -1392,6 +1783,9 @@ export default function App() { // NOSONAR: composition root
     useEffect(() => {
         const diagramFile = files.find(f => f.name === 'diagram.json');
         if (diagramFile && activeFile === 'diagram.json') {
+            if (diagramFile.content === lastCanvasDiagramJsonRef.current) {
+                return;
+            }
             try {
                 const parsed = parseDiagram(JSON.parse(diagramFile.content));
                 if (parsed?.parts) setDiagram(parsed);
@@ -1401,7 +1795,35 @@ export default function App() { // NOSONAR: composition root
         }
     }, [files, activeFile, setDiagram]);
 
+    const projectPath = currentProjectObj?.dirPath ?? null;
+    const hasOpenProject = Boolean(currentProjectName) || files.length > 0;
+    const hasCompilableSketch = useMemo(
+        () => files.some(
+            (f) => (f.name.endsWith('.ino') || (f.name.endsWith('.cpp') && !f.name.endsWith('.chip.cpp')))
+                && f.content.trim().length > 0,
+        ),
+        [files],
+    );
+    const hasCustomChips = useMemo(
+        () => discoverCustomChipSources(files).length > 0,
+        [files],
+    );
+    const isProjectBusy = Boolean(projectActivity);
+    const canCompile = hasOpenProject && hasCompilableSketch && !isCompiling && !isProjectBusy;
+    const canBuildChips = hasOpenProject && hasCustomChips && !isCompiling && !isProjectBusy;
+    const canSaveProject = hasOpenProject && Boolean(projectPath) && !isProjectBusy;
+    const canRefreshProject = hasOpenProject && Boolean(projectPath) && !isProjectBusy;
+    const canExportProject = hasOpenProject && files.length > 0 && !isProjectBusy;
+
+    useEffect(() => {
+        if (!hasOpenProject) {
+            setAddingFile(false);
+            setNewFileName('');
+        }
+    }, [hasOpenProject]);
+
     const handleBuildChips = useCallback(async (): Promise<boolean> => {
+        if (!hasOpenProject || !hasCustomChips) return false;
         return runChipBuildFlow({
             files,
             settings: {
@@ -1415,9 +1837,11 @@ export default function App() { // NOSONAR: composition root
             setChipBuildJumpTarget,
             setActiveFile,
         });
-    }, [files, currentProjectObj?.dirPath, settings.chipBuildBackend, settings.chipBuildCommand, appendTerminalOutput, setActiveFile]);
+    }, [files, hasOpenProject, hasCustomChips, currentProjectObj?.dirPath, settings.chipBuildBackend, settings.chipBuildCommand, appendTerminalOutput, setActiveFile]);
 
     const handleCompile = useCallback(async () => {
+        if (!canCompile) return;
+        stopSimulationRef.current?.();
         await runCompileFlow({
             files,
             currentProjectObj,
@@ -1428,8 +1852,12 @@ export default function App() { // NOSONAR: composition root
             setHex,
             currentProjectName,
             addCompileHistory,
+            setBuildOverlay,
+            buildOverlayTimerRef,
+            buildLogIdRef,
         });
     }, [
+        canCompile,
         files,
         currentProjectObj,
         settings,
@@ -1459,12 +1887,14 @@ export default function App() { // NOSONAR: composition root
         }));
     };
 
-    const handleDiagramChange = (newDiagram: WokwiDiagram) => {
+    const handleDiagramChange = useCallback((newDiagram: WokwiDiagram) => {
+        const serialized = JSON.stringify(newDiagram, null, 2);
+        lastCanvasDiagramJsonRef.current = serialized;
         setDiagram(newDiagram);
         setFiles(prev => prev.map(f =>
-            f.name === 'diagram.json' ? { ...f, content: JSON.stringify(newDiagram, null, 2) } : f
+            f.name === 'diagram.json' ? { ...f, content: serialized } : f
         ));
-    };
+    }, [setDiagram, setFiles]);
 
     const handleExport = useCallback(async () => {
         const board = currentProjectObj?.board || 'uno';
@@ -1476,6 +1906,9 @@ export default function App() { // NOSONAR: composition root
     const handleImport = useCallback(async () => {
         const data = await importProject();
         if (!data) return;
+        dismissBuildOverlay();
+        stopSimulationRef.current?.();
+        setProjectTransitionSeq((seq) => seq + 1);
         setFiles(data.files);
         setCurrentProject(data.name, null);
         setSavedContents(
@@ -1488,6 +1921,7 @@ export default function App() { // NOSONAR: composition root
                 if (parsed?.parts) resetDiagram(parsed);
             } catch { /* ignore parse errors */ }
         }
+        setOpenEditorFiles(orderProjectTabFiles(data.files));
         const inoFile = data.files.find(f => f.name.endsWith('.ino'));
         setActiveFile(inoFile ? inoFile.name : data.files[0].name);
         setHex(null);
@@ -1497,7 +1931,7 @@ export default function App() { // NOSONAR: composition root
         setChipBuildJumpTarget(null);
         clearTerminalOutput();
         appendTerminalOutput(`Imported project: ${data.name}\n`);
-    }, [setFiles, setCurrentProject, resetDiagram, setActiveFile, setHex,
+    }, [dismissBuildOverlay, setFiles, setCurrentProject, resetDiagram, setActiveFile, setHex,
         clearTerminalOutput, appendTerminalOutput, setSavedContents]);
 
     const activeFileData = files.find(f => f.name === activeFile);
@@ -1546,7 +1980,75 @@ export default function App() { // NOSONAR: composition root
     }, [files, savedContents]);
 
     const activeFileDirty = isFileDirty(activeFile);
-    const projectPath = currentProjectObj?.dirPath ?? null;
+    const hasUnsavedChanges = useMemo(
+        () => files.some((file) => isFileDirty(file.name)),
+        [files, isFileDirty],
+    );
+
+    /** Save all modified project files (including the live diagram state) to disk */
+    const handleSaveProject = useCallback(async () => {
+        if (!projectPath) return;
+
+        if (saveFeedbackTimerRef.current !== null) {
+            globalThis.clearTimeout(saveFeedbackTimerRef.current);
+            saveFeedbackTimerRef.current = null;
+        }
+        setProjectSaveState('saving');
+
+        const serializedDiagram = JSON.stringify(diagramRef.current, null, 2);
+        lastCanvasDiagramJsonRef.current = serializedDiagram;
+        setFiles((prev) => prev.map((f) =>
+            f.name === 'diagram.json' && f.content !== serializedDiagram
+                ? { ...f, content: serializedDiagram }
+                : f,
+        ));
+
+        let allSucceeded = true;
+
+        const diagramRes = await ipcRenderer.invoke('project:save-diagram', {
+            path: projectPath,
+            content: serializedDiagram,
+        }) as { ok?: boolean; success?: boolean; error?: string };
+
+        if (diagramRes.ok ?? diagramRes.success) {
+            setSavedContent('diagram.json', serializedDiagram);
+        } else {
+            allSucceeded = false;
+            appendTerminalOutput(`\nFailed to save diagram.json: ${diagramRes.error ?? 'unknown error'}\n`);
+        }
+
+        const dirtyOtherFiles = files.filter((file) => file.name !== 'diagram.json' && isFileDirty(file.name));
+        for (const file of dirtyOtherFiles) {
+            const res = await ipcRenderer.invoke('project:save-file', {
+                projectPath,
+                filename: file.name,
+                content: file.content,
+            }) as { ok?: boolean; success?: boolean; error?: string };
+
+            if (res.ok ?? res.success) {
+                setSavedContent(file.name, file.content);
+            } else {
+                allSucceeded = false;
+                appendTerminalOutput(`\nFailed to save ${file.name}: ${res.error ?? 'unknown error'}\n`);
+            }
+        }
+
+        invalidateProjectLoadCache(projectPath);
+
+        if (allSucceeded) {
+            setProjectSaveState('saved');
+            saveFeedbackTimerRef.current = globalThis.setTimeout(() => {
+                setProjectSaveState('idle');
+                saveFeedbackTimerRef.current = null;
+            }, 1800);
+        } else {
+            setProjectSaveState('error');
+            saveFeedbackTimerRef.current = globalThis.setTimeout(() => {
+                setProjectSaveState('idle');
+                saveFeedbackTimerRef.current = null;
+            }, 2500);
+        }
+    }, [appendTerminalOutput, diagramRef, files, isFileDirty, projectPath, setFiles, setSavedContent]);
 
     /** Save one file to disk and mark it clean */
     const handleSaveFile = useCallback(async (filename: string) => {
@@ -1563,6 +2065,7 @@ export default function App() { // NOSONAR: composition root
         const result = await ipcRenderer.invoke(channel, args) as { success: boolean; error?: string };
         if (result.success) {
             setSavedContent(filename, f.content);
+            invalidateProjectLoadCache(projectPath);
         } else {
             appendTerminalOutput(`\nFailed to save ${filename}: ${result.error ?? 'unknown error'}\n`);
         }
@@ -1582,22 +2085,46 @@ export default function App() { // NOSONAR: composition root
         }
     }, [savedContents, setFiles, setDiagram]);
 
-    /** Ctrl+S — save the active file */
+    /** Global app shortcuts (Ctrl+S, Ctrl+P, Ctrl+,, F5, F6) */
     useEffect(() => {
         const handler = (e: KeyboardEvent) => {
-            if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+            if (settingsOpen || newProjectOpen) return;
+
+            if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
                 e.preventDefault();
-                if (activeFile) handleSaveFile(activeFile);
+                if (canSaveProject) {
+                    void handleSaveProject();
+                }
+                return;
             }
-            // Ctrl+P — command palette
-            if ((e.ctrlKey || e.metaKey) && e.key === 'p') {
+            if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'p') {
                 e.preventDefault();
-                setPaletteOpen(true);
+                setPaletteOpen((open) => !open);
+                return;
+            }
+            if ((e.ctrlKey || e.metaKey) && e.key === ',') {
+                e.preventDefault();
+                setPaletteOpen(false);
+                setSettingsOpen((open) => !open);
+                return;
+            }
+            if (e.key === 'F5') {
+                e.preventDefault();
+                if (canCompile) {
+                    void handleCompile();
+                }
+                return;
+            }
+            if (e.key === 'F6') {
+                e.preventDefault();
+                if (canBuildChips) {
+                    void handleBuildChips();
+                }
             }
         };
         globalThis.addEventListener('keydown', handler);
         return () => globalThis.removeEventListener('keydown', handler);
-    }, [activeFile, handleSaveFile]);
+    }, [canBuildChips, canCompile, canSaveProject, handleBuildChips, handleCompile, handleSaveProject, newProjectOpen, settingsOpen]);
 
     /** Determine human-readable language from file extension */
     const langFromExt = (filename: string): string => {
@@ -1629,7 +2156,7 @@ export default function App() { // NOSONAR: composition root
         if (!container) return [];
 
         return Array.from(container.children)
-            .filter((child): child is HTMLDivElement => child instanceof HTMLDivElement);
+            .filter((child): child is HTMLElement => child instanceof HTMLElement);
     }, []);
 
     const scrollTabStrip = useCallback((direction: 'left' | 'right') => {
@@ -1639,36 +2166,56 @@ export default function App() { // NOSONAR: composition root
         const items = getTabStripItems();
         if (items.length === 0) return;
 
-        const viewportStart = container.scrollLeft;
-        const pageWidth = Math.max(320, Math.floor(container.clientWidth * 0.9));
-        const maxScrollLeft = Math.max(0, container.scrollWidth - container.clientWidth);
-        const tolerance = 2;
-        const desiredLeft = direction === 'right'
-            ? Math.min(maxScrollLeft, viewportStart + pageWidth)
-            : Math.max(0, viewportStart - pageWidth);
+        const containerRect = container.getBoundingClientRect();
+        const pendingTarget = pendingTabStripTargetRef.current;
+        const currentScrollLeft = pendingTarget && Date.now() < pendingTarget.expiresAt
+            ? pendingTarget.left
+            : container.scrollLeft;
 
-        const target = direction === 'right'
-            ? items.find((item) => item.offsetLeft >= desiredLeft - tolerance)
-            : [...items].reverse().find((item) => item.offsetLeft <= desiredLeft + tolerance);
+        const nextLeft = computeNextTabStripScrollLeft({
+            direction,
+            currentScrollLeft,
+            clientWidth: containerRect.width,
+            scrollWidth: container.scrollWidth,
+            items: items.map((item) => measureTabStripItem(container, item)),
+        });
 
-        if (!target) {
-            container.scrollTo({
-                left: desiredLeft,
-                behavior: 'smooth',
-            });
-            return;
-        }
-
+        pendingTabStripTargetRef.current = { left: nextLeft, expiresAt: Date.now() + 450 };
         container.scrollTo({
-            left: target.offsetLeft,
+            left: nextLeft,
             behavior: 'smooth',
         });
     }, [getTabStripItems]);
 
+    const revealTabInStrip = useCallback((fileName: string) => {
+        const container = tabStripRef.current;
+        const tabEl = tabItemRefs.current[fileName];
+        if (!container || !tabEl) return;
+
+        const containerRect = container.getBoundingClientRect();
+        const nextLeft = computeScrollLeftToRevealTabItem({
+            currentScrollLeft: container.scrollLeft,
+            clientWidth: containerRect.width,
+            scrollWidth: container.scrollWidth,
+            item: measureTabStripItem(container, tabEl),
+        });
+        if (nextLeft === null) return;
+
+        pendingTabStripTargetRef.current = { left: nextLeft, expiresAt: Date.now() + 450 };
+        container.scrollTo({
+            left: nextLeft,
+            behavior: 'smooth',
+        });
+    }, []);
+
     const openFileInEditor = useCallback((fileName: string) => {
         setOpenEditorFiles((previous) => previous.includes(fileName) ? previous : [...previous, fileName]);
+        if (fileName === activeFile) {
+            revealTabInStrip(fileName);
+            return;
+        }
         setActiveFile(fileName);
-    }, [setActiveFile]);
+    }, [activeFile, revealTabInStrip, setActiveFile]);
 
     const closeOpenEditor = useCallback((fileName: string) => {
         setOpenEditorFiles((previous) => {
@@ -1687,17 +2234,6 @@ export default function App() { // NOSONAR: composition root
         });
     }, [activeFile, files, setActiveFile]);
 
-    // Keep the active tab visible even when there are many open files.
-    useEffect(() => {
-        const activeTab = tabButtonRefs.current[activeFile];
-        if (!activeTab) return;
-        activeTab.scrollIntoView({
-            behavior: 'smooth',
-            block: 'nearest',
-            inline: 'nearest',
-        });
-    }, [activeFile, files.length]);
-
     useEffect(() => {
         if (!activeFile) return;
         setOpenEditorFiles((previous) => previous.includes(activeFile) ? previous : [...previous, activeFile]);
@@ -1707,15 +2243,30 @@ export default function App() { // NOSONAR: composition root
         const validFiles = new Set(files.map((file) => file.name));
         setOpenEditorFiles((previous) => {
             const filtered = previous.filter((name) => validFiles.has(name));
-            return filtered.length > 0 ? filtered : files.map((file) => file.name);
+            const next = filtered.length > 0 ? filtered : files.map((file) => file.name);
+            if (next.length === previous.length && next.every((name, index) => name === previous[index])) {
+                return previous;
+            }
+            return next;
         });
     }, [files]);
 
     useEffect(() => {
         const element = tabStripRef.current;
-        if (!element) return;
-        element.scrollLeft = tabStripScrollLeft;
+        const pendingRestore = pendingTabStripRestoreScrollLeftRef.current;
+        if (!element || pendingRestore === null) return;
+        element.scrollLeft = pendingRestore;
+        pendingTabStripRestoreScrollLeftRef.current = null;
     }, [openEditorFiles, tabStripScrollLeft]);
+
+    // Keep the active tab fully visible (including its close button) when opened or selected.
+    useEffect(() => {
+        if (!activeFile) return undefined;
+        const rafId = globalThis.requestAnimationFrame(() => {
+            revealTabInStrip(activeFile);
+        });
+        return () => globalThis.cancelAnimationFrame(rafId);
+    }, [activeFile, openEditorFiles, revealTabInStrip]);
 
     /** Handle new project creation */
     const handleCreateProject = useCallback(async (opts: NewProjectOptions) => {
@@ -1738,6 +2289,8 @@ export default function App() { // NOSONAR: composition root
         }) as { success: boolean; dirPath?: string; error?: string };
 
         if (result.success) {
+            dismissBuildOverlay();
+            stopSimulationRef.current?.();
             appendTerminalOutput(`\nProject "${opts.name}" created at ${result.dirPath}\n`);
             // Rediscover and switch to the new project
             const discovered = await runProjectDiscovery('project-discovery:after-create', (options) => discoverProjects(options));
@@ -1747,6 +2300,7 @@ export default function App() { // NOSONAR: composition root
             if (newProj) {
                 const loaded = await runProjectLoad('project-load:after-create', newProj);
                 if (!loaded) return;
+                setProjectTransitionSeq((seq) => seq + 1);
                 applyLoadedProjectState({
                     loaded,
                     selectedProject: newProj,
@@ -1758,12 +2312,50 @@ export default function App() { // NOSONAR: composition root
             appendTerminalOutput(`\nFailed to create project: ${result.error ?? 'unknown error'}\n`);
         }
         setNewProjectOpen(false);
-    }, [appendTerminalOutput, setProjects, projectStateApplier, runProjectDiscovery, runProjectLoad]);
+    }, [appendTerminalOutput, dismissBuildOverlay, setProjects, projectStateApplier, runProjectDiscovery, runProjectLoad]);
 
     // ── Command Palette registry ──
+    let compileDisabledReason: string | undefined;
+    if (!hasOpenProject) {
+        compileDisabledReason = 'No project open';
+    } else if (!hasCompilableSketch) {
+        compileDisabledReason = 'No sketch (.ino)';
+    } else if (isCompiling) {
+        compileDisabledReason = 'Build in progress';
+    } else if (isProjectBusy) {
+        compileDisabledReason = 'Project busy';
+    }
+
+    let buildChipsDisabledReason: string | undefined;
+    if (!hasOpenProject) {
+        buildChipsDisabledReason = 'No project open';
+    } else if (!hasCustomChips) {
+        buildChipsDisabledReason = 'No custom chip sources';
+    } else if (isCompiling) {
+        buildChipsDisabledReason = 'Build in progress';
+    } else if (isProjectBusy) {
+        buildChipsDisabledReason = 'Project busy';
+    }
+
     const paletteCommands: PaletteCommand[] = [
-        { id: 'compile', label: 'Build / Compile', shortcut: 'F5', action: () => { void handleCompile(); }, description: 'Compile sketch' },
-        { id: 'build-chips', label: 'Build Custom Chips', shortcut: 'F6', action: () => { void handleBuildChips(); }, description: 'Compile custom chip sources to WASM' },
+        {
+            id: 'compile',
+            label: 'Build / Compile',
+            shortcut: 'F5',
+            disabled: !canCompile,
+            disabledReason: compileDisabledReason,
+            action: () => { if (canCompile) void handleCompile(); },
+            description: 'Compile sketch',
+        },
+        {
+            id: 'build-chips',
+            label: 'Build Custom Chips',
+            shortcut: 'F6',
+            disabled: !canBuildChips,
+            disabledReason: buildChipsDisabledReason,
+            action: () => { if (canBuildChips) void handleBuildChips(); },
+            description: 'Compile custom chip sources to WASM',
+        },
         { id: 'open-project-folder', label: 'Open Projects Folder', action: () => { void handleOpenProjectsFolder(); }, description: 'Load projects from a folder on disk' },
         { id: 'settings', label: 'Open Settings', shortcut: 'Ctrl+,', action: () => setSettingsOpen(true) },
         { id: 'new-project', label: 'New Project', action: () => setNewProjectOpen(true) },
@@ -1773,18 +2365,45 @@ export default function App() { // NOSONAR: composition root
         { id: 'toggle-terminal', label: 'Toggle Terminal Panel', action: () => setTerminalVisible(v => !v) },
         {
             id: 'save-file',
-            label: 'Save Active File',
+            label: 'Save Project',
             shortcut: 'Ctrl+S',
+            disabled: !canSaveProject,
+            disabledReason: !hasOpenProject ? 'No project open' : 'No project folder on disk',
             action: () => {
-                if (activeFile) void handleSaveFile(activeFile);
-            }
+                if (canSaveProject) {
+                    void handleSaveProject();
+                }
+            },
         },
-        { id: 'restore-file', label: 'Restore Active File', action: () => activeFile && handleRestoreFile(activeFile) },
-        { id: 'export', label: 'Export Project', action: () => { void handleExport(); } },
+        {
+            id: 'restore-file',
+            label: 'Restore Active File',
+            disabled: !activeFile || !activeFileDirty,
+            disabledReason: !hasOpenProject ? 'No project open' : 'No unsaved changes',
+            action: () => activeFile && activeFileDirty && handleRestoreFile(activeFile),
+        },
+        {
+            id: 'export',
+            label: 'Export Project',
+            disabled: !canExportProject,
+            disabledReason: 'No project open',
+            action: () => { if (canExportProject) void handleExport(); },
+        },
         { id: 'import', label: 'Import Project', action: () => { void handleImport(); } },
-        { id: 'add-file', label: 'Add File to Project', action: () => setAddingFile(true) },
+        {
+            id: 'add-file',
+            label: 'Add File to Project',
+            disabled: !hasOpenProject || isProjectBusy || !editorVisible,
+            disabledReason: !hasOpenProject ? 'No project open' : !editorVisible ? 'Editor is hidden' : 'Project busy',
+            action: () => {
+                if (hasOpenProject && !isProjectBusy && editorVisible) {
+                    setAddingFile(true);
+                }
+            },
+        },
         { id: 'clear-terminal', label: 'Clear Terminal Output', action: clearTerminalOutput },
         { id: 'toggle-theme', label: 'Toggle Light / Dark Theme', action: () => settings.updateSettings({ theme: settings.theme === 'dark' ? 'light' : 'dark' }) },
+        { id: 'toggle-fullscreen', label: 'Toggle Full Screen', shortcut: 'F11', action: () => ipcRenderer.send('window-toggle-fullscreen') },
     ];
 
     return (
@@ -1796,7 +2415,7 @@ export default function App() { // NOSONAR: composition root
             {/* ── Titlebar ── */}
             <div
                 className={
-                    'flex items-center h-9 bg-vscode-bg '
+                    'flex items-center gap-3 h-9 w-full min-w-0 overflow-hidden bg-vscode-bg '
                     + 'border-b border-vscode-border shrink-0 select-none'
                 }
                 style={
@@ -1804,18 +2423,60 @@ export default function App() { // NOSONAR: composition root
                 }
             >
                 <div className={
-                    'flex items-center gap-2 px-3 text-[13px] '
-                    + 'text-vscode-text opacity-75 font-medium tracking-wide'
+                    'flex items-center gap-2 pl-3 text-[13px] '
+                    + 'text-vscode-text opacity-80 font-medium tracking-wide shrink-0'
                 }>
                     <span className="text-blue-400">⚡</span>
-                    {' AVR8js Playground'}
+                    <span>AVR8js Playground</span>
                 </div>
-                <div className="flex-1" />
-                <TitlebarButtons />
+
+                {currentProjectName && (
+                    <div className="flex items-center gap-1.5 min-w-0 shrink text-[12px]">
+                        <span className="text-vscode-text opacity-35">/</span>
+                        <span className="text-vscode-textActive font-medium truncate max-w-[220px]">
+                            {currentProjectName}
+                        </span>
+                        {currentProjectObj?.board && (
+                            <span className="rounded border border-vscode-border bg-vscode-surface px-1.5 py-0.5 text-[10px] font-mono uppercase text-vscode-text opacity-75">
+                                {currentProjectObj.board}
+                            </span>
+                        )}
+                        {hasUnsavedChanges && (
+                            <span
+                                className="text-amber-400 text-[10px]"
+                                title="Unsaved changes (Ctrl+S)"
+                            >
+                                ●
+                            </span>
+                        )}
+                    </div>
+                )}
+
+                <div className="flex-1 min-w-0 flex justify-center">
+                    <button
+                        type="button"
+                        onClick={() => setPaletteOpen(true)}
+                        style={{ WebkitAppRegion: 'no-drag' } as React.CSSProperties}
+                        title="Open Command Palette (Ctrl+P)"
+                        className={[
+                            'hidden sm:flex items-center gap-2 rounded-md border border-vscode-border',
+                            'bg-vscode-surface/80 hover:bg-vscode-hover px-3 py-1 text-[11px]',
+                            'text-vscode-text opacity-75 hover:opacity-100 transition-colors',
+                        ].join(' ')}
+                    >
+                        <Search size={12} />
+                        <span>Search commands</span>
+                        <kbd className="rounded border border-vscode-border bg-vscode-input px-1 py-0.5 font-mono text-[10px] opacity-80">
+                            Ctrl+P
+                        </kbd>
+                    </button>
+                </div>
+
+                <TitlebarWindowControls />
             </div>
 
             {/* ── Main Layout View ── */}
-            <div className="flex flex-1 overflow-hidden">
+            <div className="flex flex-1 min-w-0 overflow-hidden">
                 <ActivityRail
                     sidebarVisible={sidebarVisible}
                     editorVisible={editorVisible}
@@ -1829,13 +2490,13 @@ export default function App() { // NOSONAR: composition root
                 />
 
                 <div className={
-                    'flex flex-row flex-1 overflow-hidden w-full'
+                    'flex flex-row flex-1 min-w-0 overflow-hidden w-full'
                 }>
                     {/* Sidebar Pane */}
                     {sidebarVisible && (
                         <div
                             id="sidebar-pane"
-                            className="flex flex-col h-full bg-vscode-sidebar"
+                            className="flex flex-col h-full min-w-0 bg-vscode-sidebar"
                         >
                             <ProjectSidebar
                                 files={files}
@@ -1857,6 +2518,7 @@ export default function App() { // NOSONAR: composition root
                                 onOpenProjectsFolder={handleOpenProjectsFolder}
                                 onResetToExamples={handleResetToExamples}
                                 onRefreshProject={handleRefreshCurrentProject}
+                                canRefreshProject={canRefreshProject}
                                 onExport={handleExport}
                                 onImport={handleImport}
                             />
@@ -1867,7 +2529,7 @@ export default function App() { // NOSONAR: composition root
                     <div
                         id="content-pane"
                         className={[
-                            'flex flex-row h-full',
+                            'flex flex-row h-full min-w-0',
                             'overflow-hidden bg-vscode-bg',
                             sidebarVisible ? '' : 'flex-1 w-full',
                         ].join(' ')}
@@ -1876,19 +2538,16 @@ export default function App() { // NOSONAR: composition root
                         {editorVisible && (
                             <div
                                 id="editor-area-pane"
-                                className={
-                                    'flex flex-col h-full '
-                                    + 'border-r border-vscode-border '
-                                    + 'bg-vscode-bg'
-                                }
+                                className={[
+                                    'flex flex-col h-full min-w-0',
+                                    'border-r border-vscode-border',
+                                    'bg-vscode-bg',
+                                    simulatorVisible ? '' : 'flex-1 w-full',
+                                ].join(' ')}
                             >
                                 <div
                                     id="code-pane"
-                                    className={[
-                                        'flex flex-col relative',
-                                        'overflow-hidden bg-vscode-bg',
-                                        terminalVisible ? '' : 'flex-1 h-full',
-                                    ].join(' ')}
+                                    className="flex flex-col relative overflow-hidden bg-vscode-bg flex-1 h-full min-w-0"
                                 >
                                     <div className={
                                         'flex bg-vscode-sidebar '
@@ -1898,8 +2557,18 @@ export default function App() { // NOSONAR: composition root
                                         {/* ── Scrollable tab list ── */}
                                         <div
                                             ref={tabStripRef}
-                                            onScroll={(event) => setTabStripScrollLeft(event.currentTarget.scrollLeft)}
-                                            className="flex overflow-x-auto no-scrollbar flex-1 scroll-smooth"
+                                            onScroll={(event) => {
+                                                const nextScrollLeft = event.currentTarget.scrollLeft;
+                                                const pendingTarget = pendingTabStripTargetRef.current;
+                                                if (pendingTarget && Math.abs(nextScrollLeft - pendingTarget.left) <= 2) {
+                                                    pendingTabStripTargetRef.current = null;
+                                                }
+                                                setTabStripScrollLeft(nextScrollLeft);
+                                            }}
+                                            onWheel={() => {
+                                                pendingTabStripTargetRef.current = null;
+                                            }}
+                                            className="relative flex overflow-x-auto no-scrollbar flex-1"
                                         >
                                             {openEditorFiles
                                                 .map((name) => files.find((file) => file.name === name))
@@ -1909,11 +2578,15 @@ export default function App() { // NOSONAR: composition root
                                                 return (
                                                     <div
                                                         key={file.name}
+                                                        ref={(el) => {
+                                                            tabItemRefs.current[file.name] = el;
+                                                        }}
+                                                        onClick={() => openFileInEditor(file.name)}
                                                         className={[
                                                             'flex items-center gap-1.5',
                                                             'pl-4 pr-2 py-2 text-[14px]',
                                                             'border-r border-vscode-border',
-                                                            'transition-colors outline-none shrink-0',
+                                                            'transition-colors outline-none shrink-0 cursor-pointer',
                                                             activeFile === file.name
                                                                 ? [
                                                                     'bg-vscode-bg',
@@ -1924,16 +2597,15 @@ export default function App() { // NOSONAR: composition root
                                                                     'bg-vscode-tab',
                                                                     'text-vscode-text',
                                                                     'hover:bg-vscode-bg',
-                                                                    'cursor-pointer',
                                                                 ].join(' '),
                                                         ].join(' ')}
                                                     >
                                                         <button
                                                             type="button"
-                                                            ref={(el) => {
-                                                                tabButtonRefs.current[file.name] = el;
+                                                            onClick={(event) => {
+                                                                event.stopPropagation();
+                                                                openFileInEditor(file.name);
                                                             }}
-                                                            onClick={() => openFileInEditor(file.name)}
                                                             className="flex items-center gap-1.5"
                                                         >
                                                             {file.name.endsWith('.json')
@@ -1951,7 +2623,10 @@ export default function App() { // NOSONAR: composition root
                                                         {openEditorFiles.length > 1 && (
                                                             <button
                                                                 type="button"
-                                                                onClick={() => closeOpenEditor(file.name)}
+                                                                onClick={(event) => {
+                                                                    event.stopPropagation();
+                                                                    closeOpenEditor(file.name);
+                                                                }}
                                                                 className="rounded p-0.5 text-vscode-text opacity-55 hover:opacity-100 hover:bg-vscode-hover"
                                                                 title={`Close ${file.name}`}
                                                             >
@@ -1961,21 +2636,56 @@ export default function App() { // NOSONAR: composition root
                                                     </div>
                                                 );
                                             })}
+                                            {files
+                                                .filter((file) => !openEditorFiles.includes(file.name))
+                                                .map((file) => (
+                                                <button
+                                                    key={`reopen-${file.name}`}
+                                                    type="button"
+                                                    onClick={() => openFileInEditor(file.name)}
+                                                    title={`Open ${file.name}`}
+                                                    className={[
+                                                        'flex items-center gap-1.5 px-3 py-2 text-[12px]',
+                                                        'border-r border-vscode-border bg-vscode-sidebar',
+                                                        'text-vscode-text opacity-60 hover:opacity-100',
+                                                        'hover:bg-vscode-hover transition-colors shrink-0',
+                                                    ].join(' ')}
+                                                >
+                                                    {file.name.endsWith('.json')
+                                                        ? <FileJson size={12} className="text-yellow-400" />
+                                                        : <FileCode2 size={12} className="text-blue-400" />}
+                                                    <span>+ {file.name}</span>
+                                                </button>
+                                            ))}
                                         </div>
 
                                         {/* ── Per-file save / restore actions ── */}
                                         <div className="flex items-center gap-0.5 px-2 border-l border-vscode-border shrink-0">
                                             <button
+                                                type="button"
                                                 onClick={() => scrollTabStrip('left')}
+                                                disabled={openEditorFiles.length <= 1}
                                                 title="Scroll tabs left"
-                                                className="flex items-center justify-center p-1.5 rounded text-vscode-text opacity-55 hover:opacity-100 hover:bg-vscode-hover transition-colors"
+                                                className={[
+                                                    'flex items-center justify-center p-1.5 rounded text-vscode-text transition-colors',
+                                                    openEditorFiles.length <= 1
+                                                        ? 'opacity-30 cursor-not-allowed'
+                                                        : 'opacity-55 hover:opacity-100 hover:bg-vscode-hover',
+                                                ].join(' ')}
                                             >
                                                 <ChevronLeft size={13} />
                                             </button>
                                             <button
+                                                type="button"
                                                 onClick={() => scrollTabStrip('right')}
+                                                disabled={openEditorFiles.length <= 1}
                                                 title="Scroll tabs right"
-                                                className="flex items-center justify-center p-1.5 rounded text-vscode-text opacity-55 hover:opacity-100 hover:bg-vscode-hover transition-colors"
+                                                className={[
+                                                    'flex items-center justify-center p-1.5 rounded text-vscode-text transition-colors',
+                                                    openEditorFiles.length <= 1
+                                                        ? 'opacity-30 cursor-not-allowed'
+                                                        : 'opacity-55 hover:opacity-100 hover:bg-vscode-hover',
+                                                ].join(' ')}
                                             >
                                                 <ChevronRight size={13} />
                                             </button>
@@ -1996,15 +2706,22 @@ export default function App() { // NOSONAR: composition root
                                                 />
                                             ) : (
                                                 <button
+                                                    type="button"
                                                     onClick={() => setAddingFile(true)}
-                                                    title="Add new file to project"
-                                                    className="flex items-center gap-1 px-2 py-1 rounded text-[12px]
-                                                        text-vscode-text opacity-50 hover:opacity-100 hover:bg-vscode-hover transition-colors"
+                                                    disabled={!hasOpenProject || isProjectBusy}
+                                                    title={hasOpenProject ? 'Add new file to project' : 'Open a project to add files'}
+                                                    className={[
+                                                        'flex items-center gap-1 px-2 py-1 rounded text-[12px] transition-colors',
+                                                        !hasOpenProject || isProjectBusy
+                                                            ? 'text-vscode-text opacity-30 cursor-not-allowed'
+                                                            : 'text-vscode-text opacity-50 hover:opacity-100 hover:bg-vscode-hover',
+                                                    ].join(' ')}
                                                 >
                                                     <FilePlus2 size={13} />
                                                 </button>
                                             )}
                                             <button
+                                                type="button"
                                                 onClick={() => activeFile && handleRestoreFile(activeFile)}
                                                 disabled={!activeFileDirty}
                                                 title="Restore — revert to last saved version (Discard changes)"
@@ -2019,6 +2736,7 @@ export default function App() { // NOSONAR: composition root
                                                 <RotateCcw size={13} />
                                             </button>
                                             <button
+                                                type="button"
                                                 onClick={() => activeFile && handleSaveFile(activeFile)}
                                                 disabled={!activeFileDirty || !projectPath}
                                                 title={projectPath ? 'Save file to disk (Ctrl+S)' : 'No project path — cannot save'}
@@ -2035,7 +2753,7 @@ export default function App() { // NOSONAR: composition root
                                         </div>
                                     </div>
                                     <div className="flex-1 relative overflow-hidden">
-                                        {activeFileData && (
+                                        {activeFileData ? (
                                             editorBootReady
                                                 ? (
                                                     <Suspense fallback={<div className="w-full h-full bg-vscode-bg" />}>
@@ -2060,15 +2778,117 @@ export default function App() { // NOSONAR: composition root
                                                     </Suspense>
                                                 )
                                                 : <div className="w-full h-full bg-vscode-bg" />
+                                        ) : (
+                                            <div className="flex h-full items-center justify-center p-6">
+                                                <div className="max-w-sm rounded-xl border border-vscode-border bg-vscode-sidebar/80 p-5 text-center space-y-3 shadow-lg">
+                                                    <div className="text-[14px] font-medium text-vscode-textActive">
+                                                        No project open
+                                                    </div>
+                                                    <p className="text-[12px] leading-relaxed text-vscode-text opacity-70">
+                                                        Open an example from the Explorer sidebar, or create or import a project to start coding.
+                                                    </p>
+                                                    <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => setNewProjectOpen(true)}
+                                                            className="rounded-md border border-blue-500/45 bg-blue-500/15 px-3 py-1.5 text-[12px] text-blue-300 hover:bg-blue-500/25 transition-colors"
+                                                        >
+                                                            New Project
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => { void handleOpenProjectsFolder(); }}
+                                                            className={[
+                                                                'rounded-md border border-vscode-border bg-vscode-input',
+                                                                'px-3 py-1.5 text-[12px] text-vscode-text',
+                                                                'hover:text-vscode-textActive hover:bg-vscode-hover transition-colors',
+                                                            ].join(' ')}
+                                                        >
+                                                            Open Projects Folder
+                                                        </button>
+                                                        <button
+                                                            type="button"
+                                                            onClick={() => { void handleImport(); }}
+                                                            className={[
+                                                                'rounded-md border border-vscode-border bg-vscode-input',
+                                                                'px-3 py-1.5 text-[12px] text-vscode-text',
+                                                                'hover:text-vscode-textActive hover:bg-vscode-hover transition-colors',
+                                                            ].join(' ')}
+                                                        >
+                                                            Import Project
+                                                        </button>
+                                                        {!sidebarVisible && (
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => setSidebarVisible(true)}
+                                                                className="rounded-md border border-emerald-500/45 bg-emerald-500/15 px-3 py-1.5 text-[12px] text-emerald-300 hover:bg-emerald-500/25 transition-colors"
+                                                            >
+                                                                Show Explorer
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </div>
                                         )}
                                     </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Simulator Layout */}
+                        {simulatorVisible && (
+                            <div
+                                id="simulator-pane"
+                                className={[
+                                    'flex flex-col h-full min-w-0 overflow-hidden',
+                                    'bg-vscode-bg relative',
+                                    editorVisible ? '' : 'flex-1 w-full',
+                                ].join(' ')}
+                            >
+                                <div
+                                    id="simulator-canvas-pane"
+                                    className={[
+                                        'flex flex-col relative min-w-0 overflow-hidden bg-vscode-bg',
+                                        terminalVisible ? '' : 'flex-1 h-full',
+                                    ].join(' ')}
+                                >
+                                    <Suspense fallback={<div className="w-full h-full bg-vscode-surface" />}>
+                                        <WokwiSimulator
+                                            projectKey={`${currentProjectObj?.dirPath || currentProjectName || 'untitled'}::${projectTransitionSeq}`}
+                                            diagram={diagram}
+                                            hex={hex}
+                                            customChipArtifacts={customChipArtifacts}
+                                            customChipManifests={customChipManifests}
+                                            isCompiling={isCompiling}
+                                            hasOpenProject={hasOpenProject}
+                                            canCompile={canCompile}
+                                            onCompile={handleCompile}
+                                            onSaveProject={() => { void handleSaveProject(); }}
+                                            canSaveProject={Boolean(projectPath)}
+                                            hasUnsavedChanges={hasUnsavedChanges}
+                                            saveStatus={projectSaveState}
+                                            onSerialOutput={appendTerminalOutput}
+                                            onChipOutput={appendChipConsoleOutput}
+                                            onAddComponent={handleAddComponent}
+                                            onDiagramChange={handleDiagramChange}
+                                            serialWriteRef={serialWriteRef}
+                                            stopSimulationRef={stopSimulationRef}
+                                            buildOverlay={buildOverlay}
+                                            onDismissBuildOverlay={dismissBuildOverlay}
+                                            onUndo={undo}
+                                            onRedo={redo}
+                                            canUndo={canUndo}
+                                            canRedo={canRedo}
+                                            defaultWireColor={settings.defaultWireColor}
+                                            wirePhysics={settings.wirePhysics}
+                                            showPinTooltips={settings.showPinTooltips}
+                                        />
+                                    </Suspense>
                                     {!terminalVisible && (
                                         <button
-                                            onClick={() => setTerminalVisible(
-                                                true,
-                                            )}
+                                            onClick={() => setTerminalVisible(true)}
                                             className={[
-                                                'absolute bottom-4 right-6',
+                                                'absolute bottom-3 left-3',
                                                 'text-xs bg-vscode-sidebar',
                                                 'border border-vscode-border',
                                                 'text-vscode-text',
@@ -2086,9 +2906,8 @@ export default function App() { // NOSONAR: composition root
                                 </div>
 
                                 {terminalVisible && (
-                                    <div id="terminal-pane">
+                                    <div id="terminal-pane" className="min-w-0 overflow-hidden">
                                         <SerialMonitor
-                                            outputChunks={terminalChunks}
                                             chipOutput={chipConsoleOutput}
                                             selectedTab={terminalViewState.selectedTab}
                                             autoScroll={terminalViewState.autoScroll}
@@ -2164,37 +2983,32 @@ export default function App() { // NOSONAR: composition root
                             </div>
                         )}
 
-                        {/* Simulator Layout */}
-                        {simulatorVisible && (
-                            <div
-                                id="simulator-pane"
-                                className={[
-                                    'flex flex-col h-full',
-                                    'bg-vscode-bg relative',
-                                    editorVisible ? '' : 'flex-1 w-full',
-                                ].join(' ')}
-                            >
-                                <Suspense fallback={<div className="w-full h-full bg-vscode-surface" />}>
-                                    <WokwiSimulator
-                                        diagram={diagram}
-                                        hex={hex}
-                                        customChipArtifacts={customChipArtifacts}
-                                        customChipManifests={customChipManifests}
-                                        isCompiling={isCompiling}
-                                        onCompile={handleCompile}
-                                        onSerialOutput={appendTerminalOutput}
-                                        onChipOutput={appendChipConsoleOutput}
-                                        onAddComponent={handleAddComponent}
-                                        onDiagramChange={handleDiagramChange}
-                                        serialWriteRef={serialWriteRef}
-                                        onUndo={undo}
-                                        onRedo={redo}
-                                        canUndo={canUndo}
-                                        canRedo={canRedo}
-                                        defaultWireColor={settings.defaultWireColor}
-                                        showPinTooltips={settings.showPinTooltips}
-                                    />
-                                </Suspense>
+                        {!editorVisible && !simulatorVisible && (
+                            <div className="flex flex-1 items-center justify-center bg-vscode-bg p-6">
+                                <div className="max-w-sm rounded-xl border border-vscode-border bg-vscode-sidebar p-5 text-center space-y-3 shadow-lg">
+                                    <div className="text-[13px] font-medium text-vscode-textActive">
+                                        All main workspace panes are hidden
+                                    </div>
+                                    <p className="text-[12px] text-vscode-text opacity-65">
+                                        Reopen the code editor or simulator to continue working on your project.
+                                    </p>
+                                    <div className="flex flex-wrap items-center justify-center gap-2 pt-1">
+                                        <button
+                                            type="button"
+                                            onClick={() => setEditorVisible(true)}
+                                            className="rounded-md border border-blue-500/45 bg-blue-500/15 px-3 py-1.5 text-[12px] text-blue-300 hover:bg-blue-500/25 transition-colors"
+                                        >
+                                            Open Editor
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => setSimulatorVisible(true)}
+                                            className="rounded-md border border-emerald-500/45 bg-emerald-500/15 px-3 py-1.5 text-[12px] text-emerald-300 hover:bg-emerald-500/25 transition-colors"
+                                        >
+                                            Open Simulator
+                                        </button>
+                                    </div>
+                                </div>
                             </div>
                         )}
                     </div>

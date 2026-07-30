@@ -1,10 +1,14 @@
-import React from 'react';
+import React, { useMemo, useState } from 'react';
 import {
-    FileCode2, ChevronDown, ChevronRight,
+    FileCode2, ChevronDown, ChevronRight, Search,
     FileJson, Package, Download, Upload, FolderOpen, FolderPlus, RefreshCcw, RotateCcw, LoaderCircle, X,
 } from 'lucide-react';
 import type { DiscoveredProject } from '../services/project-loader';
 import type { UiSidebarSectionsState } from '../services/ui-session';
+import {
+    filterProjectsByCategoryAndQuery,
+    listProjectCategories,
+} from './project-sidebar-filter';
 
 interface ProjectFile {
     name: string;
@@ -36,6 +40,7 @@ interface ProjectSidebarProps {
     onOpenProjectsFolder?: () => void;
     onResetToExamples?: () => void;
     onRefreshProject?: () => void;
+    canRefreshProject?: boolean;
     onExport?: () => void;
     onImport?: () => void;
 }
@@ -107,7 +112,7 @@ function ProjectActivityBanner({ activity, onCancel }: Readonly<ProjectActivityB
     );
 }
 
-export default function ProjectSidebar({
+const ProjectSidebar = React.memo(function ProjectSidebar({
     files, openEditorFiles, activeFile, onFileSelect,
     onCloseOpenEditor,
     sectionState,
@@ -117,11 +122,26 @@ export default function ProjectSidebar({
     onCancelProjectOperation,
     onNewProject,
     onOpenProjectsFolder, onRefreshProject,
+    canRefreshProject,
     onResetToExamples,
     onExport, onImport,
 }: Readonly<ProjectSidebarProps>) {
     const isBusy = projectActionsDisabled === true;
+    const hasProjectFiles = files.length > 0;
+    const refreshDisabled = isBusy || !(canRefreshProject ?? Boolean(currentProject));
     const disableProjectSelection = projectActivity?.kind === 'discover';
+    const [projectFilter, setProjectFilter] = useState('');
+    const [selectedCategory, setSelectedCategory] = useState('all');
+    const categories = useMemo(() => listProjectCategories(projects), [projects]);
+    const activeCategory = selectedCategory === 'all' || categories.some((c) => c.id === selectedCategory)
+        ? selectedCategory
+        : 'all';
+    const hasActiveFilter = projectFilter.trim().length > 0 || activeCategory !== 'all';
+    const filteredProjects = useMemo(
+        () => filterProjectsByCategoryAndQuery(projects, activeCategory, projectFilter),
+        [projects, activeCategory, projectFilter],
+    );
+    const showProjectsList = sectionState.projectsOpen || hasActiveFilter;
 
     const toggleSection = (key: keyof UiSidebarSectionsState) => {
         onSectionStateChange({
@@ -184,8 +204,8 @@ export default function ProjectSidebar({
                         <button
                             type="button"
                             onClick={onExport}
-                            title="Export Project"
-                            disabled={isBusy}
+                            title={!hasProjectFiles ? 'Open a project to export' : 'Export Project'}
+                            disabled={isBusy || !hasProjectFiles}
                             className="text-vscode-text opacity-50 hover:opacity-100 disabled:cursor-not-allowed disabled:opacity-30 p-0.5"
                         >
                             <Download size={13} />
@@ -193,6 +213,75 @@ export default function ProjectSidebar({
                     )}
                 </div>
             </div>
+
+            {/* Project / Example Filter */}
+            <div className="px-3 pb-2.5">
+                <div className="flex items-center gap-1.5 rounded-md border border-vscode-border bg-vscode-input px-2 py-1 transition-colors focus-within:border-blue-500/70">
+                    <Search size={12} className="shrink-0 text-vscode-text opacity-55" />
+                    <input
+                        type="text"
+                        value={projectFilter}
+                        onChange={(event) => setProjectFilter(event.target.value)}
+                        onKeyDown={(event) => {
+                            if (event.key === 'Escape' && projectFilter) {
+                                event.preventDefault();
+                                setProjectFilter('');
+                            }
+                        }}
+                        placeholder="Filter examples & projects..."
+                        aria-label="Filter examples and projects"
+                        className="min-w-0 flex-1 bg-transparent text-[12px] text-vscode-textActive placeholder:text-vscode-text placeholder:opacity-50 outline-none"
+                    />
+                    {projectFilter.length > 0 && (
+                        <button
+                            type="button"
+                            onClick={() => setProjectFilter('')}
+                            title="Clear filter"
+                            aria-label="Clear filter"
+                            className={[
+                                'flex h-4 w-4 shrink-0 items-center justify-center rounded-full',
+                                'border border-vscode-border bg-vscode-hover2 text-vscode-text',
+                                'transition-colors hover:border-rose-500 hover:bg-rose-500 hover:text-white',
+                            ].join(' ')}
+                        >
+                            <X size={10} strokeWidth={2.5} />
+                        </button>
+                    )}
+                </div>
+            </div>
+
+            {/* Category Filter Pills */}
+            {categories.length > 1 && (
+                <div className="px-3 pb-2 flex items-center gap-1 overflow-x-auto no-scrollbar shrink-0">
+                    <button
+                        type="button"
+                        onClick={() => setSelectedCategory('all')}
+                        className={[
+                            'px-2 py-0.5 rounded-full text-[10px] font-medium shrink-0 border transition-colors',
+                            activeCategory === 'all'
+                                ? 'bg-blue-600/25 border-blue-500/60 text-blue-300'
+                                : 'border-vscode-border bg-vscode-bg/40 text-vscode-text opacity-70 hover:opacity-100',
+                        ].join(' ')}
+                    >
+                        All ({projects.length})
+                    </button>
+                    {categories.map((cat) => (
+                        <button
+                            key={cat.id}
+                            type="button"
+                            onClick={() => setSelectedCategory(activeCategory === cat.id ? 'all' : cat.id)}
+                            className={[
+                                'px-2 py-0.5 rounded-full text-[10px] font-medium shrink-0 border transition-colors',
+                                activeCategory === cat.id
+                                    ? 'bg-blue-600/25 border-blue-500/60 text-blue-300'
+                                    : 'border-vscode-border bg-vscode-bg/40 text-vscode-text opacity-70 hover:opacity-100',
+                            ].join(' ')}
+                        >
+                            {cat.label} ({cat.count})
+                        </button>
+                    ))}
+                </div>
+            )}
 
             {projectActivity && (
                 <ProjectActivityBanner activity={projectActivity} onCancel={onCancelProjectOperation} />
@@ -209,12 +298,19 @@ export default function ProjectSidebar({
                 }
                 onClick={() => toggleSection('projectsOpen')}
             >
-                {sectionState.projectsOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                {showProjectsList ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
                 EXAMPLES
+                <span className="ml-auto pr-2 text-[10px] font-normal text-vscode-text opacity-55">
+                    {hasActiveFilter ? `${filteredProjects.length}/${projects.length}` : projects.length}
+                </span>
             </button>
-            {sectionState.projectsOpen && (
+            {showProjectsList && (
                 <div className="flex flex-col py-1 mb-2">
-                    {projects.map((proj) => (
+                    {filteredProjects.length === 0 ? (
+                        <div className="px-4 py-2 text-[12px] text-vscode-text opacity-60">
+                            No matching projects for current filter.
+                        </div>
+                    ) : filteredProjects.map((proj) => (
                         <button
                             key={proj.name}
                             onClick={() => onProjectSelect(proj.name)}
@@ -224,7 +320,9 @@ export default function ProjectSidebar({
                                 ${currentProject === proj.name
                                     ? 'bg-vscode-hover2 text-blue-400 font-medium'
                                     : 'text-vscode-text hover:bg-vscode-hover'}`}
-                            title={`Load ${proj.name} (${proj.board})`}
+                            title={proj.description
+                                ? `${proj.name} (${proj.board}) — ${proj.description}`
+                                : `Load ${proj.name} (${proj.board})`}
                         >
                             <Package
                                 size={14}
@@ -264,7 +362,11 @@ export default function ProjectSidebar({
             </button>
             {sectionState.editorsOpen && (
                 <div className="flex flex-col py-1 mb-2">
-                    {openEditorFiles.map((file) => (
+                    {openEditorFiles.length === 0 ? (
+                        <div className="px-6 py-1.5 text-[12px] text-vscode-text opacity-50 italic">
+                            No open editors
+                        </div>
+                    ) : openEditorFiles.map((file) => (
                         <div
                             key={'oe-' + file.name}
                             className={[
@@ -324,8 +426,8 @@ export default function ProjectSidebar({
                     <button
                         type="button"
                         onClick={onRefreshProject}
-                        disabled={isBusy}
-                        title="Refresh current project from disk"
+                        disabled={refreshDisabled}
+                        title={refreshDisabled ? 'No project open on disk to refresh' : 'Refresh current project from disk'}
                         className="text-vscode-text opacity-55 hover:opacity-100 disabled:cursor-not-allowed disabled:opacity-30 p-0.5"
                     >
                         <RefreshCcw size={12} />
@@ -334,7 +436,11 @@ export default function ProjectSidebar({
             </div>
             {sectionState.explorerOpen && (
                 <div className="flex flex-col py-1">
-                    {files.map((file) => (
+                    {files.length === 0 ? (
+                        <div className="px-6 py-1.5 text-[12px] text-vscode-text opacity-50 italic">
+                            No project open
+                        </div>
+                    ) : files.map((file) => (
                         <button
                             key={'proj-' + file.name}
                             onClick={() => onFileSelect(file.name)}
@@ -361,4 +467,6 @@ export default function ProjectSidebar({
             )}
         </div>
     );
-}
+});
+
+export default ProjectSidebar;

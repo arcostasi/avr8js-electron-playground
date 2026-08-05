@@ -6,15 +6,15 @@
     {
       "id": "uno",
       "type": "wokwi-arduino-uno",
-      "top": 300,
-      "left": 200,
+      "top": 220,
+      "left": 230,
       "rotate": 0
     },
     {
       "id": "enc1",
       "type": "wokwi-ky-040",
-      "top": 225,
-      "left": 312,
+      "top": 120,
+      "left": 70,
       "rotate": 0
     }
   ],
@@ -22,7 +22,7 @@
     {
       "id": "conn-0",
       "from": "enc1:GND",
-      "to": "uno:GND.1",
+      "to": "uno:GND.2",
       "color": "black"
     },
     {
@@ -35,7 +35,7 @@
       "id": "conn-2",
       "from": "enc1:CLK",
       "to": "uno:2",
-      "color": "orange"
+      "color": "purple"
     },
     {
       "id": "conn-3",

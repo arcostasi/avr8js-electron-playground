@@ -6,23 +6,23 @@
     {
       "id": "uno",
       "type": "wokwi-arduino-uno",
-      "top": 220,
-      "left": 160,
+      "top": 240,
+      "left": 100,
       "rotate": 0
     },
     {
       "id": "chip1",
       "type": "chip-custom-chip-uart",
-      "top": 83,
-      "left": 329,
+      "top": 75,
+      "left": 290,
       "rotate": 0,
       "attrs": {}
     },
     {
       "id": "seg1",
       "type": "wokwi-7segment",
-      "top": 198,
-      "left": 503,
+      "top": 220,
+      "left": 465,
       "rotate": 0,
       "attrs": {
         "color": "red",
@@ -35,7 +35,7 @@
       "id": "conn-0",
       "from": "uno:1",
       "to": "chip1:RX",
-      "color": "green"
+      "color": "blue"
     },
     {
       "id": "conn-1",
@@ -47,48 +47,48 @@
       "id": "conn-2",
       "from": "uno:2",
       "to": "seg1:A",
-      "color": "red"
+      "color": "orange"
     },
     {
       "id": "conn-3",
       "from": "uno:3",
       "to": "seg1:B",
-      "color": "red"
+      "color": "yellow"
     },
     {
       "id": "conn-4",
       "from": "uno:4",
       "to": "seg1:C",
-      "color": "red"
+      "color": "green"
     },
     {
       "id": "conn-5",
       "from": "uno:5",
       "to": "seg1:D",
-      "color": "red"
+      "color": "cyan"
     },
     {
       "id": "conn-6",
       "from": "uno:6",
       "to": "seg1:E",
-      "color": "red"
+      "color": "blue"
     },
     {
       "id": "conn-7",
       "from": "uno:7",
       "to": "seg1:F",
-      "color": "red"
+      "color": "purple"
     },
     {
       "id": "conn-8",
       "from": "uno:8",
       "to": "seg1:G",
-      "color": "red"
+      "color": "magenta"
     },
     {
       "id": "conn-9",
       "from": "seg1:COM.1",
-      "to": "uno:GND.1",
+      "to": "uno:GND.2",
       "color": "black"
     },
     {

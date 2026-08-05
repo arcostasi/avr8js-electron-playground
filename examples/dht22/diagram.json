@@ -6,15 +6,15 @@
     {
       "id": "uno",
       "type": "wokwi-arduino-uno",
-      "top": 300,
-      "left": 200,
+      "top": 270,
+      "left": 140,
       "rotate": 0
     },
     {
       "id": "dht1",
       "type": "wokwi-dht22",
-      "top": 100,
-      "left": 300,
+      "top": 90,
+      "left": 270,
       "rotate": 0
     }
   ],
@@ -22,7 +22,7 @@
     {
       "id": "conn-0",
       "from": "dht1:GND",
-      "to": "uno:GND.1",
+      "to": "uno:GND.2",
       "color": "black"
     },
     {
@@ -35,7 +35,7 @@
       "id": "conn-2",
       "from": "dht1:SDA",
       "to": "uno:7",
-      "color": "orange"
+      "color": "green"
     }
   ]
 }

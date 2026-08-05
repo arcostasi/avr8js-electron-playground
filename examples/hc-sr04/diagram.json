@@ -6,15 +6,15 @@
     {
       "id": "uno",
       "type": "wokwi-arduino-uno",
-      "top": 300,
-      "left": 200,
+      "top": 260,
+      "left": 140,
       "rotate": 0
     },
     {
       "id": "hcsr04",
       "type": "wokwi-hc-sr04",
-      "top": 157,
-      "left": 258,
+      "top": 90,
+      "left": 205,
       "rotate": 0
     }
   ],
@@ -22,7 +22,7 @@
     {
       "id": "conn-0",
       "from": "hcsr04:GND",
-      "to": "uno:GND.1",
+      "to": "uno:GND.2",
       "color": "black"
     },
     {

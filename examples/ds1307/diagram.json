@@ -6,15 +6,15 @@
     {
       "id": "uno",
       "type": "wokwi-arduino-uno",
-      "top": 320,
-      "left": 200,
+      "top": 240,
+      "left": 110,
       "rotate": 0
     },
     {
       "id": "rtc1",
       "type": "wokwi-ds1307",
-      "top": 203,
-      "left": 361,
+      "top": 190,
+      "left": 430,
       "rotate": 0
     }
   ],
@@ -22,7 +22,7 @@
     {
       "id": "conn-0",
       "from": "rtc1:GND",
-      "to": "uno:GND.1",
+      "to": "uno:GND.2",
       "color": "black"
     },
     {
@@ -35,13 +35,13 @@
       "id": "conn-2",
       "from": "rtc1:SDA",
       "to": "uno:A4",
-      "color": "orange"
+      "color": "blue"
     },
     {
       "id": "conn-3",
       "from": "rtc1:SCL",
       "to": "uno:A5",
-      "color": "purple"
+      "color": "yellow"
     }
   ]
 }

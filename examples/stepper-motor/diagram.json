@@ -6,15 +6,15 @@
     {
       "id": "uno",
       "type": "wokwi-arduino-uno",
-      "top": 320,
-      "left": 200,
+      "top": 315,
+      "left": 176,
       "rotate": 0
     },
     {
       "id": "stepper1",
       "type": "wokwi-stepper-motor",
-      "top": 49,
-      "left": 252,
+      "top": 45,
+      "left": 215,
       "rotate": 0,
       "attrs": {
         "stepsPerRev": "64"
@@ -26,13 +26,13 @@
       "id": "conn-0",
       "from": "stepper1:A+",
       "to": "uno:8",
-      "color": "green"
+      "color": "blue"
     },
     {
       "id": "conn-1",
       "from": "stepper1:A-",
       "to": "uno:10",
-      "color": "green"
+      "color": "cyan"
     },
     {
       "id": "conn-2",
@@ -44,7 +44,7 @@
       "id": "conn-3",
       "from": "stepper1:B-",
       "to": "uno:11",
-      "color": "green"
+      "color": "yellow"
     }
   ]
 }

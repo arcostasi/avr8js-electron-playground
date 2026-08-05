@@ -6,15 +6,15 @@
     {
       "id": "uno",
       "type": "wokwi-arduino-uno",
-      "top": 320,
-      "left": 200,
+      "top": 80,
+      "left": 140,
       "rotate": 0
     },
     {
       "id": "mpu1",
       "type": "wokwi-mpu6050",
-      "top": 151,
-      "left": 254,
+      "top": 350,
+      "left": 235,
       "rotate": 0
     }
   ],
@@ -22,7 +22,7 @@
     {
       "id": "conn-0",
       "from": "mpu1:GND",
-      "to": "uno:GND.1",
+      "to": "uno:GND.2",
       "color": "black"
     },
     {
@@ -35,13 +35,13 @@
       "id": "conn-2",
       "from": "mpu1:SDA",
       "to": "uno:A4",
-      "color": "orange"
+      "color": "blue"
     },
     {
       "id": "conn-3",
       "from": "mpu1:SCL",
       "to": "uno:A5",
-      "color": "purple"
+      "color": "yellow"
     }
   ]
 }

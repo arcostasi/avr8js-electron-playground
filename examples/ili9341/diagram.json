@@ -6,66 +6,66 @@
     {
       "id": "uno",
       "type": "wokwi-arduino-uno",
-      "top": 380,
-      "left": 100,
+      "top": 107,
+      "left": 455,
       "rotate": 0
     },
     {
       "id": "tft1",
       "type": "wokwi-ili9341",
-      "top": 49,
-      "left": 148,
-      "rotate": 0
+      "top": 282,
+      "left": 132,
+      "rotate": 270
     }
   ],
   "connections": [
     {
-      "id": "conn-vcc",
+      "id": "conn-0",
       "from": "tft1:VCC",
       "to": "uno:5V",
       "color": "red"
     },
     {
-      "id": "conn-gnd",
+      "id": "conn-1",
       "from": "tft1:GND",
-      "to": "uno:GND.1",
+      "to": "uno:GND.2",
       "color": "black"
     },
     {
-      "id": "conn-cs",
+      "id": "conn-2",
       "from": "tft1:CS",
       "to": "uno:10",
       "color": "green"
     },
     {
-      "id": "conn-rst",
+      "id": "conn-3",
       "from": "tft1:RST",
       "to": "uno:8",
-      "color": "blue"
+      "color": "cyan"
     },
     {
-      "id": "conn-dc",
+      "id": "conn-4",
       "from": "tft1:D/C",
       "to": "uno:9",
       "color": "yellow"
     },
     {
-      "id": "conn-mosi",
+      "id": "conn-5",
       "from": "tft1:MOSI",
       "to": "uno:11",
-      "color": "orange"
+      "color": "blue"
     },
     {
-      "id": "conn-sck",
+      "id": "conn-6",
       "from": "tft1:SCK",
       "to": "uno:13",
       "color": "purple"
     },
     {
-      "id": "conn-miso",
+      "id": "conn-7",
       "from": "tft1:MISO",
       "to": "uno:12",
-      "color": "gray"
+      "color": "orange"
     }
   ]
 }

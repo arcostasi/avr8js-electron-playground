@@ -6,23 +6,23 @@
     {
       "id": "uno",
       "type": "wokwi-arduino-uno",
-      "top": 300,
-      "left": 200,
+      "top": 260,
+      "left": 160,
       "rotate": 0
     },
     {
       "id": "ldr1",
       "type": "wokwi-photoresistor-sensor",
-      "top": 80,
-      "left": 160,
+      "top": 110,
+      "left": 45,
       "rotate": 0
     },
     {
       "id": "r1",
       "type": "wokwi-resistor",
-      "top": 160,
-      "left": 380,
-      "rotate": 0,
+      "top": 175,
+      "left": 300,
+      "rotate": 270,
       "attrs": {
         "value": "220"
       }
@@ -30,8 +30,8 @@
     {
       "id": "led1",
       "type": "wokwi-led",
-      "top": 80,
-      "left": 380,
+      "top": 55,
+      "left": 280,
       "rotate": 0,
       "attrs": {
         "color": "white"
@@ -42,7 +42,7 @@
     {
       "id": "conn-0",
       "from": "ldr1:GND",
-      "to": "uno:GND.1",
+      "to": "uno:GND.2",
       "color": "black"
     },
     {
@@ -72,7 +72,7 @@
     {
       "id": "conn-5",
       "from": "led1:C",
-      "to": "uno:GND.2",
+      "to": "uno:GND.1",
       "color": "black"
     }
   ]

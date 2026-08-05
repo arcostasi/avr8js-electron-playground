@@ -6,26 +6,26 @@
     {
       "id": "uno",
       "type": "wokwi-arduino-uno",
-      "top": 300,
-      "left": 200,
+      "top": 260,
+      "left": 160,
       "rotate": 0
     },
     {
       "id": "slidepot1",
       "type": "wokwi-slide-potentiometer",
-      "top": 120,
-      "left": 220,
+      "top": 110,
+      "left": 70,
       "rotate": 0,
       "attrs": {
-        "value": "0.5"
+        "value": "50"
       }
     },
     {
       "id": "r1",
       "type": "wokwi-resistor",
-      "top": 160,
-      "left": 380,
-      "rotate": 0,
+      "top": 175,
+      "left": 345,
+      "rotate": 270,
       "attrs": {
         "value": "220"
       }
@@ -33,8 +33,8 @@
     {
       "id": "led1",
       "type": "wokwi-led",
-      "top": 80,
-      "left": 380,
+      "top": 55,
+      "left": 325,
       "rotate": 0,
       "attrs": {
         "color": "yellow"
@@ -45,7 +45,7 @@
     {
       "id": "conn-0",
       "from": "slidepot1:GND",
-      "to": "uno:GND.1",
+      "to": "uno:GND.2",
       "color": "black"
     },
     {
@@ -75,7 +75,7 @@
     {
       "id": "conn-5",
       "from": "led1:C",
-      "to": "uno:GND.2",
+      "to": "uno:GND.1",
       "color": "black"
     }
   ]

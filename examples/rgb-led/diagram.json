@@ -6,41 +6,49 @@
     {
       "id": "uno",
       "type": "wokwi-arduino-uno",
-      "top": 300,
-      "left": 200,
+      "top": 290,
+      "left": 140,
       "rotate": 0
     },
     {
       "id": "rgb1",
       "type": "wokwi-rgb-led",
-      "top": 100,
-      "left": 260,
+      "top": 75,
+      "left": 245,
       "rotate": 0,
-      "attrs": { "common": "cathode" }
+      "attrs": {
+        "common": "cathode"
+      }
     },
     {
       "id": "rr",
       "type": "wokwi-resistor",
-      "top": 200,
-      "left": 180,
-      "rotate": 0,
-      "attrs": { "value": "220" }
+      "top": 215,
+      "left": 225,
+      "rotate": 270,
+      "attrs": {
+        "value": "220"
+      }
     },
     {
       "id": "rg",
       "type": "wokwi-resistor",
-      "top": 200,
-      "left": 260,
-      "rotate": 0,
-      "attrs": { "value": "220" }
+      "top": 215,
+      "left": 265,
+      "rotate": 270,
+      "attrs": {
+        "value": "220"
+      }
     },
     {
       "id": "rb",
       "type": "wokwi-resistor",
-      "top": 200,
-      "left": 340,
-      "rotate": 0,
-      "attrs": { "value": "220" }
+      "top": 215,
+      "left": 305,
+      "rotate": 270,
+      "attrs": {
+        "value": "220"
+      }
     }
   ],
   "connections": [
@@ -78,7 +86,7 @@
       "id": "conn-5",
       "from": "rb:2",
       "to": "rgb1:B",
-      "color": "blue"
+      "color": "green"
     },
     {
       "id": "conn-6",

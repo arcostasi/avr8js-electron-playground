@@ -6,15 +6,15 @@
     {
       "id": "uno",
       "type": "wokwi-arduino-uno",
-      "top": 300,
+      "top": 240,
       "left": 200,
       "rotate": 0
     },
     {
       "id": "gas1",
       "type": "wokwi-gas-sensor",
-      "top": 197,
-      "left": 149,
+      "top": 120,
+      "left": 40,
       "rotate": 0
     }
   ],
@@ -22,7 +22,7 @@
     {
       "id": "conn-0",
       "from": "gas1:GND",
-      "to": "uno:GND.1",
+      "to": "uno:GND.2",
       "color": "black"
     },
     {

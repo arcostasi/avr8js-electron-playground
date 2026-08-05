@@ -6,15 +6,15 @@
     {
       "id": "uno",
       "type": "wokwi-arduino-uno",
-      "top": 300,
-      "left": 200,
+      "top": 280,
+      "left": 140,
       "rotate": 0
     },
     {
       "id": "ring1",
       "type": "wokwi-led-ring",
-      "top": 107,
-      "left": 268,
+      "top": 55,
+      "left": 215,
       "rotate": 0,
       "attrs": {
         "pixels": "16"
@@ -24,7 +24,7 @@
   "connections": [
     {
       "id": "conn-0",
-      "from": "uno:GND.1",
+      "from": "uno:GND.2",
       "to": "ring1:GND",
       "color": "black"
     },

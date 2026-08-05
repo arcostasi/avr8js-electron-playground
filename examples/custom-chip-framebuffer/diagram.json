@@ -6,16 +6,16 @@
     {
       "id": "uno",
       "type": "wokwi-arduino-uno",
-      "top": 328,
-      "left": 328,
+      "top": 270,
+      "left": 165,
       "hide": false,
       "rotate": 0
     },
     {
       "id": "screen",
       "type": "chip-custom-chip-framebuffer",
-      "top": 200,
-      "left": 192,
+      "top": 213,
+      "left": 438,
       "rotate": 0,
       "attrs": {
         "framebufferScale": "2"
@@ -31,7 +31,7 @@
     },
     {
       "id": "conn-1",
-      "from": "uno:GND.1",
+      "from": "uno:GND.2",
       "to": "screen:GND",
       "color": "black"
     }

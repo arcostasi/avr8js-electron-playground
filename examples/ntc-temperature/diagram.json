@@ -6,15 +6,15 @@
     {
       "id": "uno",
       "type": "wokwi-arduino-uno",
-      "top": 300,
-      "left": 200,
+      "top": 220,
+      "left": 230,
       "rotate": 0
     },
     {
       "id": "ntc1",
       "type": "wokwi-ntc-temperature-sensor",
-      "top": 180,
-      "left": 262,
+      "top": 454,
+      "left": 209,
       "rotate": 0
     }
   ],
@@ -22,7 +22,7 @@
     {
       "id": "conn-0",
       "from": "ntc1:GND",
-      "to": "uno:GND.1",
+      "to": "uno:GND.2",
       "color": "black"
     },
     {

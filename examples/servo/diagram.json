@@ -6,22 +6,22 @@
     {
       "id": "uno",
       "type": "wokwi-arduino-uno",
-      "top": 219,
-      "left": 194,
+      "top": 240,
+      "left": 120,
       "rotate": 0
     },
     {
       "id": "servo1",
       "type": "wokwi-servo",
-      "top": 84,
-      "left": 239,
+      "top": 105,
+      "left": 430,
       "rotate": 0
     },
     {
       "id": "pot1",
       "type": "wokwi-potentiometer",
-      "top": 295,
-      "left": 499,
+      "top": 275,
+      "left": 465,
       "rotate": 0
     }
   ],
@@ -29,7 +29,7 @@
     {
       "id": "conn-0",
       "from": "servo1:GND",
-      "to": "uno:GND.1",
+      "to": "uno:GND.2",
       "color": "black"
     },
     {
@@ -47,7 +47,7 @@
     {
       "id": "conn-3",
       "from": "pot1:GND",
-      "to": "uno:GND.2",
+      "to": "uno:GND.3",
       "color": "black"
     },
     {

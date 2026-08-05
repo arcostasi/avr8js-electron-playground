@@ -6,16 +6,16 @@
     {
       "id": "uno",
       "type": "wokwi-arduino-uno",
-      "top": 300,
-      "left": 200,
+      "top": 90,
+      "left": 140,
       "rotate": 0
     },
     {
       "id": "pot1",
       "type": "wokwi-potentiometer",
-      "top": 140,
-      "left": 260,
-      "rotate": 0,
+      "top": 300,
+      "left": 461,
+      "rotate": 90,
       "attrs": {
         "value": "0"
       }
@@ -25,7 +25,7 @@
     {
       "id": "conn-0",
       "from": "pot1:GND",
-      "to": "uno:GND.1",
+      "to": "uno:GND.2",
       "color": "black"
     },
     {

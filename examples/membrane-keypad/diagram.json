@@ -6,15 +6,15 @@
     {
       "id": "uno",
       "type": "wokwi-arduino-uno",
-      "top": 360,
-      "left": 200,
+      "top": 410,
+      "left": 150,
       "rotate": 0
     },
     {
       "id": "kp1",
       "type": "wokwi-membrane-keypad",
-      "top": 60,
-      "left": 160,
+      "top": 25,
+      "left": 170,
       "rotate": 0,
       "attrs": {
         "columns": "4"
@@ -23,52 +23,52 @@
   ],
   "connections": [
     {
-      "id": "conn-r1",
+      "id": "conn-0",
       "from": "kp1:R1",
       "to": "uno:2",
       "color": "orange"
     },
     {
-      "id": "conn-r2",
+      "id": "conn-1",
       "from": "kp1:R2",
       "to": "uno:3",
-      "color": "orange"
+      "color": "yellow"
     },
     {
-      "id": "conn-r3",
+      "id": "conn-2",
       "from": "kp1:R3",
       "to": "uno:4",
-      "color": "orange"
+      "color": "green"
     },
     {
-      "id": "conn-r4",
+      "id": "conn-3",
       "from": "kp1:R4",
       "to": "uno:5",
-      "color": "orange"
+      "color": "cyan"
     },
     {
-      "id": "conn-c1",
+      "id": "conn-4",
       "from": "kp1:C1",
       "to": "uno:6",
-      "color": "green"
+      "color": "blue"
     },
     {
-      "id": "conn-c2",
+      "id": "conn-5",
       "from": "kp1:C2",
       "to": "uno:7",
-      "color": "green"
+      "color": "purple"
     },
     {
-      "id": "conn-c3",
+      "id": "conn-6",
       "from": "kp1:C3",
       "to": "uno:8",
-      "color": "green"
+      "color": "magenta"
     },
     {
-      "id": "conn-c4",
+      "id": "conn-7",
       "from": "kp1:C4",
       "to": "uno:9",
-      "color": "green"
+      "color": "gray"
     }
   ]
 }

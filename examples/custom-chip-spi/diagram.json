@@ -6,23 +6,23 @@
     {
       "id": "uno",
       "type": "wokwi-arduino-uno",
-      "top": 220,
-      "left": 160,
+      "top": 250,
+      "left": 100,
       "rotate": 0
     },
     {
       "id": "chip1",
       "type": "chip-custom-chip-spi",
-      "top": 92,
-      "left": 243,
+      "top": 80,
+      "left": 210,
       "rotate": 0,
       "attrs": {}
     },
     {
       "id": "stepper1",
       "type": "wokwi-stepper-motor",
-      "top": 57,
-      "left": 437,
+      "top": 75,
+      "left": 430,
       "rotate": 0,
       "attrs": {
         "stepsPerRev": "64"
@@ -34,7 +34,7 @@
       "id": "conn-0",
       "from": "uno:13",
       "to": "chip1:SCK",
-      "color": "green"
+      "color": "purple"
     },
     {
       "id": "conn-1",
@@ -52,19 +52,19 @@
       "id": "conn-3",
       "from": "uno:10",
       "to": "chip1:SS",
-      "color": "purple"
+      "color": "green"
     },
     {
       "id": "conn-4",
       "from": "stepper1:A+",
       "to": "uno:4",
-      "color": "green"
+      "color": "blue"
     },
     {
       "id": "conn-5",
       "from": "stepper1:A-",
       "to": "uno:5",
-      "color": "green"
+      "color": "cyan"
     },
     {
       "id": "conn-6",
@@ -76,7 +76,7 @@
       "id": "conn-7",
       "from": "stepper1:B-",
       "to": "uno:7",
-      "color": "green"
+      "color": "yellow"
     }
   ]
 }

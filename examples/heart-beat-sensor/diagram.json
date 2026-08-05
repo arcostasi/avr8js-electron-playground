@@ -6,15 +6,15 @@
     {
       "id": "uno",
       "type": "wokwi-arduino-uno",
-      "top": 300,
+      "top": 240,
       "left": 200,
       "rotate": 0
     },
     {
       "id": "hbs1",
       "type": "wokwi-heart-beat-sensor",
-      "top": 198,
-      "left": 235,
+      "top": 120,
+      "left": 60,
       "rotate": 0
     }
   ],
@@ -22,7 +22,7 @@
     {
       "id": "conn-0",
       "from": "hbs1:GND",
-      "to": "uno:GND.1",
+      "to": "uno:GND.2",
       "color": "black"
     },
     {

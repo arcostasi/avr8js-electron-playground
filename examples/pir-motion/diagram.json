@@ -6,23 +6,23 @@
     {
       "id": "uno",
       "type": "wokwi-arduino-uno",
-      "top": 320,
-      "left": 200,
+      "top": 260,
+      "left": 160,
       "rotate": 0
     },
     {
       "id": "pir1",
       "type": "wokwi-pir-motion-sensor",
-      "top": 80,
-      "left": 160,
+      "top": 90,
+      "left": 130,
       "rotate": 0
     },
     {
       "id": "r1",
       "type": "wokwi-resistor",
-      "top": 160,
-      "left": 380,
-      "rotate": 0,
+      "top": 175,
+      "left": 290,
+      "rotate": 270,
       "attrs": {
         "value": "220"
       }
@@ -30,8 +30,8 @@
     {
       "id": "led1",
       "type": "wokwi-led",
-      "top": 80,
-      "left": 380,
+      "top": 55,
+      "left": 270,
       "rotate": 0,
       "attrs": {
         "color": "red"
@@ -42,7 +42,7 @@
     {
       "id": "conn-0",
       "from": "pir1:GND",
-      "to": "uno:GND.1",
+      "to": "uno:GND.2",
       "color": "black"
     },
     {
@@ -55,24 +55,24 @@
       "id": "conn-2",
       "from": "pir1:OUT",
       "to": "uno:7",
-      "color": "orange"
+      "color": "blue"
     },
     {
       "id": "conn-3",
       "from": "uno:13",
       "to": "r1:1",
-      "color": "red"
+      "color": "orange"
     },
     {
       "id": "conn-4",
       "from": "r1:2",
       "to": "led1:A",
-      "color": "red"
+      "color": "orange"
     },
     {
       "id": "conn-5",
       "from": "led1:C",
-      "to": "uno:GND.2",
+      "to": "uno:GND.1",
       "color": "black"
     }
   ]

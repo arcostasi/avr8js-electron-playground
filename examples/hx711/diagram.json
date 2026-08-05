@@ -6,15 +6,15 @@
     {
       "id": "uno",
       "type": "wokwi-arduino-uno",
-      "top": 300,
-      "left": 200,
+      "top": 240,
+      "left": 90,
       "rotate": 0
     },
     {
       "id": "hx711_1",
       "type": "wokwi-hx711",
-      "top": 339,
-      "left": 519,
+      "top": 200,
+      "left": 440,
       "rotate": 0
     }
   ],
@@ -22,7 +22,7 @@
     {
       "id": "conn-0",
       "from": "hx711_1:GND",
-      "to": "uno:GND.1",
+      "to": "uno:GND.2",
       "color": "black"
     },
     {
@@ -41,7 +41,7 @@
       "id": "conn-3",
       "from": "hx711_1:SCK",
       "to": "uno:2",
-      "color": "green"
+      "color": "purple"
     }
   ]
 }

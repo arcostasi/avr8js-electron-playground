@@ -6,15 +6,15 @@
     {
       "id": "uno",
       "type": "wokwi-arduino-uno",
-      "top": 320,
-      "left": 200,
+      "top": 220,
+      "left": 210,
       "rotate": 0
     },
     {
       "id": "sd1",
       "type": "wokwi-microsd-card",
-      "top": 172,
-      "left": 220,
+      "top": 110,
+      "left": 85,
       "rotate": 0
     }
   ],
@@ -22,7 +22,7 @@
     {
       "id": "conn-0",
       "from": "sd1:GND",
-      "to": "uno:GND.1",
+      "to": "uno:GND.2",
       "color": "black"
     },
     {
@@ -35,13 +35,13 @@
       "id": "conn-2",
       "from": "sd1:DI",
       "to": "uno:11",
-      "color": "orange"
+      "color": "blue"
     },
     {
       "id": "conn-3",
       "from": "sd1:DO",
       "to": "uno:12",
-      "color": "green"
+      "color": "orange"
     },
     {
       "id": "conn-4",
@@ -53,7 +53,7 @@
       "id": "conn-5",
       "from": "sd1:CS",
       "to": "uno:10",
-      "color": "blue"
+      "color": "green"
     }
   ]
 }

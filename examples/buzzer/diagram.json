@@ -6,15 +6,15 @@
     {
       "id": "uno",
       "type": "wokwi-arduino-uno",
-      "top": 300,
-      "left": 200,
+      "top": 260,
+      "left": 140,
       "rotate": 0
     },
     {
       "id": "bz1",
       "type": "wokwi-buzzer",
-      "top": 177,
-      "left": 294,
+      "top": 100,
+      "left": 250,
       "rotate": 0,
       "attrs": {
         "volume": "0.5"
@@ -23,16 +23,16 @@
   ],
   "connections": [
     {
-      "id": "conn-0-1772505085594",
+      "id": "conn-0",
       "from": "bz1:2",
       "to": "uno:GND.1",
       "color": "black"
     },
     {
-      "id": "conn-1-1772505087901",
+      "id": "conn-1",
       "from": "bz1:1",
       "to": "uno:8",
-      "color": "red"
+      "color": "orange"
     }
   ]
 }

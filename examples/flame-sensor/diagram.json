@@ -6,22 +6,22 @@
     {
       "id": "uno",
       "type": "wokwi-arduino-uno",
-      "top": 340,
-      "left": 200,
+      "top": 260,
+      "left": 180,
       "rotate": 0
     },
     {
       "id": "flame1",
       "type": "wokwi-flame-sensor",
-      "top": 181,
-      "left": 131,
+      "top": 90,
+      "left": 25,
       "rotate": 0
     },
     {
       "id": "bz1",
       "type": "wokwi-buzzer",
-      "top": 139,
-      "left": 394,
+      "top": 95,
+      "left": 320,
       "rotate": 0,
       "attrs": {
         "volume": "0.5"
@@ -32,7 +32,7 @@
     {
       "id": "conn-0",
       "from": "flame1:GND",
-      "to": "uno:GND.1",
+      "to": "uno:GND.2",
       "color": "black"
     },
     {
@@ -45,7 +45,7 @@
       "id": "conn-2",
       "from": "flame1:DOUT",
       "to": "uno:4",
-      "color": "orange"
+      "color": "green"
     },
     {
       "id": "conn-3",
@@ -56,7 +56,7 @@
     {
       "id": "conn-4",
       "from": "bz1:2",
-      "to": "uno:GND.2",
+      "to": "uno:GND.1",
       "color": "black"
     }
   ]

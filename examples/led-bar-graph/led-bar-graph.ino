@@ -7,7 +7,7 @@
 
   Wiring:
     Pins 2-11 -> Anodes A1-A10 (in order)
-    Cathodes B1-B10 -> GND
+    Cathodes C1-C10 -> GND
 */
 
 const int FIRST_PIN   = 2;  // Pin for anode A1

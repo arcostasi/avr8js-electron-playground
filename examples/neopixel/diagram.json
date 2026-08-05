@@ -6,22 +6,22 @@
     {
       "id": "uno",
       "type": "wokwi-arduino-uno",
-      "top": 300,
-      "left": 200,
+      "top": 260,
+      "left": 140,
       "rotate": 0
     },
     {
       "id": "px1",
       "type": "wokwi-neopixel",
-      "top": 100,
-      "left": 300,
+      "top": 130,
+      "left": 280,
       "rotate": 0
     }
   ],
   "connections": [
     {
       "id": "conn-0",
-      "from": "uno:GND.1",
+      "from": "uno:GND.2",
       "to": "px1:VSS",
       "color": "black"
     },

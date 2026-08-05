@@ -6,15 +6,15 @@
     {
       "id": "uno",
       "type": "wokwi-arduino-uno",
-      "top": 320,
-      "left": 200,
+      "top": 194,
+      "left": 84,
       "rotate": 0
     },
     {
       "id": "bar1",
       "type": "wokwi-led-bar-graph",
-      "top": 349,
-      "left": 491,
+      "top": 235,
+      "left": 465,
       "rotate": 0,
       "attrs": {
         "color": "red"
@@ -23,67 +23,67 @@
   ],
   "connections": [
     {
-      "id": "conn-a1",
+      "id": "conn-0",
       "from": "uno:2",
       "to": "bar1:A1",
       "color": "orange"
     },
     {
-      "id": "conn-a2",
+      "id": "conn-1",
       "from": "uno:3",
       "to": "bar1:A2",
-      "color": "orange"
+      "color": "yellow"
     },
     {
-      "id": "conn-a3",
+      "id": "conn-2",
       "from": "uno:4",
       "to": "bar1:A3",
-      "color": "orange"
+      "color": "green"
     },
     {
-      "id": "conn-a4",
+      "id": "conn-3",
       "from": "uno:5",
       "to": "bar1:A4",
-      "color": "orange"
+      "color": "cyan"
     },
     {
-      "id": "conn-a5",
+      "id": "conn-4",
       "from": "uno:6",
       "to": "bar1:A5",
-      "color": "orange"
+      "color": "blue"
     },
     {
-      "id": "conn-a6",
+      "id": "conn-5",
       "from": "uno:7",
       "to": "bar1:A6",
-      "color": "orange"
+      "color": "purple"
     },
     {
-      "id": "conn-a7",
+      "id": "conn-6",
       "from": "uno:8",
       "to": "bar1:A7",
-      "color": "orange"
+      "color": "magenta"
     },
     {
-      "id": "conn-a8",
+      "id": "conn-7",
       "from": "uno:9",
       "to": "bar1:A8",
-      "color": "orange"
+      "color": "gray"
     },
     {
-      "id": "conn-a9",
+      "id": "conn-8",
       "from": "uno:10",
       "to": "bar1:A9",
       "color": "orange"
     },
     {
-      "id": "conn-a10",
+      "id": "conn-9",
       "from": "uno:11",
       "to": "bar1:A10",
-      "color": "orange"
+      "color": "yellow"
     },
     {
-      "id": "conn-b10",
+      "id": "conn-10",
       "from": "bar1:C10",
       "to": "uno:GND.2",
       "color": "black"

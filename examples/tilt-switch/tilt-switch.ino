@@ -5,9 +5,10 @@
   when tilted the contacts open (reads HIGH).
 
   Wiring:
-    Tilt pin 1 -> Pin 2
-    Tilt pin 2 -> GND
-    Pin 13 -> 220 Ohm resistor -> LED anode (A) -> LED cathode (C) -> GND
+    Tilt VCC -> 5V
+    Tilt GND -> GND
+    Tilt OUT -> Pin 2
+    Pin 13   -> 220 Ohm resistor -> LED anode (A) -> LED cathode (C) -> GND
 */
 
 const int TILT_PIN = 2;  // Tilt switch input (INPUT_PULLUP)

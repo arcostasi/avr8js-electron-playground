@@ -6,15 +6,15 @@
     {
       "id": "uno",
       "type": "wokwi-arduino-uno",
-      "top": 320,
-      "left": 100,
+      "top": 184,
+      "left": 118,
       "rotate": 0
     },
     {
       "id": "lcd1",
       "type": "wokwi-lcd2004",
-      "top": 91,
-      "left": 47,
+      "top": 376,
+      "left": 424,
       "rotate": 0,
       "attrs": {
         "pins": "i2c"
@@ -31,20 +31,20 @@
     {
       "id": "conn-1",
       "from": "lcd1:GND",
-      "to": "uno:GND.1",
+      "to": "uno:GND.2",
       "color": "black"
     },
     {
       "id": "conn-2",
       "from": "lcd1:SDA",
       "to": "uno:A4",
-      "color": "orange"
+      "color": "blue"
     },
     {
       "id": "conn-3",
       "from": "lcd1:SCL",
       "to": "uno:A5",
-      "color": "purple"
+      "color": "yellow"
     }
   ]
 }

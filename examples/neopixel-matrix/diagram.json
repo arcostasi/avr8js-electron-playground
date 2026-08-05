@@ -6,16 +6,16 @@
     {
       "id": "uno",
       "type": "wokwi-arduino-uno",
-      "top": 480,
-      "left": 200,
+      "top": 450,
+      "left": 218,
       "hide": false,
       "rotate": 0
     },
     {
       "id": "neopixels",
       "type": "wokwi-neopixel-matrix",
-      "top": 60,
-      "left": 140,
+      "top": 45,
+      "left": 155,
       "rotate": 0,
       "attrs": {
         "rows": "16",
@@ -28,7 +28,7 @@
   "connections": [
     {
       "id": "conn-0",
-      "from": "uno:GND.1",
+      "from": "uno:GND.2",
       "to": "neopixels:GND",
       "color": "black"
     },

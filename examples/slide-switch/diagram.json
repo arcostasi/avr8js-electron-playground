@@ -6,23 +6,23 @@
     {
       "id": "uno",
       "type": "wokwi-arduino-uno",
-      "top": 300,
-      "left": 200,
+      "top": 265,
+      "left": 14,
       "rotate": 0
     },
     {
       "id": "sw1",
       "type": "wokwi-slide-switch",
-      "top": 160,
-      "left": 120,
+      "top": 135,
+      "left": 130,
       "rotate": 0
     },
     {
       "id": "r1",
       "type": "wokwi-resistor",
-      "top": 160,
-      "left": 360,
-      "rotate": 0,
+      "top": 175,
+      "left": 285,
+      "rotate": 270,
       "attrs": {
         "value": "220"
       }
@@ -30,8 +30,8 @@
     {
       "id": "led1",
       "type": "wokwi-led",
-      "top": 80,
-      "left": 360,
+      "top": 55,
+      "left": 265,
       "rotate": 0,
       "attrs": {
         "color": "green"
@@ -66,7 +66,7 @@
     {
       "id": "conn-4",
       "from": "led1:C",
-      "to": "uno:GND.2",
+      "to": "uno:GND.1",
       "color": "black"
     }
   ]

@@ -6,22 +6,22 @@
     {
       "id": "uno",
       "type": "wokwi-arduino-uno",
-      "top": 300,
-      "left": 200,
+      "top": 260,
+      "left": 190,
       "rotate": 0
     },
     {
       "id": "irrecv1",
       "type": "wokwi-ir-receiver",
-      "top": 158,
-      "left": 260,
+      "top": 100,
+      "left": 270,
       "rotate": 0
     },
     {
       "id": "irremote1",
       "type": "wokwi-ir-remote",
-      "top": 20,
-      "left": 10,
+      "top": 45,
+      "left": 15,
       "rotate": 0
     }
   ],
@@ -29,7 +29,7 @@
     {
       "id": "conn-0",
       "from": "irrecv1:GND",
-      "to": "uno:GND.1",
+      "to": "uno:GND.2",
       "color": "black"
     },
     {

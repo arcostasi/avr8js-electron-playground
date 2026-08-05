@@ -6,15 +6,15 @@
     {
       "id": "uno",
       "type": "wokwi-arduino-uno",
-      "top": 300,
-      "left": 200,
+      "top": 86,
+      "left": 122,
       "rotate": 0
     },
     {
       "id": "dip1",
       "type": "wokwi-dip-switch-8",
-      "top": 425,
-      "left": 108,
+      "top": 218,
+      "left": 473,
       "rotate": 0
     }
   ],
@@ -29,43 +29,43 @@
       "id": "conn-1",
       "from": "dip1:2a",
       "to": "uno:3",
-      "color": "orange"
+      "color": "yellow"
     },
     {
       "id": "conn-2",
       "from": "dip1:3a",
       "to": "uno:4",
-      "color": "orange"
+      "color": "green"
     },
     {
       "id": "conn-3",
       "from": "dip1:4a",
       "to": "uno:5",
-      "color": "orange"
+      "color": "cyan"
     },
     {
       "id": "conn-4",
       "from": "dip1:5a",
       "to": "uno:6",
-      "color": "orange"
+      "color": "blue"
     },
     {
       "id": "conn-5",
       "from": "dip1:6a",
       "to": "uno:7",
-      "color": "orange"
+      "color": "purple"
     },
     {
       "id": "conn-6",
       "from": "dip1:7a",
       "to": "uno:8",
-      "color": "orange"
+      "color": "magenta"
     },
     {
       "id": "conn-7",
       "from": "dip1:8a",
       "to": "uno:9",
-      "color": "orange"
+      "color": "gray"
     },
     {
       "id": "conn-8",

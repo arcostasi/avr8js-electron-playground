@@ -6,17 +6,17 @@
     {
       "id": "uno",
       "type": "wokwi-arduino-uno",
-      "top": 332,
-      "left": 170,
+      "top": 260,
+      "left": 120,
       "rotate": 0,
       "attrs": {}
     },
     {
       "id": "r1",
       "type": "wokwi-resistor",
-      "top": 238,
-      "left": 313,
-      "rotate": 90,
+      "top": 210,
+      "left": 240,
+      "rotate": 270,
       "attrs": {
         "value": "220"
       }
@@ -24,8 +24,8 @@
     {
       "id": "led1",
       "type": "wokwi-led",
-      "top": 150,
-      "left": 262,
+      "top": 85,
+      "left": 220,
       "rotate": 0,
       "attrs": {
         "color": "red"
@@ -36,12 +36,12 @@
     {
       "id": "conn-0",
       "from": "uno:13",
-      "to": "r1:2",
+      "to": "r1:1",
       "color": "green"
     },
     {
       "id": "conn-1",
-      "from": "r1:1",
+      "from": "r1:2",
       "to": "led1:A",
       "color": "green"
     },

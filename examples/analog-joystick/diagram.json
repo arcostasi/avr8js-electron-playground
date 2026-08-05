@@ -6,15 +6,15 @@
     {
       "id": "uno",
       "type": "wokwi-arduino-uno",
-      "top": 300,
-      "left": 200,
+      "top": 280,
+      "left": 140,
       "rotate": 0
     },
     {
       "id": "joy1",
       "type": "wokwi-analog-joystick",
       "top": 80,
-      "left": 240,
+      "left": 209,
       "rotate": 0
     }
   ],
@@ -22,7 +22,7 @@
     {
       "id": "conn-0",
       "from": "joy1:GND",
-      "to": "uno:GND.1",
+      "to": "uno:GND.2",
       "color": "black"
     },
     {
@@ -41,7 +41,7 @@
       "id": "conn-3",
       "from": "joy1:HORZ",
       "to": "uno:A1",
-      "color": "green"
+      "color": "yellow"
     },
     {
       "id": "conn-4",

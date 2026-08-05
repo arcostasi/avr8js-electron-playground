@@ -6,30 +6,30 @@
     {
       "id": "uno",
       "type": "wokwi-arduino-uno",
-      "top": 220,
-      "left": 180,
+      "top": 240,
+      "left": 110,
       "rotate": 0
     },
     {
       "id": "chip1",
       "type": "chip-custom-chip-analog",
-      "top": 106,
-      "left": 381,
+      "top": 75,
+      "left": 410,
       "rotate": 0,
       "attrs": {}
     },
     {
       "id": "servo1",
       "type": "wokwi-servo",
-      "top": 203,
-      "left": 500,
+      "top": 245,
+      "left": 480,
       "rotate": 0
     },
     {
       "id": "r1",
       "type": "wokwi-resistor",
-      "top": 149,
-      "left": 339,
+      "top": 175,
+      "left": 245,
       "rotate": 270,
       "attrs": {
         "value": "220"
@@ -38,8 +38,8 @@
     {
       "id": "led1",
       "type": "wokwi-led",
-      "top": 25,
-      "left": 289,
+      "top": 55,
+      "left": 225,
       "rotate": 0,
       "attrs": {
         "color": "yellow"
@@ -62,7 +62,7 @@
     {
       "id": "conn-2",
       "from": "servo1:GND",
-      "to": "uno:GND.1",
+      "to": "uno:GND.2",
       "color": "black"
     },
     {
@@ -92,7 +92,7 @@
     {
       "id": "conn-7",
       "from": "led1:C",
-      "to": "uno:GND.2",
+      "to": "uno:GND.1",
       "color": "black"
     }
   ]

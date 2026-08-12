@@ -1,0 +1,8 @@
+{
+  "name": "Dot Matrix RGB 16x16",
+  "slug": "dot-matrix-react-16x16",
+  "category": "leds",
+  "board": "uno",
+  "description": "Animated 16x16 RGB plasma wave on the customizable Dot Matrix RGB component using FastLED and AVR8js.",
+  "tags": ["dot-matrix-react", "fastled", "neopixel", "ws2812", "matrix", "rgb"]
+}

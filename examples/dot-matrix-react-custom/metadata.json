@@ -1,0 +1,8 @@
+{
+  "name": "Dot Matrix RGB Custom (24x8)",
+  "slug": "dot-matrix-react-custom",
+  "category": "leds",
+  "board": "uno",
+  "description": "Wide 24x8 custom RGB spectrum wave demonstrating configurable matrix width, height, and hole size.",
+  "tags": ["dot-matrix-react", "fastled", "neopixel", "ws2812", "matrix", "custom", "rgb"]
+}

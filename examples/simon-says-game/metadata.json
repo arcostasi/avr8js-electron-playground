@@ -1,0 +1,8 @@
+{
+  "name": "Simon Says Memory Game",
+  "slug": "simon-says-game",
+  "category": "games",
+  "board": "uno",
+  "description": "Playable 4-color Simon Says memory game with matching LEDs, pushbuttons, musical tones on buzzer, and LCD1602 score/level readout.",
+  "tags": ["game", "led", "pushbutton", "buzzer", "lcd1602"]
+}

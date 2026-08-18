@@ -1,0 +1,8 @@
+{
+  "name": "Smart Weather Station",
+  "slug": "weather-station-lcd",
+  "category": "sensors",
+  "board": "uno",
+  "description": "DHT22 temperature & humidity monitor with Heat Index calculation, comfort LEDs, C/F pushbutton toggle, high-temperature buzzer alert, LCD1602 display, and Serial Plotter telemetry.",
+  "tags": ["dht22", "lcd1602", "led", "pushbutton", "buzzer", "plotter"]
+}

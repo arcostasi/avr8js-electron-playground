@@ -1,0 +1,31 @@
+{
+  "version": 2,
+  "author": "avr8js-electron",
+  "editor": "avr8js-electron-playground",
+  "parts": [
+    { "id": "uno", "type": "wokwi-arduino-uno", "top": 275, "left": 140, "rotate": 0 },
+    { "id": "hcsr04", "type": "wokwi-hc-sr04", "top": 40, "left": 115, "rotate": 0 },
+    { "id": "ring1", "type": "wokwi-led-ring", "top": 55, "left": 300, "rotate": 0, "attrs": { "pixels": "16" } },
+    { "id": "lcd1", "type": "wokwi-lcd1602", "top": 45, "left": 480, "rotate": 0, "attrs": { "pins": "i2c" } },
+    { "id": "servo1", "type": "wokwi-servo", "top": 215, "left": 485, "rotate": 0 },
+    { "id": "bz1", "type": "wokwi-buzzer", "top": 355, "left": 510, "rotate": 0, "attrs": { "volume": "0.5" } }
+  ],
+  "connections": [
+    { "id": "c-sr-gnd", "from": "hcsr04:GND", "to": "uno:GND.1", "color": "black" },
+    { "id": "c-sr-vcc", "from": "hcsr04:VCC", "to": "uno:5V", "color": "red" },
+    { "id": "c-sr-trig", "from": "hcsr04:TRIG", "to": "uno:9", "color": "orange" },
+    { "id": "c-sr-echo", "from": "hcsr04:ECHO", "to": "uno:8", "color": "green" },
+    { "id": "c-ring-gnd", "from": "ring1:GND", "to": "uno:GND.2", "color": "black" },
+    { "id": "c-ring-vcc", "from": "ring1:VCC", "to": "uno:5V", "color": "red" },
+    { "id": "c-ring-din", "from": "ring1:DIN", "to": "uno:6", "color": "cyan" },
+    { "id": "c-srv-gnd", "from": "servo1:GND", "to": "uno:GND.2", "color": "black" },
+    { "id": "c-srv-vcc", "from": "servo1:V+", "to": "uno:5V", "color": "red" },
+    { "id": "c-srv-pwm", "from": "servo1:PWM", "to": "uno:10", "color": "purple" },
+    { "id": "c-bz-sig", "from": "bz1:1", "to": "uno:7", "color": "orange" },
+    { "id": "c-bz-gnd", "from": "bz1:2", "to": "uno:GND.2", "color": "black" },
+    { "id": "c-lcd-gnd", "from": "lcd1:GND", "to": "uno:GND.3", "color": "black" },
+    { "id": "c-lcd-vcc", "from": "lcd1:VCC", "to": "uno:5V", "color": "red" },
+    { "id": "c-lcd-sda", "from": "lcd1:SDA", "to": "uno:A4", "color": "blue" },
+    { "id": "c-lcd-scl", "from": "lcd1:SCL", "to": "uno:A5", "color": "yellow" }
+  ]
+}

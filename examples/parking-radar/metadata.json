@@ -1,0 +1,8 @@
+{
+  "name": "Ultrasonic Parking Radar",
+  "slug": "parking-radar",
+  "category": "sensors",
+  "board": "uno",
+  "description": "Smart parking assistant combining HC-SR04 ultrasonic sensor, 16-LED NeoPixel ring gauge, Servo barrier angle, proximity buzzer, LCD1602 readout, and Serial Plotter telemetry.",
+  "tags": ["hc-sr04", "led-ring", "servo", "buzzer", "lcd1602", "plotter"]
+}

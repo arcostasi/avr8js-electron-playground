@@ -1,0 +1,40 @@
+{
+  "version": 2,
+  "author": "avr8js-electron",
+  "editor": "avr8js-electron-playground",
+  "parts": [
+    { "id": "uno", "type": "wokwi-arduino-uno", "top": 270, "left": 140, "rotate": 0 },
+    { "id": "dht1", "type": "wokwi-dht22", "top": 55, "left": 135, "rotate": 0 },
+    { "id": "lcd1", "type": "wokwi-lcd1602", "top": 45, "left": 430, "rotate": 0, "attrs": { "pins": "i2c" } },
+    { "id": "bz1", "type": "wokwi-buzzer", "top": 215, "left": 510, "rotate": 0, "attrs": { "volume": "0.5" } },
+    { "id": "btnUnit", "type": "wokwi-pushbutton", "top": 335, "left": 500, "rotate": 0, "attrs": { "color": "yellow" } },
+    { "id": "rCold", "type": "wokwi-resistor", "top": 125, "left": 240, "rotate": 90, "attrs": { "value": "220" } },
+    { "id": "rOk", "type": "wokwi-resistor", "top": 125, "left": 295, "rotate": 90, "attrs": { "value": "220" } },
+    { "id": "rHot", "type": "wokwi-resistor", "top": 125, "left": 350, "rotate": 90, "attrs": { "value": "220" } },
+    { "id": "ledCold", "type": "wokwi-led", "top": 35, "left": 235, "rotate": 0, "attrs": { "color": "blue" } },
+    { "id": "ledOk", "type": "wokwi-led", "top": 35, "left": 290, "rotate": 0, "attrs": { "color": "green" } },
+    { "id": "ledHot", "type": "wokwi-led", "top": 35, "left": 345, "rotate": 0, "attrs": { "color": "red" } }
+  ],
+  "connections": [
+    { "id": "c-dht-gnd", "from": "dht1:GND", "to": "uno:GND.1", "color": "black" },
+    { "id": "c-dht-vcc", "from": "dht1:VCC", "to": "uno:5V", "color": "red" },
+    { "id": "c-dht-sda", "from": "dht1:SDA", "to": "uno:7", "color": "green" },
+    { "id": "c-lc1", "from": "uno:10", "to": "rCold:1", "color": "blue" },
+    { "id": "c-lc2", "from": "rCold:2", "to": "ledCold:A", "color": "blue" },
+    { "id": "c-lcc", "from": "ledCold:C", "to": "uno:GND.1", "color": "black" },
+    { "id": "c-lo1", "from": "uno:11", "to": "rOk:1", "color": "green" },
+    { "id": "c-lo2", "from": "rOk:2", "to": "ledOk:A", "color": "green" },
+    { "id": "c-loc", "from": "ledOk:C", "to": "uno:GND.1", "color": "black" },
+    { "id": "c-lh1", "from": "uno:12", "to": "rHot:1", "color": "red" },
+    { "id": "c-lh2", "from": "rHot:2", "to": "ledHot:A", "color": "red" },
+    { "id": "c-lhc", "from": "ledHot:C", "to": "uno:GND.1", "color": "black" },
+    { "id": "c-btn-sig", "from": "uno:2", "to": "btnUnit:1.l", "color": "yellow" },
+    { "id": "c-btn-gnd", "from": "btnUnit:2.l", "to": "uno:GND.2", "color": "black" },
+    { "id": "c-bz-sig", "from": "uno:8", "to": "bz1:1", "color": "orange" },
+    { "id": "c-bz-gnd", "from": "bz1:2", "to": "uno:GND.2", "color": "black" },
+    { "id": "c-lcd-gnd", "from": "lcd1:GND", "to": "uno:GND.3", "color": "black" },
+    { "id": "c-lcd-vcc", "from": "lcd1:VCC", "to": "uno:5V", "color": "red" },
+    { "id": "c-lcd-sda", "from": "lcd1:SDA", "to": "uno:A4", "color": "blue" },
+    { "id": "c-lcd-scl", "from": "lcd1:SCL", "to": "uno:A5", "color": "yellow" }
+  ]
+}

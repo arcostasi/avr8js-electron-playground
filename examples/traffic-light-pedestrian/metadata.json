@@ -1,0 +1,8 @@
+{
+  "name": "Traffic Light & Pedestrian",
+  "slug": "traffic-light-pedestrian",
+  "category": "basics",
+  "board": "uno",
+  "description": "Smart intersection controller with car and pedestrian traffic lights, crosswalk request button, LCD1602 countdown display, and audible pedestrian crossing tones.",
+  "tags": ["led", "pushbutton", "buzzer", "lcd1602", "state-machine"]
+}

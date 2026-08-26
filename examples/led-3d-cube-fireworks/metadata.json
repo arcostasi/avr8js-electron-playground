@@ -1,0 +1,8 @@
+{
+  "name": "3D LED Cube — Fireworks & Galaxy",
+  "slug": "led-3d-cube-fireworks",
+  "category": "leds",
+  "board": "mega",
+  "description": "Particle and cosmic 8x8x8 3D RGB LED Cube showpieces: Chrysanthemum Fireworks, Willow Cascade, Spiral Galaxy, Starfield Warp, Solar System Orbits, and Bioluminescent Fireflies.",
+  "tags": ["fastled", "neopixel", "ws2812", "cube", "3d", "custom-view", "particles"]
+}

@@ -1,0 +1,8 @@
+{
+  "name": "3D LED Cube — Geometry & Waveforms",
+  "slug": "led-3d-cube-geometry",
+  "category": "leds",
+  "board": "mega",
+  "description": "3D geometric wireframe and mathematical waveform showpieces for the 8x8x8 LED Cube: Rotating 3D Cube, Gyroscope Gimbals, Lissajous Knot, Spectrum Towers, Intersecting Shockwaves, and Rotating Octahedron.",
+  "tags": ["fastled", "neopixel", "ws2812", "cube", "3d", "custom-view", "geometry"]
+}

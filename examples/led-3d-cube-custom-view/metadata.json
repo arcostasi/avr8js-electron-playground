@@ -1,0 +1,8 @@
+{
+  "name": "3D LED Cube (Custom View)",
+  "slug": "led-3d-cube-custom-view",
+  "category": "leds",
+  "board": "mega",
+  "description": "8x8x8 3D RGB LED Cube with 10 volumetric FastLED effects (Aurora, Interference, Metaballs, Fireworks, Matrix Rain, DNA Helix, Vortex, Wireframe, Campfire, Ribbons) and interactive Serial controls.",
+  "tags": ["fastled", "neopixel", "ws2812", "cube", "3d", "custom-view"]
+}

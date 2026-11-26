@@ -2,6 +2,8 @@
 
 A desktop Arduino simulator for AVR boards. Write sketches, wire virtual circuits, and see how components respond as your code runs.
 
+![AVR8js Electron Playground showing the code editor, serial monitor, and a simulated Arduino Uno circuit](examples/print.png)
+
 ## Run locally
 
 Install Git and Node.js 24 with npm. [Download Node.js](https://nodejs.org/en/download)

@@ -131,9 +131,6 @@ function forwardProjectProgress(
   });
 }
 
-// Setup the titlebar main process
-setupTitlebar();
-
 const MIN_WINDOW_WIDTH = 640;
 const MIN_WINDOW_HEIGHT = 480;
 const DEFAULT_WINDOW_WIDTH = 1440;
@@ -276,6 +273,7 @@ class Main {
   public init(ipcChannels: IpcChannelInterface[]) {
     app.on('ready', () => this.onReady(ipcChannels));
     app.on('activate', () => this.onActivate());
+    app.on('second-instance', () => this.onSecondInstance());
     app.on('window-all-closed', () => this.onWindowAllClosed());
   }
 
@@ -1074,6 +1072,17 @@ class Main {
     }
   }
 
+  private onSecondInstance() {
+    const window = this.mainWindow;
+    if (!window) {
+      this.onActivate();
+      return;
+    }
+
+    if (window.isMinimized()) window.restore();
+    window.focus();
+  }
+
   /**
    * Quit when all windows are closed, except on macOS. There, it's common
    * for applications and their menu bar to stay active until the user quits
@@ -1086,7 +1095,10 @@ class Main {
   }
 }
 
-// Here we go!
-(new Main()).init([
-  new SystemInfoChannel()
-]);
+// Only the primary instance may start Chromium sessions for this profile.
+if (app.requestSingleInstanceLock()) {
+  setupTitlebar();
+  new Main().init([new SystemInfoChannel()]);
+} else {
+  app.exit(0);
+}
